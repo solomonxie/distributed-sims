@@ -1,0 +1,264 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    a { color: var(--accent, #4F5FEA); }
+    a:hover { color: var(--accent, #4F5FEA); opacity: 0.8; }
+    .btn { font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 12.5px; font-weight: 500; border-radius: 6px; padding: 7px 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border); background: var(--bg-panel); color: var(--text); }
+    .btn-primary { background: var(--accent); color: var(--accent-contrast); border-color: var(--accent); }
+    .mono { font-family: 'IBM Plex Mono', monospace; }
+    .row { display: flex; align-items: center; }
+    .col { display: flex; flex-direction: column; }
+  </style>
+</helmet>
+<div style="--bg-canvas:{{theme.bgCanvas}};--dot:{{theme.dot}};--bg-panel:{{theme.bgPanel}};--border:{{theme.border}};--border-strong:{{theme.borderStrong}};--text:{{theme.text}};--text-2:{{theme.text2}};--text-3:{{theme.text3}};--accent:{{theme.accent}};--accent-soft:{{theme.accentSoft}};--accent-contrast:{{theme.accentContrast}};--warn:{{theme.warn}};--warn-bg:{{theme.warnBg}};--warn-border:{{theme.warnBorder}};--crit:{{theme.crit}};--crit-bg:{{theme.critBg}};--crit-border:{{theme.critBorder}};--shadow:{{theme.shadow}}; width:1440px; height:900px; background:var(--bg-canvas); color:var(--text); font-family:'IBM Plex Sans',system-ui,sans-serif; display:flex; flex-direction:column; overflow:hidden; position:relative;">
+
+  <!-- TOP BAR -->
+  <div class="row" style="height:56px; flex:0 0 auto; border-bottom:1px solid var(--border); background:var(--bg-panel); padding:0 16px; gap:14px;">
+    <div class="row" style="gap:8px;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="5" r="2.3"/><circle cx="19" cy="5" r="2.3"/><circle cx="12" cy="19" r="2.3"/><path d="M6.6 6.6L11 17M17.4 6.6L13 17M7.5 5h9"/></svg>
+      <span style="font-size:13px; font-weight:600;">Distributed Systems Simulator</span>
+    </div>
+    <div style="width:1px; height:20px; background:var(--border);"></div>
+    <div class="row" style="gap:6px; color:var(--text-2); font-size:13px;">
+      <span>Sample E-commerce Microservices</span>
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" stroke-width="2" stroke-linecap="round"><path d="M4 17l6-10 4 6 6-9"/></svg>
+    </div>
+    <div style="flex:1;"></div>
+    <button class="btn"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Presets</button>
+    <button class="btn"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>Cost estimate</button>
+    <button class="btn btn-primary"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>Pause</button>
+  </div>
+
+  <!-- BODY -->
+  <div class="row" style="flex:1; min-height:0;">
+
+    <!-- PALETTE -->
+    <div class="col" style="width:220px; flex:0 0 auto; border-right:1px solid var(--border); background:var(--bg-panel); overflow:hidden;">
+      <div style="padding:10px 12px; border-bottom:1px solid var(--border);">
+        <div class="row" style="gap:6px; background:var(--bg-canvas); border:1px solid var(--border); border-radius:6px; padding:6px 8px;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+          <span style="font-size:12px; color:var(--text-3);">Search components…</span>
+        </div>
+      </div>
+      <div class="col" style="padding:10px 0; overflow-y:auto; gap:14px;">
+
+        <div class="col" style="padding:0 12px; gap:4px;">
+          <div style="font-size:10.5px; font-weight:600; letter-spacing:0.06em; color:var(--text-3); padding:2px 0;">TRAFFIC SOURCES</div>
+          <div class="row" style="gap:8px; padding:5px 6px; border-radius:6px; border:1px dashed var(--border-strong);">
+            <div class="row" style="width:22px; height:22px; border-radius:5px; background:var(--accent-soft); align-items:center; justify-content:center; color:var(--accent);">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="3"/><path d="M2 20c0-3.5 2.7-6 6-6s6 2.5 6 6"/><circle cx="17" cy="7" r="2.4"/><path d="M14.5 20c0.3-3 2.3-5.3 5-5.8"/></svg>
+            </div>
+            <span style="font-size:12.5px;">Load Generator</span>
+          </div>
+        </div>
+
+        <div style="height:1px; background:var(--border); margin:0 12px;"></div>
+
+        <div style="font-size:10.5px; font-weight:600; letter-spacing:0.06em; color:var(--text-3); padding:0 12px;">COMPONENTS</div>
+
+        <sc-for list="{{groups}}" as="g" hint-placeholder-count="8">
+          <div class="col" style="padding:0 12px; gap:4px;">
+            <div style="font-size:10.5px; font-weight:600; letter-spacing:0.06em; color:var(--text-3);">{{g.name}}</div>
+            <sc-for list="{{g.items}}" as="it" hint-placeholder-count="2">
+              <div class="row" style="gap:8px; padding:5px 6px; border-radius:6px;">
+                <img src="{{it.icon}}" width="16" height="16" style="border-radius:3px;" />
+                <span style="font-size:12.5px;">{{it.name}}</span>
+              </div>
+            </sc-for>
+          </div>
+        </sc-for>
+
+      </div>
+    </div>
+
+    <!-- CANVAS -->
+    <div style="flex:1; position:relative; background-image:radial-gradient(var(--dot) 1px, transparent 1px); background-size:20px 20px; overflow:hidden;">
+
+      <!-- load generator tokens -->
+      <div class="col" style="position:absolute; left:20px; top:64px; width:190px; padding:9px 10px; border-radius:8px; background:var(--bg-panel); border:1px dashed var(--border-strong); box-shadow:var(--shadow); gap:6px;">
+        <div class="row" style="gap:6px; color:var(--text-2);">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="3"/><path d="M2 20c0-3.5 2.7-6 6-6s6 2.5 6 6"/><circle cx="17" cy="7" r="2.4"/><path d="M14.5 20c0.3-3 2.3-5.3 5-5.8"/></svg>
+          <span style="font-size:11.5px; font-weight:500;">Normal users</span>
+        </div>
+        <div style="height:4px; border-radius:2px; background:var(--border); position:relative;">
+          <div style="position:absolute; left:0; top:0; height:4px; width:30%; border-radius:2px; background:var(--text-3);"></div>
+          <div style="position:absolute; left:30%; top:-3px; width:10px; height:10px; margin-left:-5px; border-radius:50%; background:var(--bg-panel); border:2px solid var(--text-3);"></div>
+        </div>
+        <div class="mono" style="font-size:10.5px; color:var(--text-3);">80 req/s · 12 concurrent</div>
+      </div>
+
+      <div class="col" style="position:absolute; left:20px; top:172px; width:190px; padding:9px 10px; border-radius:8px; background:var(--bg-panel); border:1.5px solid var(--accent); box-shadow:var(--shadow); gap:6px;">
+        <div class="row" style="gap:6px; color:var(--accent);">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="3"/><path d="M2 20c0-3.5 2.7-6 6-6s6 2.5 6 6"/><circle cx="17" cy="7" r="2.4"/><path d="M14.5 20c0.3-3 2.3-5.3 5-5.8"/></svg>
+          <span style="font-size:11.5px; font-weight:500;">Mobile burst</span>
+        </div>
+        <div style="height:4px; border-radius:2px; background:var(--border); position:relative;">
+          <div style="position:absolute; left:0; top:0; height:4px; width:72%; border-radius:2px; background:var(--accent);"></div>
+          <div style="position:absolute; left:72%; top:-3px; width:10px; height:10px; margin-left:-5px; border-radius:50%; background:var(--accent); border:2px solid var(--bg-panel); box-shadow:0 0 0 2px var(--accent);"></div>
+        </div>
+        <div class="mono" style="font-size:10.5px; color:var(--accent); font-weight:500;">310 req/s · 64 concurrent</div>
+      </div>
+
+      <svg width="900" height="772" style="position:absolute; left:0; top:0; overflow:visible;">
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="var(--text-3)"/>
+          </marker>
+        </defs>
+        <path d="M115,244 L115,330" stroke="var(--text-3)" stroke-width="1.5" stroke-dasharray="3 3" fill="none" marker-end="url(#arrow)"/>
+        <path d="M206,362 L260,362" stroke="var(--text-3)" stroke-width="1.5" fill="none" marker-end="url(#arrow)"/>
+        <path d="M436,362 L500,362" stroke="var(--text-3)" stroke-width="1.5" fill="none" marker-end="url(#arrow)"/>
+        <path d="M676,362 C 710,362 710,202 740,202" stroke="var(--crit)" stroke-width="1.8" fill="none" marker-end="url(#arrow)"/>
+        <path d="M676,362 C 710,362 710,502 740,502" stroke="var(--text-3)" stroke-width="1.5" fill="none" marker-end="url(#arrow)"/>
+      </svg>
+
+      <sc-for list="{{nodes}}" as="n" hint-placeholder-count="5">
+        <div style="position:absolute; left:{{n.x}}px; top:{{n.y}}px; width:176px; padding:10px; border-radius:9px; background:var(--bg-panel); border:1px solid var(--border); box-shadow:var(--shadow);">
+          <div class="row" style="gap:9px;">
+            <div class="row" style="width:30px; height:30px; border-radius:7px; background:var(--bg-canvas); border:1px solid var(--border); align-items:center; justify-content:center; flex:0 0 auto;">
+              <img src="{{n.icon}}" width="17" height="17" />
+            </div>
+            <div class="col" style="min-width:0;">
+              <span style="font-size:12.5px; font-weight:600;">{{n.name}}</span>
+              <span class="mono" style="font-size:10.5px; color:var(--text-2);">{{n.type}}</span>
+            </div>
+          </div>
+          <sc-if value="{{n.critical}}" hint-placeholder-val="{{false}}">
+            <div style="position:absolute; top:-8px; right:-8px; width:16px; height:16px; border-radius:50%; background:var(--crit); border:2px solid var(--bg-canvas);"></div>
+          </sc-if>
+          <sc-if value="{{n.warning}}" hint-placeholder-val="{{false}}">
+            <div style="position:absolute; top:-8px; right:-8px; width:16px; height:16px; border-radius:50%; background:var(--warn); border:2px solid var(--bg-canvas);"></div>
+          </sc-if>
+        </div>
+      </sc-for>
+
+      <div class="col" style="position:absolute; left:740px; top:110px; width:210px; padding:8px 10px; border-radius:7px; background:var(--crit-bg); border:1px solid var(--crit-border); gap:2px;">
+        <span style="font-size:10.5px; font-weight:600; color:var(--crit);">CRITICAL</span>
+        <span class="mono" style="font-size:10.5px; color:var(--text);">p99 640ms · saturation 94%</span>
+      </div>
+
+      <div class="col" style="position:absolute; left:500px; top:280px; width:190px; padding:7px 10px; border-radius:7px; background:var(--warn-bg); border:1px solid var(--warn-border); gap:2px;">
+        <span style="font-size:10px; font-weight:600; color:var(--warn);">WARNING</span>
+        <span class="mono" style="font-size:10px; color:var(--text);">p99 210ms (&gt;200ms)</span>
+      </div>
+
+    </div>
+
+    <!-- INSPECTOR -->
+    <div class="col" style="width:300px; flex:0 0 auto; border-left:1px solid var(--border); background:var(--bg-panel); padding:16px; gap:16px; overflow-y:auto;">
+      <div class="row" style="gap:10px;">
+        <div class="row" style="width:32px; height:32px; border-radius:7px; background:var(--bg-canvas); border:1px solid var(--border); align-items:center; justify-content:center;">
+          <img src="postgres.svg" width="18" height="18" />
+        </div>
+        <div class="col">
+          <span style="font-size:13px; font-weight:600;">orders-db</span>
+          <span class="mono" style="font-size:10.5px; color:var(--text-2);">postgres · relational-db</span>
+        </div>
+      </div>
+
+      <div class="col" style="gap:8px;">
+        <div style="font-size:10.5px; font-weight:600; letter-spacing:0.06em; color:var(--text-3);">SPECS</div>
+        <div class="col" style="gap:4px;">
+          <span style="font-size:11.5px; color:var(--text-2);">avg_response_time_ms</span>
+          <div class="row" style="justify-content:space-between; align-items:baseline; padding:7px 9px; border-radius:6px; background:var(--crit-bg); border:1px solid var(--crit-border);">
+            <span class="mono" style="font-size:13px; font-weight:600; color:var(--crit);">500</span>
+            <span class="mono" style="font-size:10px; color:var(--text-3);">default: 15</span>
+          </div>
+        </div>
+        <div class="col" style="gap:4px;">
+          <span style="font-size:11.5px; color:var(--text-2);">max_connections</span>
+          <div class="row" style="padding:7px 9px; border-radius:6px; background:var(--bg-canvas); border:1px solid var(--border);">
+            <span class="mono" style="font-size:13px;">200</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="col" style="gap:8px;">
+        <div style="font-size:10.5px; font-weight:600; letter-spacing:0.06em; color:var(--text-3);">ALERTS</div>
+        <div class="col" style="gap:3px; padding:9px 10px; border-radius:7px; background:var(--crit-bg); border:1px solid var(--crit-border);">
+          <div class="row" style="justify-content:space-between;">
+            <span style="font-size:11.5px; font-weight:500;">saturation ≥ 0.90</span>
+            <span class="mono" style="font-size:11px; font-weight:600; color:var(--crit);">94%</span>
+          </div>
+          <span style="font-size:10.5px; color:var(--crit);">firing · critical</span>
+        </div>
+      </div>
+
+      <div style="flex:1;"></div>
+      <div style="font-size:10.5px; color:var(--text-3); font-style:italic; border-top:1px solid var(--border); padding-top:10px;">Live tweak — edits replay immediately across the run.</div>
+    </div>
+
+  </div>
+
+  <!-- TIMELINE -->
+  <div class="row" style="height:68px; flex:0 0 auto; border-top:1px solid var(--border); background:var(--bg-panel); padding:0 16px; gap:14px;">
+    <div class="row" style="width:30px; height:30px; border-radius:50%; background:var(--accent); align-items:center; justify-content:center; flex:0 0 auto;">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="var(--accent-contrast)"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
+    </div>
+    <div class="col" style="gap:2px; flex:0 0 auto;">
+      <span style="font-size:11.5px; font-weight:500;">Orders DB Latency Spike</span>
+      <span class="mono" style="font-size:10px; color:var(--text-3);">t = 00:42</span>
+    </div>
+    <div style="flex:1; position:relative; height:5px; border-radius:3px; background:var(--border);">
+      <div style="position:absolute; left:0; top:0; height:5px; width:46%; border-radius:3px; background:var(--accent);"></div>
+      <div style="position:absolute; left:46%; top:-4px; width:13px; height:13px; margin-left:-6.5px; border-radius:50%; background:var(--accent); border:2px solid var(--bg-panel);"></div>
+    </div>
+    <svg width="120" height="34" viewBox="0 0 120 34">
+      <polyline points="0,26 15,24 30,22 45,10 60,8 75,6 90,9 105,12 120,11" fill="none" stroke="var(--accent)" stroke-width="1.6"/>
+    </svg>
+  </div>
+
+</div>
+</x-dc>
+<script data-dc-script data-props='{"dark":{"editor":"boolean","default":false,"section":"Theme"}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const dark = this.props.dark ?? false;
+    const theme = dark ? {
+      bgCanvas:"#14161A", dot:"#22252C", bgPanel:"#1B1E24", border:"#2A2E37", borderStrong:"#383D48",
+      text:"#F2F3F5", text2:"#A7ACB8", text3:"#767C8A",
+      accent:"#7C87F5", accentSoft:"#262A4A", accentContrast:"#0E1020",
+      warn:"#F0A94E", warnBg:"#3A2C12", warnBorder:"#5A4420",
+      crit:"#F16565", critBg:"#3A1616", critBorder:"#5C2424",
+      shadow:"0 1px 2px rgba(0,0,0,0.4), 0 8px 24px rgba(0,0,0,0.45)"
+    } : {
+      bgCanvas:"#F4F5F7", dot:"#E2E4E9", bgPanel:"#FFFFFF", border:"#E2E4E9", borderStrong:"#D0D3DA",
+      text:"#1B1E24", text2:"#6B7280", text3:"#9CA3AF",
+      accent:"#4F5FEA", accentSoft:"#EEF0FE", accentContrast:"#FFFFFF",
+      warn:"#D97706", warnBg:"#FFF7E6", warnBorder:"#F3D9A8",
+      crit:"#DC2626", critBg:"#FEECEC", critBorder:"#F5B8B8",
+      shadow:"0 1px 2px rgba(16,20,30,0.06), 0 4px 12px rgba(16,20,30,0.08)"
+    };
+    const groups = [
+      { name: "CLIENT", items: [ { name: "React SPA", icon: "react.svg" } ] },
+      { name: "NETWORKING", items: [ { name: "Kong", icon: "kong.svg" }, { name: "Nginx LB", icon: "nginx.svg" } ] },
+      { name: "COMPUTE", items: [ { name: "Microservice", icon: "microservice.svg" }, { name: "Monolith", icon: "monolith.svg" } ] },
+      { name: "DATABASE", items: [ { name: "Postgres", icon: "postgres.svg" }, { name: "Redis", icon: "redis.svg" }, { name: "Snowflake", icon: "snowflake.svg" } ] },
+      { name: "MESSAGING", items: [ { name: "Kafka", icon: "kafka.svg" }, { name: "RabbitMQ", icon: "rabbitmq.svg" } ] },
+      { name: "ETL / DATA PIPELINE", items: [ { name: "Airflow", icon: "airflow.svg" }, { name: "Spark", icon: "spark.svg" } ] },
+      { name: "SERVERLESS", items: [ { name: "AWS Lambda", icon: "aws.svg" } ] },
+      { name: "ORCHESTRATION & MESH", items: [ { name: "Kubernetes", icon: "kubernetes.svg" }, { name: "Docker", icon: "docker.svg" } ] },
+    ];
+    const nodes = [
+      { name: "react-spa", type: "web-client", icon: "react.svg", x: 30, y: 330, warning: false, critical: false },
+      { name: "kong", type: "api-gateway", icon: "kong.svg", x: 260, y: 330, warning: false, critical: false },
+      { name: "microservice", type: "order-service · ×3", icon: "microservice.svg", x: 500, y: 330, warning: true, critical: false },
+      { name: "postgres", type: "orders-db", icon: "postgres.svg", x: 740, y: 170, warning: false, critical: true },
+      { name: "kafka", type: "order-events", icon: "kafka.svg", x: 740, y: 470, warning: false, critical: false },
+    ];
+    return { theme, groups, nodes };
+  }
+}
+</script>
+</body>
+</html>

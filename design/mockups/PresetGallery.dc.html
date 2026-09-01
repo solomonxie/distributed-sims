@@ -1,0 +1,132 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    a { color: var(--accent, #4F5FEA); }
+    a:hover { color: var(--accent, #4F5FEA); opacity: 0.8; }
+    .btn { font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 12.5px; font-weight: 500; border-radius: 6px; padding: 7px 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border); background: var(--bg-panel); color: var(--text); }
+    .mono { font-family: 'IBM Plex Mono', monospace; }
+    .row { display: flex; align-items: center; }
+    .col { display: flex; flex-direction: column; }
+  </style>
+</helmet>
+<div style="--bg-canvas:{{theme.bgCanvas}};--dot:{{theme.dot}};--bg-panel:{{theme.bgPanel}};--border:{{theme.border}};--border-strong:{{theme.borderStrong}};--text:{{theme.text}};--text-2:{{theme.text2}};--text-3:{{theme.text3}};--accent:{{theme.accent}};--accent-soft:{{theme.accentSoft}};--accent-contrast:{{theme.accentContrast}};--scrim:{{theme.scrim}};--shadow:{{theme.shadow}}; width:1440px; height:900px; background:var(--bg-canvas); color:var(--text); font-family:'IBM Plex Sans',system-ui,sans-serif; display:flex; flex-direction:column; overflow:hidden; position:relative;">
+
+  <!-- dimmed shell behind the modal -->
+  <div class="col" style="position:absolute; inset:0; opacity:0.4; filter:saturate(0.7);">
+    <div class="row" style="height:56px; flex:0 0 auto; border-bottom:1px solid var(--border); background:var(--bg-panel); padding:0 16px; gap:14px;">
+      <div class="row" style="gap:8px;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="5" r="2.3"/><circle cx="19" cy="5" r="2.3"/><circle cx="12" cy="19" r="2.3"/><path d="M6.6 6.6L11 17M17.4 6.6L13 17M7.5 5h9"/></svg>
+        <span style="font-size:13px; font-weight:600;">Distributed Systems Simulator</span>
+      </div>
+      <div style="flex:1;"></div>
+      <button class="btn">Presets</button>
+      <button class="btn">Cost estimate</button>
+      <button class="btn">Run</button>
+    </div>
+    <div class="row" style="flex:1; min-height:0;">
+      <div style="width:220px; flex:0 0 auto; border-right:1px solid var(--border); background:var(--bg-panel);"></div>
+      <div style="flex:1; background-image:radial-gradient(var(--dot) 1px, transparent 1px); background-size:20px 20px;"></div>
+      <div style="width:300px; flex:0 0 auto; border-left:1px solid var(--border); background:var(--bg-panel);"></div>
+    </div>
+  </div>
+
+  <!-- scrim -->
+  <div style="position:absolute; inset:0; background:var(--scrim);"></div>
+
+  <!-- modal -->
+  <div class="col" style="position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:760px; max-height:660px; background:var(--bg-panel); border:1px solid var(--border); border-radius:12px; box-shadow:var(--shadow); overflow:hidden;">
+
+    <div class="row" style="padding:16px 20px; border-bottom:1px solid var(--border); gap:14px;">
+      <span style="font-size:14.5px; font-weight:600;">Start from a preset</span>
+      <div style="flex:1;"></div>
+      <div class="row" style="gap:2px; background:var(--bg-canvas); border-radius:7px; padding:3px; border:1px solid var(--border);">
+        <div style="padding:5px 12px; border-radius:5px; background:var(--bg-panel); box-shadow:var(--shadow); font-size:12px; font-weight:500;">Architectures</div>
+        <div style="padding:5px 12px; border-radius:5px; font-size:12px; color:var(--text-2);">Incidents</div>
+      </div>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </div>
+
+    <div class="col" style="padding:18px 20px; gap:14px; overflow-y:auto;">
+      <div class="col" style="display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:14px;">
+
+        <div class="col" style="border:1px solid var(--border); border-radius:9px; padding:14px; gap:10px;">
+          <div class="row" style="gap:6px;">
+            <img src="react.svg" width="18" height="18" style="border-radius:4px; background:var(--bg-canvas); padding:3px; border:1px solid var(--border);" />
+            <img src="kong.svg" width="18" height="18" style="border-radius:4px; background:var(--bg-canvas); padding:3px; border:1px solid var(--border);" />
+            <img src="microservice.svg" width="18" height="18" style="border-radius:4px; background:var(--bg-canvas); padding:3px; border:1px solid var(--border);" />
+            <img src="postgres.svg" width="18" height="18" style="border-radius:4px; background:var(--bg-canvas); padding:3px; border:1px solid var(--border);" />
+            <img src="kafka.svg" width="18" height="18" style="border-radius:4px; background:var(--bg-canvas); padding:3px; border:1px solid var(--border);" />
+          </div>
+          <div class="col" style="gap:3px;">
+            <span style="font-size:13px; font-weight:600;">Sample E-commerce Microservices</span>
+            <span style="font-size:11.5px; color:var(--text-2); line-height:1.4;">Client → gateway → order service → db + async event stream</span>
+          </div>
+          <button class="btn" style="align-self:flex-start; background:var(--accent-soft); border-color:var(--accent-soft); color:var(--accent);">Use this</button>
+        </div>
+
+        <div class="col" style="border:1px dashed var(--border); border-radius:9px; padding:14px; gap:10px; opacity:0.55;">
+          <div class="row" style="gap:6px;">
+            <img src="kubernetes.svg" width="18" height="18" style="border-radius:4px; background:var(--bg-canvas); padding:3px; border:1px solid var(--border);" />
+            <img src="docker.svg" width="18" height="18" style="border-radius:4px; background:var(--bg-canvas); padding:3px; border:1px solid var(--border);" />
+            <img src="nginx.svg" width="18" height="18" style="border-radius:4px; background:var(--bg-canvas); padding:3px; border:1px solid var(--border);" />
+          </div>
+          <div class="col" style="gap:3px;">
+            <span style="font-size:13px; font-weight:600;">3-Tier Web App</span>
+            <span style="font-size:11.5px; color:var(--text-2); line-height:1.4;">Classic LB → app tier → relational DB</span>
+          </div>
+          <span class="mono" style="font-size:10.5px; color:var(--text-3);">Coming soon</span>
+        </div>
+
+        <div class="col" style="border:1px dashed var(--border); border-radius:9px; padding:14px; gap:10px; opacity:0.55;">
+          <div class="row" style="gap:6px;">
+            <img src="kafka.svg" width="18" height="18" style="border-radius:4px; background:var(--bg-canvas); padding:3px; border:1px solid var(--border);" />
+            <img src="spark.svg" width="18" height="18" style="border-radius:4px; background:var(--bg-canvas); padding:3px; border:1px solid var(--border);" />
+            <img src="snowflake.svg" width="18" height="18" style="border-radius:4px; background:var(--bg-canvas); padding:3px; border:1px solid var(--border);" />
+          </div>
+          <div class="col" style="gap:3px;">
+            <span style="font-size:13px; font-weight:600;">Kafka Fan-out Pipeline</span>
+            <span style="font-size:11.5px; color:var(--text-2); line-height:1.4;">Event stream → parallel consumers → warehouse</span>
+          </div>
+          <span class="mono" style="font-size:10.5px; color:var(--text-3);">Coming soon</span>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+</div>
+</x-dc>
+<script data-dc-script data-props='{"dark":{"editor":"boolean","default":false,"section":"Theme"}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const dark = this.props.dark ?? false;
+    const theme = dark ? {
+      bgCanvas:"#14161A", dot:"#22252C", bgPanel:"#1B1E24", border:"#2A2E37", borderStrong:"#383D48",
+      text:"#F2F3F5", text2:"#A7ACB8", text3:"#767C8A",
+      accent:"#7C87F5", accentSoft:"#262A4A", accentContrast:"#0E1020",
+      scrim:"rgba(0,0,0,0.55)",
+      shadow:"0 1px 2px rgba(0,0,0,0.4), 0 20px 48px rgba(0,0,0,0.55)"
+    } : {
+      bgCanvas:"#F4F5F7", dot:"#E2E4E9", bgPanel:"#FFFFFF", border:"#E2E4E9", borderStrong:"#D0D3DA",
+      text:"#1B1E24", text2:"#6B7280", text3:"#9CA3AF",
+      accent:"#4F5FEA", accentSoft:"#EEF0FE", accentContrast:"#FFFFFF",
+      scrim:"rgba(20,22,26,0.38)",
+      shadow:"0 1px 2px rgba(16,20,30,0.06), 0 20px 48px rgba(16,20,30,0.18)"
+    };
+    return { theme };
+  }
+}
+</script>
+</body>
+</html>
