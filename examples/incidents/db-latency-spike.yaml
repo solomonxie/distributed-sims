@@ -1,0 +1,24 @@
+# Worked example referenced in DESIGN.md section 6.
+version: 1
+name: Orders DB Latency Spike
+description: Baseline traffic, then orders-db degrades for 60s under load.
+target_system: sample-ecommerce
+entrypoint: web-client
+
+baseline:
+  rps: 200
+
+timeline:
+  - at_seconds: 0
+    rps: 200
+  - at_seconds: 30
+    rps: 200
+    inject_fault:
+      component: orders-db
+      set_specs:
+        avg_response_time_ms: 500
+    duration_seconds: 60
+  - at_seconds: 90
+    rps: 200
+    clear_fault:
+      component: orders-db
