@@ -28,7 +28,7 @@ components:
         severity: warning
 
   order-service:
-    type: node-express
+    type: microservice
     specs:
       instances: 3
       cpu_cores: 1
