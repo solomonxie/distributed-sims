@@ -30,48 +30,53 @@ no idea what a Kafka topic or an API gateway actually behaves like.
 | **Component catalog** | Fixed, repo-controlled list of supported real-world component *types*. The canvas only ever offers this palette — you can't draw an arbitrary shape, only a supported component. |
 | **System definition** | A YAML file describing one topology: a set of component instances (each an independent node with specs) and the edges between them. |
 | **Scenario** | A YAML file describing traffic over time against a system definition: baseline load, load changes, and fault injections (e.g. "at t=30s set `orders-db` avg_response_time_ms to 500"). |
-| **Simulation engine** | Runs a scenario against a system definition tick-by-tick, computes propagated latency/saturation at every component, evaluates alert rules, and streams the result to the frontend for animation. |
+| **Simulation engine** | Runs client-side, in the browser: plays a scenario against a system definition tick-by-tick, computes propagated latency/saturation at every component, and evaluates alert rules — no server round trip needed per tick. |
 | **Alert rule** | A per-component, per-metric threshold (p99 latency, error rate, saturation...) that fires a visible alert when crossed during simulation. |
 | **Cost estimator** | Maps a system definition's component specs to a rough monthly cloud cost. |
 
 ## 3. Architecture
 
+There is no "real" backend service — all the interesting logic (canvas,
+simulation engine, cost estimator, alert evaluation) runs client-side in the
+React app. The backend is a lightweight sync layer whose only job is to
+save/load systems and scenarios so they persist and can be shared across
+sessions/devices.
+
 ```mermaid
 flowchart LR
-    subgraph Frontend [React + TypeScript]
+    subgraph App [React + TypeScript — src/]
         Canvas[Canvas editor\nExcalidraw-style]
         Palette[Component palette]
         Inspector[Spec / alert inspector panel]
         Timeline[Traffic timeline scrubber]
+        SimEngine[Simulation engine\nruns client-side]
+        CostEngine[Cost estimator\nruns client-side]
     end
 
-    subgraph Backend [Node.js + TypeScript]
-        API[REST API\nsystems / catalog / scenarios]
-        WS[WebSocket\nsimulation tick stream]
-        SimEngine[Simulation engine]
-        CostEngine[Cost estimator]
+    subgraph Server [Lightweight sync API — server/]
+        API[REST API\nsave / load systems & scenarios]
     end
 
     FS[(YAML files\nsystem + scenario defs)]
-    DB[(SQLite\nrun history, saved scenarios,\nalert events)]
+    DB[(SQLite\nsaved scenarios,\nrun history)]
 
+    Canvas --> SimEngine
+    Timeline --> SimEngine
+    SimEngine --> Canvas
     Canvas <--> API
-    Timeline <--> WS
-    WS <--> SimEngine
     API --> FS
     API --> DB
-    SimEngine --> DB
-    CostEngine --> API
 ```
 
 - **YAML files are the source of truth** for system/scenario designs —
   human-readable, diffable, portable, git-versionable, shareable outside the
   app.
-- **SQLite** stores things that aren't part of the design itself: simulation
-  run history, saved/named scenario runs, fired alert events.
-- **Component catalog** (`components/catalog.yaml`) is a single fixed file
-  in the repo, not user-editable at runtime — extending the supported
-  component list is a PR, not an app feature.
+- **SQLite** stores things that aren't part of the design itself: saved/named
+  scenario runs, run history.
+- **Component catalog** (`catalog/catalog.yaml`) is a single fixed file in
+  the repo, bundled directly into the frontend build (no API call needed) —
+  not user-editable at runtime, so extending the supported component list is
+  a PR, not an app feature.
 
 ## 4. System definition schema
 
@@ -173,7 +178,7 @@ components:
 
 ## 5. Component catalog schema
 
-`components/catalog.yaml` is the fixed palette the canvas draws from.
+`catalog/catalog.yaml` is the fixed palette the canvas draws from.
 
 ```yaml
 categories:
@@ -259,8 +264,10 @@ timeline:
 
 ## 7. Simulation engine
 
-Runs as a discrete tick loop (default: 1 tick = 1 simulated second,
-configurable playback speed).
+Runs entirely client-side (`src/engine/`), as a discrete tick loop (default:
+1 tick = 1 simulated second, configurable playback speed). No server round
+trip per tick — the backend is only touched to load the system/scenario at
+the start of a run and, optionally, to save the run afterward.
 
 1. **Load propagation** — starting at `entrypoint`, push the current `rps`
    through the dependency graph (`connects_to` edges), splitting/merging at
@@ -277,11 +284,12 @@ configurable playback speed).
    downstream of it in the animation and inflates the p99 seen by everything
    upstream of it.
 4. **Alert evaluation** — after each tick, every component's `alerts` are
-   checked against that tick's computed metrics; a crossed threshold emits
-   an alert event (persisted to SQLite, streamed to the frontend).
-5. **Streaming** — each tick's per-component metrics + fired alerts are
-   pushed to the frontend over WebSocket for the canvas animation and the
-   alert panel.
+   checked against that tick's computed metrics; a crossed threshold fires a
+   visible alert in the canvas immediately (no server involved).
+5. **Rendering** — each tick's per-component metrics + fired alerts drive the
+   canvas animation and the alert panel directly in React state — this is
+   what makes the "live tweak" interaction (§8) instant: changing a spec
+   just re-runs the local engine, no request in the loop.
 
 ## 8. Frontend UX
 
@@ -302,34 +310,32 @@ configurable playback speed).
 
 ## 9. Backend API surface
 
-REST (system/catalog/scenario CRUD + cost estimate):
-- `GET /api/catalog`
+The `server/` API exists purely to save/load/sync systems and scenarios —
+everything else (catalog, simulation, cost estimate) is client-side and
+needs no endpoint.
+
 - `GET/POST /api/systems`, `GET/PUT/DELETE /api/systems/:id`
 - `GET/POST /api/scenarios`, `GET/PUT/DELETE /api/scenarios/:id`
-- `POST /api/systems/:id/cost-estimate`
-
-WebSocket (simulation):
-- `WS /ws/simulate` — client sends `{system_id, scenario_id, speed}` to
-  start; server streams `{tick, metrics_by_component, alerts_fired}` per
-  tick; client can send live `spec_override` messages mid-run for the
-  "live tweak" interaction.
+- `GET/POST /api/runs` — optionally save a completed simulation run's
+  timeline/results for later review.
 
 ## 10. Persistence
 
 - **YAML files** (`examples/**` bundled, plus user-created ones under a
   user data directory) are the portable, git-friendly source of truth for
   designs and scenarios.
-- **SQLite** (`better-sqlite3`) holds: simulation run history, named saved
-  scenario runs, fired alert events. Never the designs themselves — those
-  stay as YAML so they can be copied/diffed/shared independent of the app.
+- **SQLite** (`better-sqlite3`) holds: named saved scenario runs, simulation
+  run history. Never the designs themselves — those stay as YAML so they can
+  be copied/diffed/shared independent of the app.
 
 ## 11. Cost estimator
 
-A small heuristic pricing table (`$/instance/hour` by rough size class,
-`$/GB` for storage-ish components, `$/million messages` for
-streams/queues) multiplies against each component's `specs` (instances,
-cpu/mem tier, throughput) to produce a rough monthly estimate per component
-and a system total. Explicitly labeled as a ballpark, not a quote.
+Runs client-side (`src/engine/cost.ts`): a small heuristic pricing table
+(`$/instance/hour` by rough size class, `$/GB` for storage-ish components,
+`$/million messages` for streams/queues) multiplies against each
+component's `specs` (instances, cpu/mem tier, throughput) to produce a rough
+monthly estimate per component and a system total. Explicitly labeled as a
+ballpark, not a quote.
 
 ## 12. Presets
 
@@ -345,13 +351,13 @@ Both are loaded read-only in the UI as a "start from a preset" gallery.
 
 | Layer | Choice |
 |---|---|
-| Frontend | React + TypeScript + Vite |
+| App (canvas, simulation engine, cost estimator) | React + TypeScript + Vite, standard `src/`/`public/` layout at repo root |
 | Canvas | Custom SVG/Canvas renderer (Excalidraw-style interactions) |
-| Backend API + sim engine | Node.js + TypeScript + Fastify |
+| Sync API (`server/`) | Node.js + TypeScript + Fastify — thin REST layer for save/load/sync only, no simulation logic |
 | Design/scenario storage | YAML files |
-| Run history / saved state | SQLite (`better-sqlite3`) |
-| Cloud hosting | Terraform (provisioning) + Ansible (config/deploy) |
-| Local dev/preview | Makefile wrapping frontend + backend dev servers |
+| Saved state / run history | SQLite (`better-sqlite3`) |
+| Cloud hosting | Terraform (provisioning) + Ansible (config/deploy), top-level `terraform/` and `ansible/` |
+| Local dev/preview | Makefile wrapping the app + sync server dev processes |
 
 ## 14. Roadmap
 
@@ -359,12 +365,13 @@ Both are loaded read-only in the UI as a "start from a preset" gallery.
 - **M1** — static canvas: render a system definition YAML read-only on the
   canvas (no editing, no simulation).
 - **M2** — CRUD: create/edit systems and scenarios through the UI, persisted
-  as YAML; backend REST API; SQLite wired up.
-- **M3** — simulation engine v1: run a scenario against a system, compute
-  propagated metrics tick-by-tick, no animation yet (numbers/table view).
-- **M4** — live animation + alerts: WebSocket tick streaming, animated
-  canvas, alert badges, live spec-tweak-while-running.
+  as YAML via the `server/` sync API; SQLite wired up.
+- **M3** — simulation engine v1 (`src/engine/`): run a scenario against a
+  system, compute propagated metrics tick-by-tick, no animation yet
+  (numbers/table view).
+- **M4** — live animation + alerts: animated canvas driven by the local
+  engine, alert badges, live spec-tweak-while-running.
 - **M5** — scenario/traffic editor UI + preset gallery (bundled
   architectures + incidents).
-- **M6** — cost estimator.
+- **M6** — cost estimator (`src/engine/cost.ts`).
 - **M7** — Terraform/Ansible deploy to a real host; Makefile `make deploy`.
