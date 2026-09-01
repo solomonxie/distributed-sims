@@ -11,3 +11,5 @@ build/
 .terraform/
 *.tfstate
 *.tfstate.backup
+*.tfvars
+ansible/inventory.ini
