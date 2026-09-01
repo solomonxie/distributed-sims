@@ -1,0 +1,3 @@
+web_root: /var/www/distributed-debug
+dist_dir: "{{ playbook_dir }}/../dist"
+server_name: _

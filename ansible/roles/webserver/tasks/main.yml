@@ -1,0 +1,33 @@
+---
+- name: Install nginx
+  ansible.builtin.dnf:
+    name: nginx
+    state: present
+
+- name: Ensure web root exists
+  ansible.builtin.file:
+    path: "{{ web_root }}"
+    state: directory
+    owner: nginx
+    group: nginx
+    mode: "0755"
+
+- name: Deploy site config
+  ansible.builtin.template:
+    src: distributed-debug.conf.j2
+    dest: /etc/nginx/conf.d/distributed-debug.conf
+    mode: "0644"
+  notify: reload nginx
+
+- name: Sync built app to web root
+  ansible.posix.synchronize:
+    src: "{{ dist_dir }}/"
+    dest: "{{ web_root }}/"
+    delete: true
+  delegate_to: "{{ inventory_hostname }}"
+
+- name: Ensure nginx is enabled and running
+  ansible.builtin.systemd:
+    name: nginx
+    enabled: true
+    state: started
