@@ -1,0 +1,72 @@
+# Worked example referenced in DESIGN.md section 4.
+version: 1
+name: Sample E-commerce Microservices
+description: Client -> gateway -> order service -> db + async event stream
+
+components:
+  web-client:
+    type: frontend-client
+    tech: react-spa
+    specs:
+      avg_response_time_ms: 0
+    connects_to:
+      - target: api-gateway
+        protocol: https
+        avg_payload_kb: 3
+
+  api-gateway:
+    type: api-gateway
+    tech: kong
+    specs:
+      avg_response_time_ms: 5
+      max_rps: 5000
+    connects_to:
+      - target: order-service
+        protocol: http
+        avg_payload_kb: 2
+    alerts:
+      - metric: p99_latency_ms
+        threshold: 200
+        severity: warning
+
+  order-service:
+    type: microservice
+    tech: node-express
+    specs:
+      instances: 3
+      cpu_cores: 1
+      mem_mb: 512
+      avg_response_time_ms: 50
+      max_concurrent_workers: 100
+    connects_to:
+      - target: orders-db
+        protocol: tcp
+        avg_payload_kb: 1
+      - target: order-events
+        protocol: kafka
+        avg_payload_kb: 1
+    alerts:
+      - metric: p99_latency_ms
+        threshold: 300
+        severity: warning
+      - metric: error_rate
+        threshold: 0.05
+        severity: critical
+
+  orders-db:
+    type: distributed-db
+    tech: postgres-citus
+    specs:
+      avg_response_time_ms: 15
+      max_connections: 200
+    alerts:
+      - metric: saturation
+        threshold: 0.9
+        severity: critical
+
+  order-events:
+    type: event-stream
+    tech: kafka
+    specs:
+      partitions: 6
+      avg_response_time_ms: 8

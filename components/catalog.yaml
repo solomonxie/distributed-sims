@@ -1,0 +1,74 @@
+# Fixed, repo-controlled palette of supported component types.
+# The canvas UI only ever offers components from this list.
+# See DESIGN.md section 5.
+
+categories:
+  client:
+    - id: frontend-client
+      label: Frontend Client
+      default_specs:
+        avg_response_time_ms: 0
+
+  networking:
+    - id: api-gateway
+      label: API Gateway
+      default_specs:
+        avg_response_time_ms: 5
+        max_rps: 5000
+    - id: load-balancer
+      label: Load Balancer
+      default_specs:
+        avg_response_time_ms: 1
+        max_rps: 20000
+    - id: cdn
+      label: CDN
+      default_specs:
+        avg_response_time_ms: 20
+        cache_hit_ratio: 0.9
+
+  compute:
+    - id: microservice
+      label: Microservice
+      default_specs:
+        instances: 1
+        cpu_cores: 1
+        mem_mb: 256
+        avg_response_time_ms: 50
+        max_concurrent_workers: 50
+    - id: monolith
+      label: Monolith
+      default_specs:
+        instances: 2
+        cpu_cores: 4
+        mem_mb: 2048
+        avg_response_time_ms: 80
+        max_concurrent_workers: 200
+
+  data:
+    - id: relational-db
+      label: Relational DB
+      default_specs:
+        avg_response_time_ms: 10
+        max_connections: 100
+    - id: distributed-db
+      label: Distributed DB
+      default_specs:
+        avg_response_time_ms: 15
+        max_connections: 200
+    - id: cache
+      label: Cache
+      default_specs:
+        avg_response_time_ms: 1
+        max_connections: 5000
+
+  messaging:
+    - id: event-stream
+      label: Event Stream (Kafka-style)
+      default_specs:
+        partitions: 3
+        avg_response_time_ms: 8
+    - id: message-queue
+      label: Message Queue
+      default_specs:
+        avg_response_time_ms: 5
+        max_in_flight: 1000
