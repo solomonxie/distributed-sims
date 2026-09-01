@@ -93,6 +93,34 @@ components:
     avg_response_time_ms: 80
     max_concurrent_workers: 200
 
+  # orchestration / service mesh — deployment/networking patterns around
+  # microservices, distinct from the generic web-server compute above
+  - name: kubernetes
+    type: orchestrator
+    description: Container orchestration platform
+    icon-url: /icons/kubernetes.svg
+    tags: [orchestration, self-hosted]
+    avg_response_time_ms: 2
+  - name: docker
+    type: container-runtime
+    description: Container packaging and runtime
+    icon-url: /icons/docker.svg
+    tags: [container, self-hosted]
+    avg_response_time_ms: 0
+  - name: envoy
+    type: sidecar-proxy
+    description: Sidecar proxy for service-to-service traffic
+    icon-url: /icons/envoy.svg
+    tags: [service-mesh, sidecar, self-hosted]
+    avg_response_time_ms: 1
+    max_rps: 10000
+  - name: istio
+    type: service-mesh
+    description: Service mesh control plane (traffic policy, mTLS, observability)
+    icon-url: /icons/istio.svg
+    tags: [service-mesh, self-hosted]
+    avg_response_time_ms: 1
+
   # database
   - name: postgres
     type: relational-db
