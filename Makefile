@@ -1,10 +1,16 @@
-.PHONY: install dev lint test
+.PHONY: install dev build preview lint test
 
 install:
-	@echo "not yet implemented — lands with the React app + server scaffold (M1/M2)"
+	npm install
 
 dev:
-	@echo "not yet implemented — lands with the React app + server scaffold (M1/M2)"
+	npm run dev
+
+build:
+	npm run build
+
+preview:
+	npm run preview
 
 lint:
 	@echo "not yet implemented"

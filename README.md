@@ -29,12 +29,13 @@ model, and roadmap.
 
 ## Quick start
 
-Not yet functional — scaffold stage only (see roadmap in DESIGN.md).
-
 ```
 make install
 make dev
 ```
+
+This runs the hello-world React shell only — canvas, catalog rendering, and
+simulation land per the roadmap in [DESIGN.md](DESIGN.md).
 
 ## License
 
