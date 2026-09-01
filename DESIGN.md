@@ -274,9 +274,10 @@ components:
     max_concurrent_workers: 1000
 ```
 
-(Full list — ~27 entries across all groups, including columnar/data-warehouse
-DBs, Airflow/Databricks, and AWS Step Functions/EventBridge — lives in
-`catalog/catalog.yaml` itself; the above is illustrative.)
+(Full list — ~30 entries across all groups, including columnar/data-warehouse
+DBs, Kubernetes/Docker/Envoy/Istio, Airflow/Databricks, and AWS Step
+Functions/EventBridge — lives in `catalog/catalog.yaml` itself; the above
+is illustrative.)
 
 AWS-branded entries all reuse `/icons/aws.svg` (a generic AWS mark) since
 neither open icon set used here ships per-service AWS icons — see

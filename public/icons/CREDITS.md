@@ -13,4 +13,5 @@ ships per-service AWS icons.
 
 `microservice.svg` and `monolith.svg` are hand-drawn placeholders (no
 upstream brand to represent — compute is intentionally generic, see
-DESIGN.md section 5).
+DESIGN.md section 5). `envoy.svg` came from Simple Icons' `envoyproxy`
+icon.
