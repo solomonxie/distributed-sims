@@ -1,0 +1,9 @@
+{
+  "artboards": [
+    { "file": "EditorEmpty.dc.html", "title": "Editor — Empty", "x": 0, "y": 0, "w": 1440, "h": 900 },
+    { "file": "Main.dc.html", "title": "Editor — Simulation Running", "x": 1540, "y": 0, "w": 1440, "h": 900 },
+    { "file": "PresetGallery.dc.html", "title": "Preset Gallery", "x": 0, "y": 1050, "w": 1440, "h": 900 },
+    { "file": "CostEstimate.dc.html", "title": "Cost Estimate", "x": 1540, "y": 1050, "w": 1440, "h": 900 }
+  ],
+  "launch": { "view": "canvas" }
+}
