@@ -351,20 +351,17 @@ the start of a run and, optionally, to save the run afterward.
 
 ## 8. Frontend UX
 
-- Canvas modeled after Excalidraw's interaction model (pan/zoom, drag,
-  connect nodes) but the palette is a fixed list of catalog components
-  instead of freeform shapes.
-- Selecting a component opens an inspector panel to edit its `specs` and
-  `alerts` live.
-- A timeline scrubber plays/pauses/steps through a loaded scenario;
-  dragging it live-previews traffic at that point in time.
-- Edges animate (particles/pulses) proportional to current simulated rps;
-  a component under alert gets a visible badge/glow, color-coded by
-  severity.
-- "Live tweak" mode: while a simulation is running, changing a component's
-  spec in the inspector immediately re-computes and re-animates downstream
-  effects — this is the core "click one service, set 50ms → 500ms, watch it
-  cascade" interaction from the mission statement.
+Full layout, states, and interaction patterns — including how traffic gets
+authored visually (draggable "load generator" tokens with an rps/concurrency
+slider, feeding a scenario's `baseline`/`timeline`) — live in
+[UX.md](UX.md), alongside a mockup of the canvas editor's core screens.
+
+The one mechanic worth calling out here since §7 depends on it: **live
+tweak** — while a simulation is running, changing a component's spec in the
+inspector immediately re-computes and re-animates downstream effects. This
+is the "click one service, set 50ms → 500ms, watch it cascade" interaction
+from the mission statement, and it's why the simulation engine runs
+client-side (§7) rather than round-tripping to a server per edit.
 
 ## 9. Backend API surface
 

@@ -1,0 +1,148 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    a { color: var(--accent, #4F5FEA); }
+    a:hover { color: var(--accent, #4F5FEA); opacity: 0.8; }
+    .btn { font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 12.5px; font-weight: 500; border-radius: 6px; padding: 7px 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border); background: var(--bg-panel); color: var(--text); }
+    .btn[disabled] { color: var(--text-3); cursor: default; }
+    .mono { font-family: 'IBM Plex Mono', monospace; }
+    .row { display: flex; align-items: center; }
+    .col { display: flex; flex-direction: column; }
+  </style>
+</helmet>
+<div style="--bg-canvas:{{theme.bgCanvas}};--dot:{{theme.dot}};--bg-panel:{{theme.bgPanel}};--border:{{theme.border}};--border-strong:{{theme.borderStrong}};--text:{{theme.text}};--text-2:{{theme.text2}};--text-3:{{theme.text3}};--accent:{{theme.accent}};--accent-soft:{{theme.accentSoft}};--accent-contrast:{{theme.accentContrast}};--warn:{{theme.warn}};--warn-bg:{{theme.warnBg}};--warn-border:{{theme.warnBorder}};--crit:{{theme.crit}};--crit-bg:{{theme.critBg}};--crit-border:{{theme.critBorder}};--shadow:{{theme.shadow}}; width:1440px; height:900px; background:var(--bg-canvas); color:var(--text); font-family:'IBM Plex Sans',system-ui,sans-serif; display:flex; flex-direction:column; overflow:hidden; position:relative;">
+
+  <!-- TOP BAR -->
+  <div class="row" style="height:56px; flex:0 0 auto; border-bottom:1px solid var(--border); background:var(--bg-panel); padding:0 16px; gap:14px;">
+    <div class="row" style="gap:8px;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="5" r="2.3"/><circle cx="19" cy="5" r="2.3"/><circle cx="12" cy="19" r="2.3"/><path d="M6.6 6.6L11 17M17.4 6.6L13 17M7.5 5h9"/></svg>
+      <span style="font-size:13px; font-weight:600;">Distributed Systems Simulator</span>
+    </div>
+    <div style="width:1px; height:20px; background:var(--border);"></div>
+    <div class="row" style="gap:6px; color:var(--text-3); font-size:13px; padding:4px 6px; border-radius:5px; border:1px dashed var(--border);">
+      <span>Untitled System</span>
+    </div>
+    <div style="flex:1;"></div>
+    <button class="btn"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Presets</button>
+    <button class="btn" disabled><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>Cost estimate</button>
+    <button class="btn" disabled><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4l14 8-14 8V4z"/></svg>Run</button>
+  </div>
+
+  <!-- BODY -->
+  <div class="row" style="flex:1; min-height:0;">
+
+    <!-- PALETTE -->
+    <div class="col" style="width:220px; flex:0 0 auto; border-right:1px solid var(--border); background:var(--bg-panel); overflow:hidden;">
+      <div style="padding:10px 12px; border-bottom:1px solid var(--border);">
+        <div class="row" style="gap:6px; background:var(--bg-canvas); border:1px solid var(--border); border-radius:6px; padding:6px 8px;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+          <span style="font-size:12px; color:var(--text-3);">Search components…</span>
+        </div>
+      </div>
+      <div class="col" style="padding:10px 0; overflow-y:auto; gap:14px;">
+
+        <div class="col" style="padding:0 12px; gap:4px;">
+          <div style="font-size:10.5px; font-weight:600; letter-spacing:0.06em; color:var(--text-3); padding:2px 0;">TRAFFIC SOURCES</div>
+          <div class="row" style="gap:8px; padding:5px 6px; border-radius:6px; border:1px dashed var(--border-strong);">
+            <div class="row" style="width:22px; height:22px; border-radius:5px; background:var(--accent-soft); align-items:center; justify-content:center; color:var(--accent);">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="3"/><path d="M2 20c0-3.5 2.7-6 6-6s6 2.5 6 6"/><circle cx="17" cy="7" r="2.4"/><path d="M14.5 20c0.3-3 2.3-5.3 5-5.8"/></svg>
+            </div>
+            <span style="font-size:12.5px;">Load Generator</span>
+          </div>
+        </div>
+
+        <div style="height:1px; background:var(--border); margin:0 12px;"></div>
+
+        <div style="font-size:10.5px; font-weight:600; letter-spacing:0.06em; color:var(--text-3); padding:0 12px;">COMPONENTS</div>
+
+        <sc-for list="{{groups}}" as="g" hint-placeholder-count="8">
+          <div class="col" style="padding:0 12px; gap:4px;">
+            <div style="font-size:10.5px; font-weight:600; letter-spacing:0.06em; color:var(--text-3);">{{g.name}}</div>
+            <sc-for list="{{g.items}}" as="it" hint-placeholder-count="2">
+              <div class="row" style="gap:8px; padding:5px 6px; border-radius:6px;">
+                <img src="{{it.icon}}" width="16" height="16" style="border-radius:3px;" />
+                <span style="font-size:12.5px;">{{it.name}}</span>
+              </div>
+            </sc-for>
+          </div>
+        </sc-for>
+
+      </div>
+    </div>
+
+    <!-- CANVAS -->
+    <div class="col" style="flex:1; position:relative; background-image:radial-gradient(var(--dot) 1px, transparent 1px); background-size:20px 20px; align-items:center; justify-content:center; gap:14px;">
+      <div style="width:56px; height:56px; border-radius:14px; border:1.5px dashed var(--border-strong); display:flex; align-items:center; justify-content:center; color:var(--text-3);">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+      </div>
+      <div class="col" style="align-items:center; gap:4px;">
+        <span style="font-size:14px; font-weight:500; color:var(--text-2);">Drag a component here</span>
+        <span style="font-size:12.5px; color:var(--text-3);">or <a href="#">start from a preset</a></span>
+      </div>
+    </div>
+
+    <!-- INSPECTOR -->
+    <div class="col" style="width:300px; flex:0 0 auto; border-left:1px solid var(--border); background:var(--bg-panel); align-items:center; justify-content:center; gap:8px; padding:16px;">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3H5a2 2 0 00-2 2v4M9 21H5a2 2 0 01-2-2v-4M15 3h4a2 2 0 012 2v4M15 21h4a2 2 0 002-2v-4"/></svg>
+      <span style="font-size:12.5px; font-weight:500; color:var(--text-2); text-align:center;">Nothing selected</span>
+      <span style="font-size:11.5px; color:var(--text-3); text-align:center;">Click a component on the canvas to inspect it.</span>
+    </div>
+
+  </div>
+
+  <!-- TIMELINE (disabled) -->
+  <div class="row" style="height:44px; flex:0 0 auto; border-top:1px solid var(--border); background:var(--bg-panel); padding:0 16px; gap:12px; color:var(--text-3);">
+    <div class="row" style="width:26px; height:26px; border-radius:50%; border:1px solid var(--border); align-items:center; justify-content:center; flex:0 0 auto;">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="var(--text-3)"><path d="M6 4l14 8-14 8V4z"/></svg>
+    </div>
+    <span style="font-size:12px;">Load a scenario to simulate traffic</span>
+    <div style="flex:1; height:4px; border-radius:2px; background:var(--border);"></div>
+  </div>
+
+</div>
+</x-dc>
+<script data-dc-script data-props='{"dark":{"editor":"boolean","default":false,"section":"Theme"}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const dark = this.props.dark ?? false;
+    const theme = dark ? {
+      bgCanvas:"#14161A", dot:"#22252C", bgPanel:"#1B1E24", border:"#2A2E37", borderStrong:"#383D48",
+      text:"#F2F3F5", text2:"#A7ACB8", text3:"#767C8A",
+      accent:"#7C87F5", accentSoft:"#262A4A", accentContrast:"#0E1020",
+      warn:"#F0A94E", warnBg:"#3A2C12", warnBorder:"#5A4420",
+      crit:"#F16565", critBg:"#3A1616", critBorder:"#5C2424",
+      shadow:"0 1px 2px rgba(0,0,0,0.4), 0 8px 24px rgba(0,0,0,0.45)"
+    } : {
+      bgCanvas:"#F4F5F7", dot:"#E2E4E9", bgPanel:"#FFFFFF", border:"#E2E4E9", borderStrong:"#D0D3DA",
+      text:"#1B1E24", text2:"#6B7280", text3:"#9CA3AF",
+      accent:"#4F5FEA", accentSoft:"#EEF0FE", accentContrast:"#FFFFFF",
+      warn:"#D97706", warnBg:"#FFF7E6", warnBorder:"#F3D9A8",
+      crit:"#DC2626", critBg:"#FEECEC", critBorder:"#F5B8B8",
+      shadow:"0 1px 2px rgba(16,20,30,0.06), 0 4px 12px rgba(16,20,30,0.08)"
+    };
+    const groups = [
+      { name: "CLIENT", items: [ { name: "React SPA", icon: "react.svg" } ] },
+      { name: "NETWORKING", items: [ { name: "Kong", icon: "kong.svg" }, { name: "Nginx LB", icon: "nginx.svg" } ] },
+      { name: "COMPUTE", items: [ { name: "Microservice", icon: "microservice.svg" }, { name: "Monolith", icon: "monolith.svg" } ] },
+      { name: "DATABASE", items: [ { name: "Postgres", icon: "postgres.svg" }, { name: "Redis", icon: "redis.svg" }, { name: "Snowflake", icon: "snowflake.svg" } ] },
+      { name: "MESSAGING", items: [ { name: "Kafka", icon: "kafka.svg" }, { name: "RabbitMQ", icon: "rabbitmq.svg" } ] },
+      { name: "ETL / DATA PIPELINE", items: [ { name: "Airflow", icon: "airflow.svg" }, { name: "Spark", icon: "spark.svg" } ] },
+      { name: "SERVERLESS", items: [ { name: "AWS Lambda", icon: "aws.svg" } ] },
+      { name: "ORCHESTRATION & MESH", items: [ { name: "Kubernetes", icon: "kubernetes.svg" }, { name: "Docker", icon: "docker.svg" } ] },
+    ];
+    return { theme, groups };
+  }
+}
+</script>
+</body>
+</html>

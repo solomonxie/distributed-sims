@@ -25,7 +25,8 @@ and incident scenarios.
 - Rough cloud cost estimate per system
 
 See [DESIGN.md](DESIGN.md) for the architecture, YAML schemas, simulation
-model, and roadmap.
+model, and roadmap — and [UX.md](UX.md) for the editor's screens, states,
+and interactions.
 
 ## Quick start
 
