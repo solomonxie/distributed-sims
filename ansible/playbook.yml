@@ -1,0 +1,6 @@
+---
+- name: Deploy distributed-debug static app
+  hosts: webserver
+  become: true
+  roles:
+    - webserver
