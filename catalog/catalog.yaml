@@ -1,74 +1,142 @@
-# Fixed, repo-controlled palette of supported component types.
+# Fixed, repo-controlled palette of supported components.
 # The canvas UI only ever offers components from this list.
 # See DESIGN.md section 5.
+#
+# Each entry:
+#   name     - concrete tech identifier, referenced by a system definition's
+#              `type:` field (e.g. examples/systems/sample-ecommerce.yaml)
+#   type     - abstract behavioral class the simulation engine uses to pick
+#              its latency/capacity formulas (relational-db, cache, ...)
+#   icon-url - path to the icon asset (assets land in M1; convention is
+#              /icons/<name>.svg)
+#   (remaining keys) - default specs, flattened directly onto the entry
 
 categories:
   client:
-    - id: frontend-client
-      label: Frontend Client
-      default_specs:
-        avg_response_time_ms: 0
+    - name: react-spa
+      type: frontend-client
+      icon-url: /icons/react.svg
+      avg_response_time_ms: 0
 
   networking:
-    - id: api-gateway
-      label: API Gateway
-      default_specs:
-        avg_response_time_ms: 5
-        max_rps: 5000
-    - id: load-balancer
-      label: Load Balancer
-      default_specs:
-        avg_response_time_ms: 1
-        max_rps: 20000
-    - id: cdn
-      label: CDN
-      default_specs:
-        avg_response_time_ms: 20
-        cache_hit_ratio: 0.9
+    - name: kong
+      type: api-gateway
+      icon-url: /icons/kong.svg
+      avg_response_time_ms: 5
+      max_rps: 5000
+    - name: aws-api-gateway
+      type: api-gateway
+      icon-url: /icons/aws-api-gateway.svg
+      avg_response_time_ms: 10
+      max_rps: 10000
+    - name: nginx-lb
+      type: load-balancer
+      icon-url: /icons/nginx.svg
+      avg_response_time_ms: 1
+      max_rps: 20000
+    - name: aws-alb
+      type: load-balancer
+      icon-url: /icons/aws-alb.svg
+      avg_response_time_ms: 1
+      max_rps: 50000
+    - name: cloudfront
+      type: cdn
+      icon-url: /icons/cloudfront.svg
+      avg_response_time_ms: 20
+      cache_hit_ratio: 0.9
+    - name: fastly
+      type: cdn
+      icon-url: /icons/fastly.svg
+      avg_response_time_ms: 15
+      cache_hit_ratio: 0.92
 
   compute:
-    - id: microservice
-      label: Microservice
-      default_specs:
-        instances: 1
-        cpu_cores: 1
-        mem_mb: 256
-        avg_response_time_ms: 50
-        max_concurrent_workers: 50
-    - id: monolith
-      label: Monolith
-      default_specs:
-        instances: 2
-        cpu_cores: 4
-        mem_mb: 2048
-        avg_response_time_ms: 80
-        max_concurrent_workers: 200
+    - name: node-express
+      type: microservice
+      icon-url: /icons/nodejs.svg
+      instances: 1
+      cpu_cores: 1
+      mem_mb: 256
+      avg_response_time_ms: 50
+      max_concurrent_workers: 50
+    - name: spring-boot
+      type: microservice
+      icon-url: /icons/spring.svg
+      instances: 1
+      cpu_cores: 2
+      mem_mb: 512
+      avg_response_time_ms: 60
+      max_concurrent_workers: 100
+    - name: go-gin
+      type: microservice
+      icon-url: /icons/go.svg
+      instances: 1
+      cpu_cores: 1
+      mem_mb: 128
+      avg_response_time_ms: 20
+      max_concurrent_workers: 200
+    - name: rails-monolith
+      type: monolith
+      icon-url: /icons/rails.svg
+      instances: 2
+      cpu_cores: 4
+      mem_mb: 2048
+      avg_response_time_ms: 80
+      max_concurrent_workers: 200
+    - name: django-monolith
+      type: monolith
+      icon-url: /icons/django.svg
+      instances: 2
+      cpu_cores: 4
+      mem_mb: 2048
+      avg_response_time_ms: 90
+      max_concurrent_workers: 150
 
-  data:
-    - id: relational-db
-      label: Relational DB
-      default_specs:
-        avg_response_time_ms: 10
-        max_connections: 100
-    - id: distributed-db
-      label: Distributed DB
-      default_specs:
-        avg_response_time_ms: 15
-        max_connections: 200
-    - id: cache
-      label: Cache
-      default_specs:
-        avg_response_time_ms: 1
-        max_connections: 5000
+  database:
+    - name: postgres
+      type: relational-db
+      icon-url: /icons/postgres.svg
+      avg_response_time_ms: 10
+      max_connections: 100
+    - name: mysql
+      type: relational-db
+      icon-url: /icons/mysql.svg
+      avg_response_time_ms: 10
+      max_connections: 150
+    - name: cassandra
+      type: distributed-db
+      icon-url: /icons/cassandra.svg
+      avg_response_time_ms: 15
+      max_connections: 500
+    - name: dynamodb
+      type: distributed-db
+      icon-url: /icons/dynamodb.svg
+      avg_response_time_ms: 12
+      max_connections: 40000
+    - name: redis
+      type: cache
+      icon-url: /icons/redis.svg
+      avg_response_time_ms: 1
+      max_connections: 5000
+    - name: memcached
+      type: cache
+      icon-url: /icons/memcached.svg
+      avg_response_time_ms: 1
+      max_connections: 4000
 
   messaging:
-    - id: event-stream
-      label: Event Stream (Kafka-style)
-      default_specs:
-        partitions: 3
-        avg_response_time_ms: 8
-    - id: message-queue
-      label: Message Queue
-      default_specs:
-        avg_response_time_ms: 5
-        max_in_flight: 1000
+    - name: kafka
+      type: event-stream
+      icon-url: /icons/kafka.svg
+      partitions: 3
+      avg_response_time_ms: 8
+    - name: rabbitmq
+      type: message-queue
+      icon-url: /icons/rabbitmq.svg
+      avg_response_time_ms: 5
+      max_in_flight: 1000
+    - name: aws-sqs
+      type: message-queue
+      icon-url: /icons/aws-sqs.svg
+      avg_response_time_ms: 10
+      max_in_flight: 120000

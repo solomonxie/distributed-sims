@@ -5,8 +5,7 @@ description: Client -> gateway -> order service -> db + async event stream
 
 components:
   web-client:
-    type: frontend-client
-    tech: react-spa
+    type: react-spa
     specs:
       avg_response_time_ms: 0
     connects_to:
@@ -15,8 +14,7 @@ components:
         avg_payload_kb: 3
 
   api-gateway:
-    type: api-gateway
-    tech: kong
+    type: kong
     specs:
       avg_response_time_ms: 5
       max_rps: 5000
@@ -30,8 +28,7 @@ components:
         severity: warning
 
   order-service:
-    type: microservice
-    tech: node-express
+    type: node-express
     specs:
       instances: 3
       cpu_cores: 1
@@ -54,8 +51,7 @@ components:
         severity: critical
 
   orders-db:
-    type: distributed-db
-    tech: postgres-citus
+    type: postgres
     specs:
       avg_response_time_ms: 15
       max_connections: 200
@@ -65,8 +61,7 @@ components:
         severity: critical
 
   order-events:
-    type: event-stream
-    tech: kafka
+    type: kafka
     specs:
       partitions: 6
       avg_response_time_ms: 8

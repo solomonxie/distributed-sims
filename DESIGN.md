@@ -94,8 +94,7 @@ description: Client -> gateway -> order service -> db + async event stream
 
 components:
   web-client:
-    type: frontend-client
-    tech: react-spa
+    type: react-spa
     specs:
       avg_response_time_ms: 0   # entrypoint, not a service being measured
     connects_to:
@@ -104,8 +103,7 @@ components:
         avg_payload_kb: 3
 
   api-gateway:
-    type: api-gateway
-    tech: kong
+    type: kong
     specs:
       avg_response_time_ms: 5
       max_rps: 5000
@@ -119,8 +117,7 @@ components:
         severity: warning
 
   order-service:
-    type: microservice
-    tech: node-express
+    type: node-express
     specs:
       instances: 3
       cpu_cores: 1
@@ -143,8 +140,7 @@ components:
         severity: critical
 
   orders-db:
-    type: distributed-db
-    tech: postgres-citus
+    type: postgres
     specs:
       avg_response_time_ms: 15
       max_connections: 200
@@ -154,8 +150,7 @@ components:
         severity: critical
 
   order-events:
-    type: event-stream
-    tech: kafka
+    type: kafka
     specs:
       partitions: 6
       avg_response_time_ms: 8
@@ -163,10 +158,14 @@ components:
 
 **Field reference**
 
-- `type` — must match an id in the component catalog (§5).
-- `tech` — free-text label for what's actually running (shown in the UI,
-  not used by the simulation math).
-- `specs` — numeric knobs the simulation engine reads. Common ones:
+- `type` — must match a `name` in the component catalog (§5), e.g.
+  `postgres`, `kafka`, `node-express`. This is the concrete technology; the
+  catalog entry it resolves to carries its own internal `type` (the
+  abstract behavioral class, e.g. `relational-db`) that the simulation
+  engine uses to pick its formulas.
+- `specs` — numeric knobs the simulation engine reads. Defaults come from
+  the matching catalog entry and can be overridden per-instance here.
+  Common ones:
   `avg_response_time_ms`, `instances`, `cpu_cores`, `mem_mb`,
   `max_concurrent_workers`, `max_rps`, `max_connections`. Unrecognized specs
   are allowed and just carried through (e.g. for the cost estimator or
@@ -178,53 +177,81 @@ components:
 
 ## 5. Component catalog schema
 
-`catalog/catalog.yaml` is the fixed palette the canvas draws from.
+`catalog/catalog.yaml` is the fixed palette the canvas draws from. Entries
+are grouped by category (`client`, `networking`, `compute`, `database`,
+`messaging`), and each entry is a *concrete* real-world technology, not an
+abstract placeholder — this is what makes the canvas show a Postgres icon
+next to a Kafka icon instead of generic boxes.
+
+Two identifiers matter, and they mean different things:
+
+- `name` — the concrete tech (`postgres`, `kafka`, `node-express`...). This
+  is what a system definition's `type:` field (§4) references.
+- `type` — the abstract behavioral class (`relational-db`, `event-stream`,
+  `microservice`...) that the simulation engine uses to pick its
+  latency/capacity formulas. Multiple `name`s can share a `type` (`postgres`
+  and `mysql` are both `relational-db`).
+
+Specs are flattened directly onto the entry (no nested wrapper) and are the
+defaults a new component instance starts with; a system definition can
+override any of them per-instance.
 
 ```yaml
 categories:
   client:
-    - id: frontend-client
-      label: Frontend Client
-      default_specs: { avg_response_time_ms: 0 }
+    - name: react-spa
+      type: frontend-client
+      icon-url: /icons/react.svg
+      avg_response_time_ms: 0
+
   networking:
-    - id: api-gateway
-      label: API Gateway
-      default_specs: { avg_response_time_ms: 5, max_rps: 5000 }
-    - id: load-balancer
-      label: Load Balancer
-      default_specs: { avg_response_time_ms: 1, max_rps: 20000 }
-    - id: cdn
-      label: CDN
-      default_specs: { avg_response_time_ms: 20, cache_hit_ratio: 0.9 }
+    - name: kong
+      type: api-gateway
+      icon-url: /icons/kong.svg
+      avg_response_time_ms: 5
+      max_rps: 5000
+    - name: cloudfront
+      type: cdn
+      icon-url: /icons/cloudfront.svg
+      avg_response_time_ms: 20
+      cache_hit_ratio: 0.9
+
   compute:
-    - id: microservice
-      label: Microservice
-      default_specs: { instances: 1, cpu_cores: 1, mem_mb: 256, avg_response_time_ms: 50, max_concurrent_workers: 50 }
-    - id: monolith
-      label: Monolith
-      default_specs: { instances: 2, cpu_cores: 4, mem_mb: 2048, avg_response_time_ms: 80, max_concurrent_workers: 200 }
-  data:
-    - id: relational-db
-      label: Relational DB
-      default_specs: { avg_response_time_ms: 10, max_connections: 100 }
-    - id: distributed-db
-      label: Distributed DB
-      default_specs: { avg_response_time_ms: 15, max_connections: 200 }
-    - id: cache
-      label: Cache
-      default_specs: { avg_response_time_ms: 1, max_connections: 5000 }
+    - name: node-express
+      type: microservice
+      icon-url: /icons/nodejs.svg
+      instances: 1
+      cpu_cores: 1
+      mem_mb: 256
+      avg_response_time_ms: 50
+      max_concurrent_workers: 50
+
+  database:
+    - name: postgres
+      type: relational-db
+      icon-url: /icons/postgres.svg
+      avg_response_time_ms: 10
+      max_connections: 100
+    - name: redis
+      type: cache
+      icon-url: /icons/redis.svg
+      avg_response_time_ms: 1
+      max_connections: 5000
+
   messaging:
-    - id: event-stream
-      label: Event Stream (Kafka-style)
-      default_specs: { partitions: 3, avg_response_time_ms: 8 }
-    - id: message-queue
-      label: Message Queue
-      default_specs: { avg_response_time_ms: 5, max_in_flight: 1000 }
+    - name: kafka
+      type: event-stream
+      icon-url: /icons/kafka.svg
+      partitions: 3
+      avg_response_time_ms: 8
 ```
 
-Each entry additionally carries an `icon` field once the frontend palette is
-built (omitted above for brevity). Adding a new component type is a change
-to this one file plus (later) an icon asset.
+(Full list — several techs per category — lives in `catalog/catalog.yaml`
+itself; the above is illustrative.)
+
+`icon-url` follows the `/icons/<name>.svg` convention; the actual SVG assets
+land with the frontend scaffold in M1. Adding a new supported technology is
+a change to this one file plus an icon asset — never an app-level feature.
 
 ## 6. Scenario / traffic definition schema
 
