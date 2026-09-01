@@ -117,7 +117,7 @@ components:
         severity: warning
 
   order-service:
-    type: node-express
+    type: microservice
     specs:
       instances: 3
       cpu_cores: 1
@@ -159,7 +159,7 @@ components:
 **Field reference**
 
 - `type` — must match a `name` in the component catalog (§5), e.g.
-  `postgres`, `kafka`, `node-express`. This is the concrete technology; the
+  `postgres`, `kafka`, `microservice`. This is the concrete technology; the
   catalog entry it resolves to carries its own internal `type` (the
   abstract behavioral class, e.g. `relational-db`) that the simulation
   engine uses to pick its formulas.
@@ -177,81 +177,111 @@ components:
 
 ## 5. Component catalog schema
 
-`catalog/catalog.yaml` is the fixed palette the canvas draws from. Entries
-are grouped by category (`client`, `networking`, `compute`, `database`,
-`messaging`), and each entry is a *concrete* real-world technology, not an
-abstract placeholder — this is what makes the canvas show a Postgres icon
-next to a Kafka icon instead of generic boxes.
+`catalog/catalog.yaml` is the fixed palette the canvas draws from: a flat
+list under `components:` (comments mark groups for human scanning — client,
+networking, compute, database, messaging, etl, serverless — but there's no
+nested structure to walk). Every entry is a *concrete* real-world
+technology, not an abstract placeholder — this is what makes the canvas
+show a Postgres icon next to a Kafka icon instead of generic boxes.
 
-Two identifiers matter, and they mean different things:
+The exception is `compute`: a Node service, a Go service, and a Spring Boot
+service behave identically in the simulation, so compute stays generic
+(`microservice`, `monolith`) rather than one entry per language/framework —
+the specific stack is a deployment detail that doesn't belong in the
+catalog.
 
-- `name` — the concrete tech (`postgres`, `kafka`, `node-express`...). This
-  is what a system definition's `type:` field (§4) references.
-- `type` — the abstract behavioral class (`relational-db`, `event-stream`,
-  `microservice`...) that the simulation engine uses to pick its
-  latency/capacity formulas. Multiple `name`s can share a `type` (`postgres`
-  and `mysql` are both `relational-db`).
+Fields, and what each is for:
 
-Specs are flattened directly onto the entry (no nested wrapper) and are the
-defaults a new component instance starts with; a system definition can
-override any of them per-instance.
+- `name` — the identifier a system definition's `type:` field (§4)
+  references (`postgres`, `kafka`, `microservice`...).
+- `type` — the abstract behavioral class the simulation engine uses to pick
+  its latency/capacity formulas, and the primary grouping key at runtime
+  (palette sections, filters). Multiple `name`s can share a `type`
+  (`postgres` and `mysql` are both `relational-db`).
+- `description` — one-liner shown in the palette/tooltip.
+- `icon-url` — `/icons/<name>.svg`; assets live in `public/icons/`.
+- `tags` — free-form multi-select labels (`[sql, oltp, self-hosted]`,
+  `[serverless, aws, managed]`...) for filtering/search. Extensible — the
+  simulation engine doesn't read these, so new tags never require code
+  changes.
+- everything else — default specs, flattened directly onto the entry (no
+  nested wrapper). These are what a new component instance starts with; a
+  system definition can override any of them per-instance.
 
 ```yaml
-categories:
-  client:
-    - name: react-spa
-      type: frontend-client
-      icon-url: /icons/react.svg
-      avg_response_time_ms: 0
+components:
+  # client
+  - name: react-spa
+    type: frontend-client
+    description: Single-page web app client
+    icon-url: /icons/react.svg
+    tags: [frontend, spa]
+    avg_response_time_ms: 0
 
-  networking:
-    - name: kong
-      type: api-gateway
-      icon-url: /icons/kong.svg
-      avg_response_time_ms: 5
-      max_rps: 5000
-    - name: cloudfront
-      type: cdn
-      icon-url: /icons/cloudfront.svg
-      avg_response_time_ms: 20
-      cache_hit_ratio: 0.9
+  # networking
+  - name: kong
+    type: api-gateway
+    description: Open-source API gateway
+    icon-url: /icons/kong.svg
+    tags: [gateway, self-hosted]
+    avg_response_time_ms: 5
+    max_rps: 5000
 
-  compute:
-    - name: node-express
-      type: microservice
-      icon-url: /icons/nodejs.svg
-      instances: 1
-      cpu_cores: 1
-      mem_mb: 256
-      avg_response_time_ms: 50
-      max_concurrent_workers: 50
+  # compute — generic; language/framework is a deployment detail
+  - name: microservice
+    type: microservice
+    description: Stateless web service or API worker
+    icon-url: /icons/microservice.svg
+    tags: [compute, stateless]
+    instances: 1
+    cpu_cores: 1
+    mem_mb: 256
+    avg_response_time_ms: 50
+    max_concurrent_workers: 50
 
-  database:
-    - name: postgres
-      type: relational-db
-      icon-url: /icons/postgres.svg
-      avg_response_time_ms: 10
-      max_connections: 100
-    - name: redis
-      type: cache
-      icon-url: /icons/redis.svg
-      avg_response_time_ms: 1
-      max_connections: 5000
+  # database
+  - name: postgres
+    type: relational-db
+    description: Open-source relational database
+    icon-url: /icons/postgres.svg
+    tags: [sql, oltp, self-hosted]
+    avg_response_time_ms: 10
+    max_connections: 100
+  - name: snowflake
+    type: data-warehouse
+    description: Managed cloud data warehouse
+    icon-url: /icons/snowflake.svg
+    tags: [warehouse, olap, managed]
+    avg_response_time_ms: 200
+    max_connections: 100
 
-  messaging:
-    - name: kafka
-      type: event-stream
-      icon-url: /icons/kafka.svg
-      partitions: 3
-      avg_response_time_ms: 8
+  # etl / data pipeline
+  - name: spark
+    type: batch-processor
+    description: Distributed batch/stream data processing engine
+    icon-url: /icons/spark.svg
+    tags: [etl, big-data, self-hosted]
+    avg_response_time_ms: 2000
+    max_concurrent_workers: 100
+
+  # serverless
+  - name: aws-lambda
+    type: serverless-function
+    description: Managed function-as-a-service compute on AWS
+    icon-url: /icons/aws.svg
+    tags: [serverless, aws, managed]
+    avg_response_time_ms: 100
+    max_concurrent_workers: 1000
 ```
 
-(Full list — several techs per category — lives in `catalog/catalog.yaml`
-itself; the above is illustrative.)
+(Full list — ~27 entries across all groups, including columnar/data-warehouse
+DBs, Airflow/Databricks, and AWS Step Functions/EventBridge — lives in
+`catalog/catalog.yaml` itself; the above is illustrative.)
 
-`icon-url` follows the `/icons/<name>.svg` convention; the actual SVG assets
-land with the frontend scaffold in M1. Adding a new supported technology is
-a change to this one file plus an icon asset — never an app-level feature.
+AWS-branded entries all reuse `/icons/aws.svg` (a generic AWS mark) since
+neither open icon set used here ships per-service AWS icons — see
+`public/icons/CREDITS.md`. Adding a new supported technology is a change to
+this one file plus an icon asset — never an app-level feature.
 
 ## 6. Scenario / traffic definition schema
 

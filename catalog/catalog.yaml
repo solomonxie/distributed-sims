@@ -2,141 +2,227 @@
 # The canvas UI only ever offers components from this list.
 # See DESIGN.md section 5.
 #
+# Flat list; comments below mark groups for human scanning only — grouping
+# at runtime (palette sections, filtering) is driven by `type` and `tags`.
+#
 # Each entry:
-#   name     - concrete tech identifier, referenced by a system definition's
-#              `type:` field (e.g. examples/systems/sample-ecommerce.yaml)
-#   type     - abstract behavioral class the simulation engine uses to pick
-#              its latency/capacity formulas (relational-db, cache, ...)
-#   icon-url - path to the icon asset (assets land in M1; convention is
-#              /icons/<name>.svg)
+#   name        - concrete tech identifier, referenced by a system
+#                 definition's `type:` field (e.g. examples/systems/*.yaml)
+#   type        - abstract behavioral class the simulation engine uses to
+#                 pick its latency/capacity formulas, and the primary
+#                 grouping key in the UI (relational-db, cache, ...)
+#   description - one-liner shown in the palette / tooltip
+#   icon-url    - path to the icon asset, convention /icons/<name>.svg
+#   tags        - free-form multi-select labels for filtering (extensible,
+#                 not read by the simulation engine)
 #   (remaining keys) - default specs, flattened directly onto the entry
 
-categories:
-  client:
-    - name: react-spa
-      type: frontend-client
-      icon-url: /icons/react.svg
-      avg_response_time_ms: 0
+components:
+  # client
+  - name: react-spa
+    type: frontend-client
+    description: Single-page web app client
+    icon-url: /icons/react.svg
+    tags: [frontend, spa]
+    avg_response_time_ms: 0
 
-  networking:
-    - name: kong
-      type: api-gateway
-      icon-url: /icons/kong.svg
-      avg_response_time_ms: 5
-      max_rps: 5000
-    - name: aws-api-gateway
-      type: api-gateway
-      icon-url: /icons/aws-api-gateway.svg
-      avg_response_time_ms: 10
-      max_rps: 10000
-    - name: nginx-lb
-      type: load-balancer
-      icon-url: /icons/nginx.svg
-      avg_response_time_ms: 1
-      max_rps: 20000
-    - name: aws-alb
-      type: load-balancer
-      icon-url: /icons/aws-alb.svg
-      avg_response_time_ms: 1
-      max_rps: 50000
-    - name: cloudfront
-      type: cdn
-      icon-url: /icons/cloudfront.svg
-      avg_response_time_ms: 20
-      cache_hit_ratio: 0.9
-    - name: fastly
-      type: cdn
-      icon-url: /icons/fastly.svg
-      avg_response_time_ms: 15
-      cache_hit_ratio: 0.92
+  # networking
+  - name: kong
+    type: api-gateway
+    description: Open-source API gateway
+    icon-url: /icons/kong.svg
+    tags: [gateway, self-hosted]
+    avg_response_time_ms: 5
+    max_rps: 5000
+  - name: aws-api-gateway
+    type: api-gateway
+    description: Managed API gateway on AWS
+    icon-url: /icons/aws.svg
+    tags: [gateway, aws, managed]
+    avg_response_time_ms: 10
+    max_rps: 10000
+  - name: nginx-lb
+    type: load-balancer
+    description: General-purpose reverse proxy and load balancer
+    icon-url: /icons/nginx.svg
+    tags: [load-balancer, self-hosted]
+    avg_response_time_ms: 1
+    max_rps: 20000
+  - name: aws-alb
+    type: load-balancer
+    description: Managed application load balancer on AWS
+    icon-url: /icons/aws.svg
+    tags: [load-balancer, aws, managed]
+    avg_response_time_ms: 1
+    max_rps: 50000
+  - name: cloudfront
+    type: cdn
+    description: Managed CDN on AWS
+    icon-url: /icons/aws.svg
+    tags: [cdn, aws, managed]
+    avg_response_time_ms: 20
+    cache_hit_ratio: 0.9
+  - name: fastly
+    type: cdn
+    description: Edge CDN and caching platform
+    icon-url: /icons/fastly.svg
+    tags: [cdn, managed]
+    avg_response_time_ms: 15
+    cache_hit_ratio: 0.92
 
-  compute:
-    - name: node-express
-      type: microservice
-      icon-url: /icons/nodejs.svg
-      instances: 1
-      cpu_cores: 1
-      mem_mb: 256
-      avg_response_time_ms: 50
-      max_concurrent_workers: 50
-    - name: spring-boot
-      type: microservice
-      icon-url: /icons/spring.svg
-      instances: 1
-      cpu_cores: 2
-      mem_mb: 512
-      avg_response_time_ms: 60
-      max_concurrent_workers: 100
-    - name: go-gin
-      type: microservice
-      icon-url: /icons/go.svg
-      instances: 1
-      cpu_cores: 1
-      mem_mb: 128
-      avg_response_time_ms: 20
-      max_concurrent_workers: 200
-    - name: rails-monolith
-      type: monolith
-      icon-url: /icons/rails.svg
-      instances: 2
-      cpu_cores: 4
-      mem_mb: 2048
-      avg_response_time_ms: 80
-      max_concurrent_workers: 200
-    - name: django-monolith
-      type: monolith
-      icon-url: /icons/django.svg
-      instances: 2
-      cpu_cores: 4
-      mem_mb: 2048
-      avg_response_time_ms: 90
-      max_concurrent_workers: 150
+  # compute — all web servers behave alike here; language/framework is a
+  # deployment detail, not a distinct component
+  - name: microservice
+    type: microservice
+    description: Stateless web service or API worker
+    icon-url: /icons/microservice.svg
+    tags: [compute, stateless]
+    instances: 1
+    cpu_cores: 1
+    mem_mb: 256
+    avg_response_time_ms: 50
+    max_concurrent_workers: 50
+  - name: monolith
+    type: monolith
+    description: Single deployable app handling multiple responsibilities
+    icon-url: /icons/monolith.svg
+    tags: [compute]
+    instances: 2
+    cpu_cores: 4
+    mem_mb: 2048
+    avg_response_time_ms: 80
+    max_concurrent_workers: 200
 
-  database:
-    - name: postgres
-      type: relational-db
-      icon-url: /icons/postgres.svg
-      avg_response_time_ms: 10
-      max_connections: 100
-    - name: mysql
-      type: relational-db
-      icon-url: /icons/mysql.svg
-      avg_response_time_ms: 10
-      max_connections: 150
-    - name: cassandra
-      type: distributed-db
-      icon-url: /icons/cassandra.svg
-      avg_response_time_ms: 15
-      max_connections: 500
-    - name: dynamodb
-      type: distributed-db
-      icon-url: /icons/dynamodb.svg
-      avg_response_time_ms: 12
-      max_connections: 40000
-    - name: redis
-      type: cache
-      icon-url: /icons/redis.svg
-      avg_response_time_ms: 1
-      max_connections: 5000
-    - name: memcached
-      type: cache
-      icon-url: /icons/memcached.svg
-      avg_response_time_ms: 1
-      max_connections: 4000
+  # database
+  - name: postgres
+    type: relational-db
+    description: Open-source relational database
+    icon-url: /icons/postgres.svg
+    tags: [sql, oltp, self-hosted]
+    avg_response_time_ms: 10
+    max_connections: 100
+  - name: mysql
+    type: relational-db
+    description: Open-source relational database
+    icon-url: /icons/mysql.svg
+    tags: [sql, oltp, self-hosted]
+    avg_response_time_ms: 10
+    max_connections: 150
+  - name: cassandra
+    type: distributed-db
+    description: Wide-column distributed NoSQL database
+    icon-url: /icons/cassandra.svg
+    tags: [nosql, wide-column, self-hosted]
+    avg_response_time_ms: 15
+    max_connections: 500
+  - name: dynamodb
+    type: distributed-db
+    description: Managed key-value/document NoSQL database on AWS
+    icon-url: /icons/aws.svg
+    tags: [nosql, aws, managed]
+    avg_response_time_ms: 12
+    max_connections: 40000
+  - name: redis
+    type: cache
+    description: In-memory key-value cache
+    icon-url: /icons/redis.svg
+    tags: [cache, in-memory, self-hosted]
+    avg_response_time_ms: 1
+    max_connections: 5000
+  - name: memcached
+    type: cache
+    description: In-memory key-value cache
+    icon-url: /icons/memcached.svg
+    tags: [cache, in-memory, self-hosted]
+    avg_response_time_ms: 1
+    max_connections: 4000
+  - name: clickhouse
+    type: columnar-db
+    description: Columnar OLAP database
+    icon-url: /icons/clickhouse.svg
+    tags: [olap, columnar, self-hosted]
+    avg_response_time_ms: 20
+    max_connections: 200
+  - name: snowflake
+    type: data-warehouse
+    description: Managed cloud data warehouse
+    icon-url: /icons/snowflake.svg
+    tags: [warehouse, olap, managed]
+    avg_response_time_ms: 200
+    max_connections: 100
+  - name: bigquery
+    type: data-warehouse
+    description: Managed serverless data warehouse on GCP
+    icon-url: /icons/bigquery.svg
+    tags: [warehouse, olap, gcp, managed, serverless]
+    avg_response_time_ms: 300
+    max_connections: 100
 
-  messaging:
-    - name: kafka
-      type: event-stream
-      icon-url: /icons/kafka.svg
-      partitions: 3
-      avg_response_time_ms: 8
-    - name: rabbitmq
-      type: message-queue
-      icon-url: /icons/rabbitmq.svg
-      avg_response_time_ms: 5
-      max_in_flight: 1000
-    - name: aws-sqs
-      type: message-queue
-      icon-url: /icons/aws-sqs.svg
-      avg_response_time_ms: 10
-      max_in_flight: 120000
+  # messaging
+  - name: kafka
+    type: event-stream
+    description: Distributed event streaming platform
+    icon-url: /icons/kafka.svg
+    tags: [streaming, self-hosted]
+    partitions: 3
+    avg_response_time_ms: 8
+  - name: rabbitmq
+    type: message-queue
+    description: General-purpose message broker
+    icon-url: /icons/rabbitmq.svg
+    tags: [queue, self-hosted]
+    avg_response_time_ms: 5
+    max_in_flight: 1000
+  - name: aws-sqs
+    type: message-queue
+    description: Managed message queue on AWS
+    icon-url: /icons/aws.svg
+    tags: [queue, aws, managed]
+    avg_response_time_ms: 10
+    max_in_flight: 120000
+
+  # etl / data pipeline
+  - name: airflow
+    type: workflow-orchestrator
+    description: Schedules and orchestrates data pipeline workflows
+    icon-url: /icons/airflow.svg
+    tags: [etl, orchestration, self-hosted]
+    avg_response_time_ms: 500
+    max_concurrent_workers: 50
+  - name: spark
+    type: batch-processor
+    description: Distributed batch/stream data processing engine
+    icon-url: /icons/spark.svg
+    tags: [etl, big-data, self-hosted]
+    avg_response_time_ms: 2000
+    max_concurrent_workers: 100
+  - name: databricks
+    type: lakehouse-platform
+    description: Managed Spark-based lakehouse analytics platform
+    icon-url: /icons/databricks.svg
+    tags: [etl, big-data, managed]
+    avg_response_time_ms: 1500
+    max_concurrent_workers: 200
+
+  # serverless
+  - name: aws-lambda
+    type: serverless-function
+    description: Managed function-as-a-service compute on AWS
+    icon-url: /icons/aws.svg
+    tags: [serverless, aws, managed]
+    avg_response_time_ms: 100
+    max_concurrent_workers: 1000
+  - name: aws-step-functions
+    type: workflow-orchestrator
+    description: Managed serverless workflow orchestration on AWS
+    icon-url: /icons/aws.svg
+    tags: [serverless, aws, managed, orchestration]
+    avg_response_time_ms: 50
+    max_concurrent_workers: 1000
+  - name: aws-eventbridge
+    type: event-bus
+    description: Managed serverless event bus on AWS
+    icon-url: /icons/aws.svg
+    tags: [serverless, aws, managed, events]
+    avg_response_time_ms: 20
+    max_rps: 10000

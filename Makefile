@@ -1,16 +1,16 @@
-.PHONY: install dev build preview lint test
+.PHONY: install dev run build preview lint test
 
 install:
 	npm install
 
-dev:
-	npm run dev
+dev run:
+	npm run dev -- --open
 
 build:
 	npm run build
 
 preview:
-	npm run preview
+	npm run preview -- --open
 
 lint:
 	@echo "not yet implemented"
