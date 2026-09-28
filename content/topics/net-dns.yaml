@@ -1,0 +1,69 @@
+id: net-dns
+title: DNS
+group: network
+icon: signpost
+order: 7
+summary: Recursive resolution, record types, caching and TTLs, failover pitfalls and anycast.
+info: DNS is a global, cached, eventually consistent key-value store. A lookup walks from the root to the authoritative server once, then every layer caches the answer for its TTL. That makes DNS fast and resilient, and it is also why DNS changes are slow, why failover by DNS takes minutes, and why "it's always DNS" is a joke engineers tell.
+algos: [nw-dns]
+lessons:
+  - id: resolution
+    title: How a lookup works
+    minutes: 5
+    algo: nw-dns
+    steps:
+      - title: Cold lookup
+        body: The recursive resolver walks root → .com → authoritative.
+        watch: Referrals vs the final answer.
+        input: recursive
+        check: { metric: manual }
+      - title: Cache hit
+        body: Most lookups end at the resolver's cache in a millisecond.
+        input: cached
+        check: { metric: manual }
+      - title: Where caches live
+        body: Browser, OS stub resolver, recursive resolver, and some runtimes (the JVM) all cache.
+        check: { metric: manual }
+
+  - id: records
+    title: Record types
+    minutes: 4
+    algo: nw-dns
+    steps:
+      - title: The common set
+        body: A/AAAA, CNAME, MX, TXT, NS, SRV, PTR, CAA.
+        watch: Tap each record type for a dig example.
+        input: records
+        check: { metric: manual }
+      - title: CNAME at the apex
+        body: Not allowed. Providers offer ALIAS/ANAME records to point example.com at a load balancer.
+        check: { metric: manual }
+
+  - id: caching-ttl
+    title: TTL & failover
+    minutes: 4
+    algo: nw-dns
+    steps:
+      - title: TTL is a promise
+        body: Resolvers may serve the old answer until the TTL runs out.
+        input: ttl
+        check: { metric: manual }
+      - title: Plan changes
+        body: Lower TTLs a day before a migration, raise them after.
+        check: { metric: manual }
+      - title: Negative caching
+        body: NXDOMAIN is cached too, so creating a record after a failed lookup takes a while to show up.
+        check: { metric: manual }
+
+  - id: anycast
+    title: Anycast
+    minutes: 3
+    algo: nw-dns
+    steps:
+      - title: One IP, many places
+        body: BGP routes each user to the nearest site announcing the prefix.
+        input: anycast
+        check: { metric: manual }
+      - title: Why DNS loves it
+        body: Short UDP exchanges don't care if the route changes between packets.
+        check: { metric: manual }

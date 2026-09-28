@@ -1,0 +1,48 @@
+id: cs-runtime
+title: "CLR & JIT"
+group: languages
+language: csharp
+icon: cpu
+order: 1
+summary: "C# to IL to native: assemblies, the CLR, tiered JIT with PGO, ReadyToRun and NativeAOT."
+info: "C# compiles to IL, a portable bytecode stored with rich metadata in assemblies. The CLR loads them and JIT-compiles each method on first call, first quickly and then optimised with profile data. Ahead-of-time modes trade flexibility for startup."
+algos: [cs-clr]
+lessons:
+  - id: il
+    title: "IL & the CLR"
+    minutes: 3
+    algo: cs-clr
+    steps:
+      - title: "IL, not machine code"
+        body: "Roslyn emits IL plus metadata; the CLR loads assemblies into an AssemblyLoadContext."
+        input: pipeline
+        check: { metric: manual }
+      - title: "JIT on first call"
+        body: "Each method is compiled to native code the first time it runs, then called directly."
+        check: { metric: manual }
+
+  - id: tiered
+    title: "Tiered compilation & PGO"
+    minutes: 3
+    algo: cs-clr
+    steps:
+      - title: "Fast, then fast code"
+        body: "Tier 0 compiles quickly; after 30 calls a method is recompiled optimised using runtime profile data."
+        input: tiered
+        check: { metric: manual }
+      - title: "Benchmark warm-up"
+        body: "Early runs measure Tier 0 code. BenchmarkDotNet warms up before measuring."
+        check: { metric: manual }
+
+  - id: aot
+    title: "ReadyToRun & NativeAOT"
+    minutes: 3
+    algo: cs-clr
+    steps:
+      - title: "Two AOT modes"
+        body: "ReadyToRun precompiles but keeps the JIT; NativeAOT drops it entirely for instant startup."
+        input: aot
+        check: { metric: manual }
+      - title: "Trimming limits"
+        body: "NativeAOT trims unused code, so reflection-heavy libraries need source generators."
+        check: { metric: manual }

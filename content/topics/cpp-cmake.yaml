@@ -1,6 +1,7 @@
 id: cpp-cmake
 title: CMake
-group: cpp
+group: languages
+language: cpp
 icon: hammer
 order: 7
 summary: Build C++ with CMake, from a three-line CMakeLists.txt to targets, dependencies, presets, CI and packaging.

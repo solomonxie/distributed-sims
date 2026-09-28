@@ -1,0 +1,59 @@
+id: java-build
+title: "Maven, Gradle & dependencies"
+group: languages
+language: java
+icon: package
+order: 6
+summary: "Coordinates and repositories, transitive dependency trees, version conflicts and how Maven and Gradle pick a winner, and shading."
+info: "A Java build downloads artifacts by coordinates from repositories and assembles one classpath. Every library brings its own dependencies, and when two want different versions of the same artifact only one can win. Maven picks the nearest, Gradle the highest; knowing which, and how to override it, prevents NoSuchMethodError at run time."
+algos: [java-deps]
+lessons:
+  - id: coordinates
+    title: "Coordinates & repositories"
+    minutes: 3
+    algo: java-deps
+    steps:
+      - title: "groupId:artifactId:version"
+        body: "Every artifact has a unique coordinate."
+        input: coords
+        check: { metric: manual }
+      - title: "Local cache"
+        body: "~/.m2 (Maven) and ~/.gradle/caches hold downloaded artifacts."
+        check: { metric: manual }
+      - title: "Remote repositories"
+        body: "Maven Central plus company proxies like Nexus or Artifactory."
+        check: { metric: manual }
+
+  - id: transitive
+    title: "Transitive dependencies & conflicts"
+    minutes: 5
+    algo: java-deps
+    steps:
+      - title: "The tree"
+        body: "Dependencies bring their own dependencies; inspect with mvn dependency:tree."
+        input: tree
+        check: { metric: manual }
+      - title: "One version wins"
+        body: "Maven: nearest declaration. Gradle: highest version."
+        watch: "Tap resolved for the dependencyManagement fix."
+        input: conflict
+        check: { metric: manual }
+      - title: "Symptoms"
+        body: "NoSuchMethodError or ClassNotFoundException at run time; pin versions with a BOM or dependencyManagement."
+        check: { metric: manual }
+
+  - id: shading
+    title: "Shading"
+    minutes: 3
+    algo: java-deps
+    steps:
+      - title: "The problem"
+        body: "Your library’s dependency may clash with the user’s version."
+        input: shade
+        check: { metric: manual }
+      - title: "Relocation"
+        body: "Shading copies the dependency into your JAR under a renamed package."
+        check: { metric: manual }
+      - title: "Trade-off"
+        body: "No clash, but a bigger JAR and duplicated code; prefer it only for libraries."
+        check: { metric: manual }

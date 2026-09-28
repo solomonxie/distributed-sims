@@ -1,0 +1,55 @@
+id: rust-modules
+title: "Modules & Cargo"
+group: languages
+language: rust
+icon: package
+order: 5
+summary: "The mod tree and use paths, Cargo.toml resolution, Cargo.lock, feature flags and workspaces."
+info: "A crate is a tree of modules declared from its root file, with everything private by default. Cargo resolves semver ranges against crates.io, pins the result in Cargo.lock, unifies feature flags across the graph, and builds workspaces with one lock file."
+algos: [rust-modules]
+lessons:
+  - id: modules
+    title: "Modules & paths"
+    minutes: 3
+    algo: rust-modules
+    steps:
+      - title: "mod builds the tree"
+        body: "mod net; loads src/net.rs. Files don’t exist to the compiler until declared."
+        input: modtree
+        check: { metric: manual }
+      - title: "Private by default"
+        body: "pub, pub(crate) and pub(super) control visibility; use shortens paths."
+        check: { metric: manual }
+
+  - id: cargo
+    title: "Cargo & versions"
+    minutes: 4
+    algo: rust-modules
+    steps:
+      - title: "Caret ranges"
+        body: "serde = \"1.0\" accepts any compatible 1.x; the resolver picks the newest."
+        input: cargo
+        check: { metric: manual }
+      - title: "Cargo.lock"
+        body: "Records exact versions. Commit it for applications; cargo update moves forward deliberately."
+        check: { metric: manual }
+
+  - id: features
+    title: "Feature flags"
+    minutes: 3
+    algo: rust-modules
+    steps:
+      - title: "Unified"
+        body: "A crate is built once with the union of all requested features, so features must be additive."
+        input: features
+        check: { metric: manual }
+
+  - id: workspaces
+    title: "Workspaces"
+    minutes: 3
+    algo: rust-modules
+    steps:
+      - title: "Many crates, one lock"
+        body: "Members share Cargo.lock and target/, and depend on each other by path."
+        input: workspace
+        check: { metric: manual }

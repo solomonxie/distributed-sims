@@ -1,0 +1,38 @@
+id: go-modules
+title: "Modules & dependencies"
+group: languages
+language: go
+icon: package
+order: 5
+summary: "go.mod, minimal version selection, go.sum, GOPROXY and the checksum database, replace and vendor."
+info: "A Go module is a versioned tree of packages. Instead of a SAT solver and a lock file, Go picks the minimum version that satisfies every requirement, verifies downloads against a public checksum log, and caches them read-only."
+algos: [go-modules]
+lessons:
+  - id: mvs
+    title: "go.mod & minimal version selection"
+    minutes: 4
+    algo: go-modules
+    steps:
+      - title: "Requirements are minimums"
+        body: "go.mod lists the lowest version each module needs."
+        input: mvs
+        check: { metric: manual }
+      - title: "Pick the max of the minimums"
+        body: "MVS chooses the highest required minimum, never a newer release, so builds are reproducible without a lock file."
+        check: { metric: manual }
+      - title: "Upgrades are explicit"
+        body: "go get mod@version raises a minimum; go mod tidy prunes unused requirements."
+        check: { metric: manual }
+
+  - id: proxy
+    title: "Proxy, checksums & vendoring"
+    minutes: 3
+    algo: go-modules
+    steps:
+      - title: "Downloads"
+        body: "Modules come from GOPROXY and are checked against sum.golang.org before landing in the module cache."
+        input: proxy
+        check: { metric: manual }
+      - title: "Private and local code"
+        body: "GOPRIVATE skips the proxy for company modules, replace points at a local fork, vendor/ makes builds offline."
+        check: { metric: manual }

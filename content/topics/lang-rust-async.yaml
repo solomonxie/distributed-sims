@@ -1,0 +1,35 @@
+id: rust-async
+title: "async Rust"
+group: languages
+language: rust
+icon: timer
+order: 4
+summary: "Futures as state machines, polling, wakers, and how tokio’s executor and reactor fit together."
+info: "async fn compiles to a state machine that does nothing until polled. There is no built-in runtime: a library like tokio supplies worker threads that poll tasks and a reactor that wakes them when epoll reports I/O."
+algos: [rust-async]
+lessons:
+  - id: futures
+    title: "Futures & polling"
+    minutes: 4
+    algo: rust-async
+    steps:
+      - title: "Lazy"
+        body: "Calling an async fn returns a future; nothing runs until it is awaited or spawned."
+        input: statemachine
+        check: { metric: manual }
+      - title: "State machines"
+        body: "Each .await is a state; locals that cross it are stored inside the future, with no heap allocation per await."
+        check: { metric: manual }
+
+  - id: executors
+    title: "Executors & the reactor"
+    minutes: 4
+    algo: rust-async
+    steps:
+      - title: "Workers and wakers"
+        body: "Workers poll tasks; Pending registers interest with the reactor, and the waker requeues the task."
+        input: executor
+        check: { metric: manual }
+      - title: "Don’t block"
+        body: "Sleeping or heavy CPU work inside a task stalls a worker. Use spawn_blocking or tokio::time::sleep."
+        check: { metric: manual }

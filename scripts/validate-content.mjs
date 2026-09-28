@@ -25,7 +25,8 @@ const LUCIDE = (() => {
 })();
 export const lucideName = (kebab) => String(kebab).split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('');
 
-const TOPIC_GROUPS = ['topics', 'under-the-hood', 'machine', 'cpp'];
+const TOPIC_GROUPS = ['topics', 'under-the-hood', 'network', 'machine', 'languages'];
+const LANGUAGES = ['cpp', 'go', 'python', 'java', 'rust', 'csharp'];
 const PROBLEM_CATEGORIES = ['classic', 'product', 'infra'];
 
 const list = (dir, ext) =>
@@ -278,6 +279,7 @@ export function validate(c) {
   for (const t of c.topics) {
     const w = `${t.__file} topic '${t.id}'`;
     if (!TOPIC_GROUPS.includes(t.group)) err(w, `group must be one of ${TOPIC_GROUPS.join('|')}`);
+    if ((t.group === 'languages') !== LANGUAGES.includes(t.language)) err(w, `languages topics need language: ${LANGUAGES.join('|')} (and only they)`);
     if (!Array.isArray(t.lessons) || !t.lessons.length) err(w, 'topic needs lessons');
     dupes((t.lessons ?? []).map(l => ({ ...l, __file: w })), 'id', 'lesson');
     for (const l of t.lessons ?? []) checkLesson(w, l);

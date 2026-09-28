@@ -1,0 +1,57 @@
+id: py-packaging
+title: "pip, venv & packaging"
+group: languages
+language: python
+icon: package
+order: 6
+summary: "Isolated environments, pyproject.toml, how pip installs wheels and sdists, one-version resolution, and lock files."
+info: "A Python environment is an interpreter plus one site-packages directory, and it can hold only one version of each package. Virtual environments give every project its own; pyproject.toml declares what it needs; the resolver finds a compatible set; and a lock file makes that set reproducible on every machine."
+algos: [py-pip]
+lessons:
+  - id: venvs
+    title: "Virtual environments"
+    minutes: 3
+    algo: py-pip
+    steps:
+      - title: "Don’t install into the system Python"
+        body: "Projects clash and OS tools can break."
+        input: venv
+        check: { metric: manual }
+      - title: "python -m venv .venv"
+        body: "A folder with its own interpreter link and site-packages."
+        check: { metric: manual }
+      - title: "Activation"
+        body: "Only a PATH change; you can always call .venv/bin/python directly."
+        check: { metric: manual }
+
+  - id: installing
+    title: "Installing packages"
+    minutes: 4
+    algo: py-pip
+    steps:
+      - title: "pyproject.toml"
+        body: "Declares dependencies and the build backend."
+        input: install
+        check: { metric: manual }
+      - title: "Wheels"
+        body: "Prebuilt, platform-tagged zips that install by unzipping."
+        check: { metric: manual }
+      - title: "sdists"
+        body: "Source archives built at install time, sometimes needing a compiler."
+        check: { metric: manual }
+
+  - id: resolving
+    title: "Resolution & lock files"
+    minutes: 4
+    algo: py-pip
+    steps:
+      - title: "One version per package"
+        body: "Conflicting requirements must be resolved into a single version."
+        input: resolve
+        check: { metric: manual }
+      - title: "Resolver errors"
+        body: "ResolutionImpossible lists the constraints that can’t all be met."
+        check: { metric: manual }
+      - title: "Lock files"
+        body: "uv.lock or poetry.lock pin every transitive version and hash for reproducible installs."
+        check: { metric: manual }

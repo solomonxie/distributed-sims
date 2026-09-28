@@ -1,0 +1,58 @@
+id: py-objects
+title: "Objects & references"
+group: languages
+language: python
+icon: box
+order: 2
+summary: "Everything is an object on the heap and every variable is a reference: aliasing, copies, identity and the classic mutable-default bug."
+info: "A Python name is a label stuck on an object, not a box that holds a value. Assignment never copies, it binds another name to the same object. That single rule explains aliasing surprises, why is and == differ, and why a list default argument remembers previous calls."
+algos: [py-objects]
+lessons:
+  - id: references
+    title: "Names, references & aliasing"
+    minutes: 4
+    algo: py-objects
+    steps:
+      - title: "Assignment binds"
+        body: "b = a makes b refer to the same object. Nothing is copied."
+        input: alias
+        check: { metric: manual }
+      - title: "Mutation is visible through every name"
+        body: "Changing the list through b changes what a sees, because there is one list."
+        watch: "Both arrows point at one box."
+        check: { metric: manual }
+      - title: "Copies"
+        body: "list(a), a[:], a.copy() make shallow copies; copy.deepcopy copies nested objects too."
+        check: { metric: manual }
+
+  - id: identity
+    title: "is vs =="
+    minutes: 3
+    algo: py-objects
+    steps:
+      - title: "Identity"
+        body: "is checks whether two names refer to the same object."
+        input: smallint
+        check: { metric: manual }
+      - title: "Small-int cache"
+        body: "CPython reuses ints from -5 to 256, so is can look like it works on numbers. It doesn’t in general."
+        check: { metric: manual }
+      - title: "Rule"
+        body: "Use == for values and is only for singletons such as None."
+        check: { metric: manual }
+
+  - id: mutable-defaults
+    title: "Mutable default arguments"
+    minutes: 3
+    algo: py-objects
+    steps:
+      - title: "Defaults are evaluated once"
+        body: "def evaluates default values when the function is created, not per call."
+        input: default
+        check: { metric: manual }
+      - title: "Shared state"
+        body: "Every call that omits the argument shares the same list."
+        check: { metric: manual }
+      - title: "Fix"
+        body: "Default to None and create the list inside the function."
+        check: { metric: manual }

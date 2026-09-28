@@ -1,0 +1,58 @@
+id: java-concurrency
+title: "Memory model & threads"
+group: languages
+language: java
+icon: git-fork
+order: 5
+summary: "The Java memory model: visibility, happens-before, volatile and synchronized; and virtual threads for massive concurrency."
+info: "Without synchronisation, one thread’s writes may never become visible to another: caches, store buffers and the JIT all reorder. The Java memory model defines happens-before edges (volatile, locks, thread start and join) that guarantee visibility. Virtual threads make one-thread-per-request cheap again."
+algos: [java-threads]
+lessons:
+  - id: visibility
+    title: "Visibility & volatile"
+    minutes: 5
+    algo: java-threads
+    steps:
+      - title: "The stuck loop"
+        body: "A plain boolean flag may never be seen by the spinning thread."
+        input: visibility
+        check: { metric: manual }
+      - title: "volatile"
+        body: "A volatile write happens-before later reads, so the change is seen."
+        input: volatile
+        check: { metric: manual }
+      - title: "Not atomic"
+        body: "volatile doesn’t make count++ safe; use AtomicInteger."
+        check: { metric: manual }
+
+  - id: locks
+    title: "synchronized & j.u.c"
+    minutes: 4
+    algo: java-threads
+    steps:
+      - title: "Mutual exclusion"
+        body: "synchronized lets one thread into the block at a time."
+        input: sync
+        check: { metric: manual }
+      - title: "Publication"
+        body: "Unlock happens-before the next lock, so writes inside are visible to the next owner."
+        check: { metric: manual }
+      - title: "Higher-level tools"
+        body: "ConcurrentHashMap, AtomicLong, ReentrantLock and executors cover most needs."
+        check: { metric: manual }
+
+  - id: virtual-threads
+    title: "Virtual threads"
+    minutes: 3
+    algo: java-threads
+    steps:
+      - title: "Cheap threads"
+        body: "Millions of virtual threads, scheduled by the JVM onto a few carriers."
+        input: virtual
+        check: { metric: manual }
+      - title: "Blocking is fine"
+        body: "Blocking I/O unmounts the virtual thread instead of holding an OS thread."
+        check: { metric: manual }
+      - title: "Pinning"
+        body: "Older JDKs pinned carriers inside synchronized; JDK 24 removed most pinning."
+        check: { metric: manual }

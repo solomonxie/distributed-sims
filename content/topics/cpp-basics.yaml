@@ -1,6 +1,7 @@
 id: cpp-basics
 title: C++ basics
-group: cpp
+group: languages
+language: cpp
 icon: braces
 order: 1
 summary: The language from zero. Types, variables, control flow, functions, arrays, strings, pointers, headers, I/O, exceptions and time.

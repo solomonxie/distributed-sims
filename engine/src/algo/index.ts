@@ -12,5 +12,7 @@ import '../machine/asm';
 import '../machine/cpp';
 import '../machine/bits';
 import '../cpp';
+import '../net';
+import '../lang';
 
 export * from './frames';

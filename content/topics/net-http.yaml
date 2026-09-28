@@ -1,0 +1,88 @@
+id: net-http
+title: HTTP, gRPC & real-time
+group: network
+icon: globe
+order: 8
+summary: HTTP/1.1 → HTTP/2 → HTTP/3, gRPC, and pushing updates with polling, SSE and WebSockets.
+info: HTTP evolved to fight latency. HTTP/1.1 sends one request at a time per connection, HTTP/2 multiplexes streams over one TCP connection, and HTTP/3 moves to QUIC to escape TCP head-of-line blocking. gRPC rides on HTTP/2 for typed service-to-service calls. For server-to-client updates you choose between polling, long polling, Server-Sent Events and WebSockets.
+algos: [nw-http, nw-realtime]
+lessons:
+  - id: http1
+    title: HTTP/1.1
+    minutes: 4
+    algo: nw-http
+    steps:
+      - title: Text on a connection
+        body: One request, one response, in order. Tap the request and response boxes to see the wire format.
+        input: h1
+        check: { metric: manual }
+      - title: Six connections
+        body: Browsers open up to six per host to get parallelism.
+        check: { metric: manual }
+
+  - id: http2
+    title: HTTP/2
+    minutes: 4
+    algo: nw-http
+    steps:
+      - title: Streams
+        body: Many requests share one connection as interleaved binary frames.
+        input: h2
+        check: { metric: manual }
+      - title: HPACK
+        body: Repeated headers compress to a few bytes.
+        check: { metric: manual }
+      - title: The catch
+        body: One lost TCP packet stalls every stream.
+        check: { metric: manual }
+
+  - id: http3
+    title: HTTP/3
+    minutes: 3
+    algo: nw-http
+    steps:
+      - title: Over QUIC
+        body: Same semantics as HTTP/2 with independent streams and faster handshakes.
+        input: h3
+        check: { metric: manual }
+      - title: Alt-Svc
+        body: Servers advertise HTTP/3; clients fall back to TCP when UDP is blocked.
+        check: { metric: manual }
+
+  - id: grpc
+    title: gRPC
+    minutes: 4
+    algo: nw-http
+    steps:
+      - title: RPC over HTTP/2
+        body: Protobuf messages, generated stubs, status in trailers.
+        input: grpc
+        check: { metric: manual }
+      - title: Deadlines
+        body: Always set one; they propagate through the call chain.
+        check: { metric: manual }
+      - title: Balancing
+        body: Long-lived HTTP/2 connections need L7 (per-request) load balancing.
+        check: { metric: manual }
+
+  - id: realtime
+    title: Real-time updates
+    minutes: 5
+    algo: nw-realtime
+    steps:
+      - title: Short polling
+        body: Simple, but either slow or wasteful.
+        input: polling
+        check: { metric: manual }
+      - title: Long polling
+        body: The server holds the request until there is news.
+        input: longpoll
+        check: { metric: manual }
+      - title: Server-Sent Events
+        body: One-way stream over HTTP with automatic resume.
+        input: sse
+        check: { metric: manual }
+      - title: WebSockets
+        body: Full duplex after an HTTP upgrade. Plan for reconnects and heartbeats.
+        input: websocket
+        check: { metric: manual }

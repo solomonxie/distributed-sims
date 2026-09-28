@@ -1,0 +1,90 @@
+id: net-tls
+title: TLS & certificates
+group: network
+icon: lock
+order: 9
+summary: The TLS 1.3 handshake, resumption and 0-RTT, certificate chains, SNI, mTLS and the classic certificate failures.
+info: "TLS gives a connection confidentiality, integrity and server identity. TLS 1.3 does it in one round trip with forward-secret key exchange. Identity rests on a chain of certificates up to a root your client already trusts, which is exactly where most outages come from: expiry, wrong names, missing intermediates. Inside a company, mutual TLS gives services verifiable identities."
+algos: [nw-tls, nw-certs]
+lessons:
+  - id: handshake13
+    title: TLS 1.3 handshake
+    minutes: 5
+    algo: nw-tls
+    steps:
+      - title: One round trip
+        body: Key shares in the first flight, everything after ServerHello encrypted.
+        watch: Tap ClientHello and ECDHE.
+        input: handshake
+        check: { metric: manual }
+      - title: Forward secrecy
+        body: Ephemeral keys mean a stolen private key can't decrypt old recordings.
+        check: { metric: manual }
+      - title: Try it
+        body: openssl s_client -connect host:443 -servername host shows the chain and the negotiated cipher.
+        check: { metric: manual }
+
+  - id: resumption
+    title: Resumption & 0-RTT
+    minutes: 3
+    algo: nw-tls
+    steps:
+      - title: Session tickets
+        body: Reconnects skip the full handshake.
+        input: resume
+        check: { metric: manual }
+      - title: Replay
+        body: 0-RTT data can be replayed; only allow idempotent requests.
+        check: { metric: manual }
+
+  - id: chain-of-trust
+    title: Chain of trust
+    minutes: 4
+    algo: nw-certs
+    steps:
+      - title: Root, intermediate, leaf
+        body: Each certificate is signed by the one above; the root is in your trust store.
+        input: chain
+        check: { metric: manual }
+      - title: Serve the full chain
+        body: Send leaf plus intermediate. Browsers forgive a missing one, curl and Java don't.
+        check: { metric: manual }
+
+  - id: sni
+    title: SNI
+    minutes: 3
+    algo: nw-certs
+    steps:
+      - title: Many sites per IP
+        body: The client names the host in the ClientHello so the server can pick a certificate.
+        input: sni
+        check: { metric: manual }
+      - title: Privacy
+        body: SNI is visible on the wire unless Encrypted Client Hello is used.
+        check: { metric: manual }
+
+  - id: failures
+    title: When TLS breaks
+    minutes: 4
+    algo: nw-certs
+    steps:
+      - title: The usual suspects
+        body: Expired, name mismatch, incomplete chain, untrusted private CA.
+        input: failures
+        check: { metric: manual }
+      - title: Never disable verification
+        body: Install the private CA on the client instead; turning verification off invites MITM.
+        check: { metric: manual }
+
+  - id: mtls
+    title: Mutual TLS
+    minutes: 4
+    algo: nw-tls
+    steps:
+      - title: Both sides present certificates
+        body: Service identity comes from the certificate, not the IP.
+        input: mtls
+        check: { metric: manual }
+      - title: Short-lived certs
+        body: Meshes and SPIFFE rotate workload certificates every few hours.
+        check: { metric: manual }

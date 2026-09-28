@@ -1,0 +1,60 @@
+id: java-jvm
+title: "The JVM"
+group: languages
+language: java
+icon: coffee
+order: 1
+summary: "What runs your Java: class loaders, metaspace, a shared heap, per-thread stacks, and an execution engine that interprets then compiles."
+info: "javac produces bytecode, not machine code. The JVM loads it class by class, keeps objects on a garbage-collected heap, gives each thread its own stack, and starts by interpreting before compiling hot code to native. Most Java performance and memory questions map to one of those parts."
+algos: [java-jvm, java-bytecode]
+lessons:
+  - id: architecture
+    title: "JVM architecture"
+    minutes: 4
+    algo: java-jvm
+    steps:
+      - title: "Class files"
+        body: "javac emits portable bytecode plus a constant pool."
+        input: areas
+        check: { metric: manual }
+      - title: "Runtime data areas"
+        body: "Metaspace for classes, one shared heap for objects, a stack and PC per thread."
+        watch: "Tap each area for the JVM flag or tool that inspects it."
+        check: { metric: manual }
+      - title: "The garbage collector"
+        body: "Owns the heap and reclaims unreachable objects."
+        check: { metric: manual }
+
+  - id: execution
+    title: "Execution engine"
+    minutes: 3
+    algo: java-jvm
+    steps:
+      - title: "Interpret first"
+        body: "Bytecode starts out interpreted."
+        input: run
+        check: { metric: manual }
+      - title: "Compile the hot parts"
+        body: "The JIT compiles frequently run methods into the code cache."
+        check: { metric: manual }
+      - title: "Native calls"
+        body: "JNI and the Foreign Function API reach C libraries."
+        check: { metric: manual }
+
+  - id: bytecode
+    title: "Reading bytecode with javap"
+    minutes: 5
+    algo: java-bytecode
+    steps:
+      - title: "Typed stack machine"
+        body: "iload, iadd, ireturn: operands go through an operand stack, and every instruction is typed."
+        input: add
+        check: { metric: manual }
+      - title: "Loops"
+        body: "for-each over an array becomes an index loop with arraylength and bounds-checked iaload."
+        input: loop
+        check: { metric: manual }
+      - title: "Objects"
+        body: "new, dup, invokespecial <init>, then getfield through constant pool references."
+        input: object
+        check: { metric: manual }

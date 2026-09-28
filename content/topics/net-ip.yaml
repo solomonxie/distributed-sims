@@ -1,0 +1,104 @@
+id: net-ip
+title: IP, subnets & routing
+group: network
+icon: route
+order: 4
+summary: Addresses and CIDR, routing tables and longest-prefix match, traceroute, NAT and IPv6.
+info: "IP gets packets across networks. Addresses are split into a network prefix and a host part, routers pick the most specific matching route, and TTL stops loops while letting traceroute map the path. NAT lets many private hosts share one public address, with real costs: port exhaustion, broken inbound connectivity and idle timeouts. IPv6 removes the scarcity that made NAT necessary."
+algos: [nw-cidr, nw-routing, nw-nat]
+lessons:
+  - id: cidr
+    title: CIDR & subnets
+    minutes: 5
+    algo: nw-cidr
+    steps:
+      - title: Prefix length
+        body: "/24 means 24 network bits and 8 host bits: 256 addresses, 254 usable."
+        watch: The mask row and the broadcast row.
+        input: "24"
+        check: { metric: manual }
+      - title: Smaller subnets
+        body: /26 splits a /24 into four blocks of 64.
+        input: "26"
+        check: { metric: manual }
+      - title: Private ranges
+        body: 10/8, 172.16/12 and 192.168/16 are private. Plan VPC ranges so they never overlap, or peering will be impossible.
+        input: "16"
+        check: { metric: manual }
+      - title: Membership
+        body: AND the address with the mask; if it equals the network, it is inside.
+        check: { metric: manual }
+
+  - id: routing
+    title: Routing tables
+    minutes: 4
+    algo: nw-routing
+    steps:
+      - title: Longest prefix wins
+        body: Every matching route is a candidate; the most specific one is used.
+        input: lpm
+        check: { metric: manual }
+      - title: Less specific
+        body: An address outside the /16 falls back to the /8 VPN route.
+        input: vpn
+        check: { metric: manual }
+      - title: Default route
+        body: 0.0.0.0/0 matches everything and wins only when nothing else does.
+        input: default
+        check: { metric: manual }
+      - title: Check yours
+        body: ip route get <addr> shows exactly which route the kernel picks.
+        check: { metric: manual }
+
+  - id: traceroute
+    title: TTL, ICMP & traceroute
+    minutes: 3
+    algo: nw-routing
+    steps:
+      - title: TTL
+        body: Every router decrements TTL; at zero it drops the packet and sends ICMP back.
+        input: traceroute
+        check: { metric: manual }
+      - title: Mapping the path
+        body: Probes with TTL 1, 2, 3 reveal each hop and its round-trip time.
+        check: { metric: manual }
+      - title: Asterisks
+        body: "* * * means a hop doesn't answer ICMP, not that the path is broken."
+        check: { metric: manual }
+
+  - id: nat
+    title: NAT
+    minutes: 5
+    algo: nw-nat
+    steps:
+      - title: Source NAT
+        body: The router rewrites private source addresses to its public IP and tracks each flow by port.
+        input: snat
+        check: { metric: manual }
+      - title: The return path
+        body: Replies are mapped back through the table; unsolicited inbound traffic is dropped.
+        input: return
+        check: { metric: manual }
+      - title: Port exhaustion
+        body: Many connections from one NAT IP to one destination run out of source ports. Pool connections or add IPs.
+        input: exhaust
+        check: { metric: manual }
+      - title: Idle timeouts
+        body: NAT and firewalls forget idle flows. Send keepalives shorter than their timeout.
+        check: { metric: manual }
+
+  - id: ipv6
+    title: IPv6
+    minutes: 3
+    algo: nw-nat
+    steps:
+      - title: 128-bit addresses
+        body: "Hex groups, :: for zeros, /64 per subnet."
+        input: ipv6
+        check: { metric: manual }
+      - title: No NAT needed
+        body: Every device can have a global address; firewalls decide reachability.
+        check: { metric: manual }
+      - title: Dual stack
+        body: Clients race IPv6 and IPv4 (happy eyeballs), so broken IPv6 shows up as slow connects.
+        check: { metric: manual }

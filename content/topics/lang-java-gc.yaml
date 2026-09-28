@@ -1,0 +1,43 @@
+id: java-gc
+title: "Garbage collection"
+group: languages
+language: java
+icon: recycle
+order: 4
+summary: "The generational heap (eden, survivors, old gen), what minor and full GCs cost, and the modern collectors G1 and ZGC."
+info: "Most objects die young, so the JVM allocates them cheaply in eden and collects that area often by copying the few survivors out. Long-lived objects are promoted to the old generation, collected rarely. G1, the default, trades a little throughput for pause-time goals; ZGC does nearly everything concurrently for sub-millisecond pauses."
+algos: [java-gc]
+lessons:
+  - id: generational
+    title: "Generational collection"
+    minutes: 5
+    algo: java-gc
+    steps:
+      - title: "Allocation"
+        body: "Bump-pointer allocation in eden is nearly free."
+        input: young
+        check: { metric: manual }
+      - title: "Minor GC"
+        body: "Copy the few live objects out and wipe eden."
+        check: { metric: manual }
+      - title: "Promotion"
+        body: "Survivors age and are promoted; an old gen that grows after every full GC is a leak."
+        input: promote
+        check: { metric: manual }
+
+  - id: collectors
+    title: "G1 & ZGC"
+    minutes: 4
+    algo: java-gc
+    steps:
+      - title: "G1 regions"
+        body: "The heap is split into regions; the ones with most garbage are collected first."
+        input: g1
+        check: { metric: manual }
+      - title: "Pause goals"
+        body: "-XX:MaxGCPauseMillis sets the target G1 plans around."
+        check: { metric: manual }
+      - title: "ZGC"
+        body: "Concurrent marking and relocation with load barriers keep pauses below a millisecond."
+        input: zgc
+        check: { metric: manual }

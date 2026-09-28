@@ -1,0 +1,58 @@
+id: py-imports
+title: "Modules & imports"
+group: languages
+language: python
+icon: folder-tree
+order: 5
+summary: "What import really does: the sys.modules cache, finders and sys.path, running module code once, packages, relative and circular imports."
+info: "An import looks up a cache, searches a list of directories, runs the module’s code once and binds a name. Most import bugs (a local file shadowing the standard library, a script that can’t use relative imports, a circular import that half-works) come straight from those steps."
+algos: [py-import]
+lessons:
+  - id: import-system
+    title: "The import system"
+    minutes: 5
+    algo: py-import
+    steps:
+      - title: "Cache first"
+        body: "sys.modules is checked before anything else."
+        input: first
+        check: { metric: manual }
+      - title: "Search sys.path"
+        body: "Finders search directories in order; the first match wins, so a local json.py shadows the stdlib."
+        check: { metric: manual }
+      - title: "Run once, share"
+        body: "The module’s code runs once per process and every importer shares the same module object."
+        input: cached
+        check: { metric: manual }
+
+  - id: packages
+    title: "Packages & relative imports"
+    minutes: 4
+    algo: py-import
+    steps:
+      - title: "Packages are directories"
+        body: "Importing app.db imports app first, running its __init__.py."
+        input: package
+        check: { metric: manual }
+      - title: "Relative imports"
+        body: "from .db import x resolves from the current package, not sys.path."
+        check: { metric: manual }
+      - title: "Run with -m"
+        body: "Run package code with python -m app.main so relative imports work."
+        check: { metric: manual }
+
+  - id: circular
+    title: "Circular imports"
+    minutes: 3
+    algo: py-import
+    steps:
+      - title: "Half-initialised modules"
+        body: "A module in the middle of running is already in sys.modules, missing names defined later."
+        input: circular
+        check: { metric: manual }
+      - title: "The error"
+        body: "ImportError: cannot import name … from partially initialized module."
+        check: { metric: manual }
+      - title: "Fixes"
+        body: "Move shared code to a third module, import inside functions, or import the module rather than names from it."
+        check: { metric: manual }

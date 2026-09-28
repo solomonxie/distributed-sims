@@ -1,0 +1,78 @@
+id: py-concurrency
+title: "GIL, threads & asyncio"
+group: languages
+language: python
+icon: lock
+order: 4
+summary: "What the GIL is and isn’t, when threads help, multiprocessing and free-threaded Python, asyncio’s event loop, and generators."
+info: "The Global Interpreter Lock lets only one thread run Python bytecode at a time. It keeps reference counts safe without a lock per object, but it means threads don’t speed up CPU-bound Python. Threads still shine for I/O, processes and the new free-threaded build give real parallelism, and asyncio runs thousands of I/O tasks on one thread."
+algos: [py-gil, py-async, py-generator]
+lessons:
+  - id: gil
+    title: "The GIL"
+    minutes: 5
+    algo: py-gil
+    steps:
+      - title: "One thread at a time"
+        body: "CPU-bound threads take turns holding the GIL, switching every 5 ms by default."
+        watch: "Total time equals the sum of the work."
+        input: cpu
+        check: { metric: manual }
+      - title: "I/O releases it"
+        body: "Blocking system calls release the GIL, so I/O-bound threads overlap well."
+        input: io
+        check: { metric: manual }
+      - title: "What it protects"
+        body: "Interpreter state and refcounts, not your data. You still need locks for compound operations like check-then-set."
+        check: { metric: manual }
+
+  - id: parallelism
+    title: "Real parallelism"
+    minutes: 4
+    algo: py-gil
+    steps:
+      - title: "multiprocessing"
+        body: "Separate processes each have their own GIL and run on separate cores."
+        input: multiproc
+        check: { metric: manual }
+      - title: "Costs"
+        body: "Process start-up and pickling arguments and results."
+        check: { metric: manual }
+      - title: "Free-threaded 3.13t"
+        body: "An optional build without the GIL; check C extension support before relying on it."
+        input: freethreaded
+        check: { metric: manual }
+
+  - id: asyncio
+    title: "asyncio"
+    minutes: 5
+    algo: py-async
+    steps:
+      - title: "Event loop"
+        body: "One thread runs tasks and switches only at await."
+        input: loop
+        check: { metric: manual }
+      - title: "Selector"
+        body: "epoll or kqueue tells the loop which sockets are ready."
+        check: { metric: manual }
+      - title: "Never block the loop"
+        body: "A blocking call stalls every task; use async libraries or asyncio.to_thread."
+        input: blocking
+        check: { metric: manual }
+
+  - id: generators
+    title: "Generators & iterators"
+    minutes: 4
+    algo: py-generator
+    steps:
+      - title: "yield pauses a frame"
+        body: "A generator keeps its frame on the heap between next() calls."
+        input: gen
+        check: { metric: manual }
+      - title: "StopIteration"
+        body: "Falling off the end raises StopIteration, which for loops catch."
+        check: { metric: manual }
+      - title: "Lazy pipelines"
+        body: "Chained generator expressions process one item at a time in constant memory."
+        input: lazy
+        check: { metric: manual }

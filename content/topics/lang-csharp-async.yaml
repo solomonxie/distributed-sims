@@ -1,0 +1,48 @@
+id: cs-async
+title: "async & LINQ"
+group: languages
+language: csharp
+icon: workflow
+order: 4
+summary: "async methods as compiler-built state machines, the .Result deadlock, and LINQ’s deferred execution."
+info: "async/await is a compiler transformation: the method becomes a state machine resumed by I/O completions, with no thread waiting. Blocking on it from a context-bound thread deadlocks. LINQ is lazy in a similar way: a query is a recipe that runs each time it is enumerated."
+algos: [cs-async]
+lessons:
+  - id: state-machine
+    title: "async state machines"
+    minutes: 4
+    algo: cs-async
+    steps:
+      - title: "Split at awaits"
+        body: "The compiler turns the method into MoveNext() with a state field; the first incomplete await returns a Task."
+        input: statemachine
+        check: { metric: manual }
+      - title: "No thread waits"
+        body: "During I/O no thread is blocked. A pool thread resumes the method when the result arrives."
+        check: { metric: manual }
+
+  - id: deadlock
+    title: "The .Result deadlock"
+    minutes: 3
+    algo: cs-async
+    steps:
+      - title: "Sync over async"
+        body: "Blocking a UI thread on .Result while the continuation needs that thread deadlocks."
+        input: context
+        check: { metric: manual }
+      - title: "Async all the way"
+        body: "Await instead of blocking, and use ConfigureAwait(false) in library code."
+        check: { metric: manual }
+
+  - id: linq
+    title: "LINQ deferred execution"
+    minutes: 3
+    algo: cs-async
+    steps:
+      - title: "Queries are lazy"
+        body: "Where and Select build a pipeline; enumerating runs it, every time."
+        input: linq
+        check: { metric: manual }
+      - title: "Materialise once"
+        body: "ToList or ToArray when you’ll reuse results, especially for database queries."
+        check: { metric: manual }

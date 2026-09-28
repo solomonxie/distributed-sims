@@ -1,6 +1,7 @@
 id: cpp-modern
 title: Modern C++
-group: cpp
+group: languages
+language: cpp
 icon: sparkles
 order: 5
 summary: C++11 to C++23 in practice. auto, lambdas, smart pointers, move, templates, concepts, constexpr, variant, ranges, coroutines and exception safety.

@@ -1,6 +1,7 @@
 id: machine-cpp
 title: C++ under the hood
-group: cpp
+group: languages
+language: cpp
 icon: braces
 order: 2
 summary: How C++ maps onto the machine, from build and object layout to lifetime, moves, vtables, atomics and UB.

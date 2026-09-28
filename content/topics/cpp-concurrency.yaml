@@ -1,6 +1,7 @@
 id: cpp-concurrency
 title: Concurrency
-group: cpp
+group: languages
+language: cpp
 icon: git-fork
 order: 6
 summary: Threads, locks, condition variables, futures, pools and atomics, and how to design code that stays correct under them.

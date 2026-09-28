@@ -1,0 +1,48 @@
+id: go-packages
+title: "Packages & imports"
+group: languages
+language: go
+icon: folder-tree
+order: 4
+summary: "One directory per package, exported capitals, internal/, no import cycles, and init order."
+info: "Go has no headers and no include paths. The import path is the module path plus a directory, visibility is decided by the first letter of a name, and the compiler forbids import cycles outright, which keeps large codebases layered."
+algos: [go-packages]
+lessons:
+  - id: layout
+    title: "Packages & exports"
+    minutes: 3
+    algo: go-packages
+    steps:
+      - title: "Package = directory"
+        body: "All files in one directory form one package, imported as module path + directory."
+        input: layout
+        check: { metric: manual }
+      - title: "Capital = exported"
+        body: "Serve is visible to other packages, route is not. There is no public or private keyword."
+        check: { metric: manual }
+
+  - id: internal-cycles
+    title: "internal/ & import cycles"
+    minutes: 3
+    algo: go-packages
+    steps:
+      - title: "internal/"
+        body: "Packages under internal/ can only be imported from inside the tree that holds it."
+        input: internal
+        check: { metric: manual }
+      - title: "No cycles"
+        body: "Two packages importing each other won’t compile. Break cycles by moving shared types down or inverting with an interface."
+        check: { metric: manual }
+
+  - id: init
+    title: "Initialisation order"
+    minutes: 2
+    algo: go-packages
+    steps:
+      - title: "Dependencies first"
+        body: "Imported packages initialise before their importers: vars, then init functions, then main."
+        input: init
+        check: { metric: manual }
+      - title: "Keep init boring"
+        body: "No I/O and no failure paths in init. Explicit constructors are easier to test."
+        check: { metric: manual }

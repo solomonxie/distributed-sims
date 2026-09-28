@@ -1,0 +1,43 @@
+id: cs-types
+title: "Value & reference types"
+group: languages
+language: csharp
+icon: boxes
+order: 3
+summary: "struct copies vs class references, and the hidden allocations of boxing."
+info: "C# has two kinds of types. Structs are values stored inline and copied on assignment; classes live on the heap and are shared by reference. Converting a struct to object or an interface boxes it, which allocates."
+algos: [cs-types]
+lessons:
+  - id: structs
+    title: "Structs are copied"
+    minutes: 3
+    algo: cs-types
+    steps:
+      - title: "Value semantics"
+        body: "b = a copies every field; changing b leaves a alone."
+        input: value
+        check: { metric: manual }
+
+  - id: classes
+    title: "Classes are shared"
+    minutes: 3
+    algo: cs-types
+    steps:
+      - title: "Reference semantics"
+        body: "b = a copies the reference, so both names reach one heap object."
+        input: reference
+        check: { metric: manual }
+
+  - id: boxing
+    title: "Boxing"
+    minutes: 3
+    algo: cs-types
+    steps:
+      - title: "Hidden allocations"
+        body: "object o = 42 allocates a box on the heap. Non-generic collections box every element."
+        watch: "The box holds a copy, so later changes to n don’t show."
+        input: boxing
+        check: { metric: manual }
+      - title: "Avoid in hot paths"
+        body: "Use generic collections and generic methods constrained to the struct type."
+        check: { metric: manual }

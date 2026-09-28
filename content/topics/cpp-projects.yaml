@@ -1,6 +1,7 @@
 id: cpp-projects
 title: Large C++ projects
-group: cpp
+group: languages
+language: cpp
 icon: network
 order: 8
 summary: Structure, test, debug, profile and ship big C++ codebases. Architecture, build times, sanitizers, error policy, libraries, versioning, ABI and legacy code.

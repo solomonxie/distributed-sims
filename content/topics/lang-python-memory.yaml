@@ -1,0 +1,58 @@
+id: py-memory
+title: "Memory & garbage collection"
+group: languages
+language: python
+icon: recycle
+order: 3
+summary: "Reference counting frees most objects instantly; a generational cyclic GC catches reference cycles; pymalloc serves small objects."
+info: "CPython manages memory in two layers. Every object carries a reference count and is freed the moment it hits zero, which makes cleanup deterministic. Reference cycles can never hit zero, so a separate generational collector periodically scans container objects to find them. Underneath, pymalloc hands out small blocks from arenas."
+algos: [py-gc]
+lessons:
+  - id: refcounting
+    title: "Reference counting"
+    minutes: 4
+    algo: py-gc
+    steps:
+      - title: "ob_refcnt"
+        body: "Every object counts its references; sys.getrefcount shows it."
+        input: refcount
+        check: { metric: manual }
+      - title: "Freed at zero"
+        body: "The last reference going away frees the object immediately and runs __del__."
+        check: { metric: manual }
+      - title: "Deterministic cleanup"
+        body: "Files and sockets close predictably, but with blocks are still the clear way to express it."
+        check: { metric: manual }
+
+  - id: cycles
+    title: "Cycles & the generational GC"
+    minutes: 5
+    algo: py-gc
+    steps:
+      - title: "Cycles leak under refcounting"
+        body: "Objects pointing at each other keep each other alive after the last outside reference is gone."
+        input: cycle
+        check: { metric: manual }
+      - title: "The cyclic collector"
+        body: "gc finds groups referenced only from inside and frees them."
+        check: { metric: manual }
+      - title: "Generations"
+        body: "New objects are scanned often, survivors rarely. Tune with gc.set_threshold, or gc.freeze() after start-up."
+        input: generations
+        check: { metric: manual }
+
+  - id: allocator
+    title: "pymalloc & memory growth"
+    minutes: 3
+    algo: py-gc
+    steps:
+      - title: "Small objects"
+        body: "Allocations up to 512 bytes come from pools inside 1 MiB arenas."
+        input: pymalloc
+        check: { metric: manual }
+      - title: "Large objects"
+        body: "Bigger allocations go straight to malloc."
+        check: { metric: manual }
+      - title: "Why RSS stays high"
+        body: "An arena returns to the OS only when completely empty, so memory after a spike can stay allocated."
+        check: { metric: manual }

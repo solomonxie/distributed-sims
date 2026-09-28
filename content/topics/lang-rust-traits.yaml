@@ -1,0 +1,48 @@
+id: rust-traits
+title: "Traits & fearless concurrency"
+group: languages
+language: rust
+icon: shapes
+order: 3
+summary: "Generics compile to specialised copies, dyn Trait uses vtables, and Send/Sync make data races compile errors."
+info: "Traits are Rust’s interfaces. Used as generic bounds they give zero-cost static dispatch like C++ templates; used as dyn Trait they give runtime polymorphism through a fat pointer. Two marker traits, Send and Sync, let the compiler prove thread safety."
+algos: [rust-traits]
+lessons:
+  - id: generics
+    title: "Generics & monomorphisation"
+    minutes: 3
+    algo: rust-traits
+    steps:
+      - title: "A copy per type"
+        body: "total::<Circle> and total::<Square> are separate functions with inlined calls."
+        input: generic
+        check: { metric: manual }
+      - title: "Trade-off"
+        body: "Fast code, bigger binaries and longer compiles."
+        check: { metric: manual }
+
+  - id: dyn
+    title: "dyn Trait & vtables"
+    minutes: 3
+    algo: rust-traits
+    steps:
+      - title: "Fat pointers"
+        body: "Box<dyn Shape> is a data pointer plus a vtable pointer, so one Vec can mix types."
+        input: dyn
+        check: { metric: manual }
+      - title: "When to use"
+        body: "Heterogeneous collections and plugin boundaries; otherwise prefer generics."
+        check: { metric: manual }
+
+  - id: send-sync
+    title: "Send, Sync & Arc<Mutex>"
+    minutes: 4
+    algo: rust-traits
+    steps:
+      - title: "Shared state"
+        body: "Arc shares ownership across threads, and Mutex owns the data it guards."
+        input: sendsync
+        check: { metric: manual }
+      - title: "Checked by the compiler"
+        body: "Rc isn’t Send, so moving it into a thread fails to compile. Data races become type errors."
+        check: { metric: manual }
