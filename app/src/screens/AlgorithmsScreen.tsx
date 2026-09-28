@@ -9,6 +9,7 @@ import { Card, Row, SectionHeader } from '../ui/primitives';
 import { Icon } from '../ui/Icon';
 import { Tile, TileGrid } from '../ui/Tile';
 import { demoGroups, KIND_LABEL, type DemoKind } from '../lib/demoGroups';
+import { demoThumb } from './HomeScreen';
 
 /** Without `group`: every animation group as tiles, by kind. With `group`: that group's animations. */
 export function AlgorithmsScreen() {
@@ -39,7 +40,7 @@ export function AlgorithmsScreen() {
             {groups
               .filter(g => g.kind === k)
               .map(g => (
-                <Tile key={g.id} icon={g.icon} title={g.label} meta={`${g.demos.length} animations`} tint={c.protocol} onPress={() => nav.push('Algorithms', { group: g.id })} />
+                <Tile key={g.id} icon={g.icon} title={g.label} thumb={demoThumb(g.demos[0]?.slug)} meta={`${g.demos.length} animations`} tint={c.protocol} onPress={() => nav.push('Algorithms', { group: g.id })} />
               ))}
           </TileGrid>
         </View>

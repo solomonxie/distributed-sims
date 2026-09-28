@@ -14,7 +14,6 @@ const TONES = ['default', 'muted', 'accent', 'ok', 'warn', 'fail', 'protocol', '
 
 /** Renders a frame (1000×1000 viewBox) and animates shapes with stable ids between frames. */
 export function FrameCanvas({ frame, prev, size }: { frame: Frame; prev?: Frame; size: number }) {
-  const { c } = useTheme();
   const progress = useSharedValue(1);
   const cur = useSharedValue<Shape[]>(frame.shapes);
   const old = useSharedValue<Shape[]>(prev?.shapes ?? frame.shapes);
@@ -26,15 +25,7 @@ export function FrameCanvas({ frame, prev, size }: { frame: Frame; prev?: Frame;
     progress.value = withTiming(1, { duration: 380, easing: Easing.out(Easing.cubic) });
   }, [frame, prev, cur, old, progress]);
 
-  const palette = useMemo(() => {
-    const m: Record<string, string> = {};
-    for (const t of TONES) m[t] = toneColor(c, t);
-    m.default = c.text2;
-    m.visited = c.text3;
-    return m;
-  }, [c]);
-  const fonts = useMemo(() => fontSet(size), [size]);
-  const colors = useMemo(() => ({ surface: c.surface2, canvas: c.canvas, text: c.text, text2: c.text2 }), [c]);
+  const { palette, fonts, colors } = useFrameStyle();
 
   const pic = useDerivedValue(() =>
     createPicture(canvas => {
@@ -53,7 +44,22 @@ export function FrameCanvas({ frame, prev, size }: { frame: Frame; prev?: Frame;
   );
 }
 
-function fontSet(size: number): Fonts {
+/** Palette, fonts and surface colours for drawShapes, from the current theme. */
+export function useFrameStyle() {
+  const { c } = useTheme();
+  const palette = useMemo(() => {
+    const m: Record<string, string> = {};
+    for (const t of TONES) m[t] = toneColor(c, t);
+    m.default = c.text2;
+    m.visited = c.text3;
+    return m;
+  }, [c]);
+  const fonts = useMemo(fontSet, []);
+  const colors = useMemo(() => ({ surface: c.surface2, canvas: c.canvas, text: c.text, text2: c.text2 }), [c]);
+  return { palette, fonts, colors };
+}
+
+function fontSet(): Fonts {
   // fonts are created in viewBox units (canvas is pre-scaled)
   const sizes = [18, 20, 22, 24, 26, 28, 30, 32, 34, 36, 40, 44, 48, 56];
   const byPx: Record<number, SkFont> = {};
@@ -64,7 +70,6 @@ function fontSet(size: number): Fonts {
     mono[s] = font(s, 500, true);
     bold[s] = font(s, 700);
   }
-  void size;
   return { byPx, mono, bold };
 }
 

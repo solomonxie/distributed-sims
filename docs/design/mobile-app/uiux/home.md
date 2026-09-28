@@ -6,18 +6,14 @@
  Distributed Sims                          ⚙
  🔍 Search lessons, problems, animations
  CONTINUE                 ← recent visits, newest first
- ╭─────────╮ ╭─────────╮ ╭─────────╮
- │ [▶]     │ │ [◈]     │ │ [◇]     │   lesson · topic · problem ·
- │ Split   │ │ Caching │ │ Dijkstra│   animation · language
- │ vote    │ │         │ │         │
- │Consensus│ │ Topic   │ │Animation│
- ╰─────────╯ ╰─────────╯ ╰─────────╯
  TOPICS 16                          See all ›
- ╭─────────╮ ╭─────────╮ ╭─────────╮   uniform tile: icon ·
- │ [◈]   ✓ │ │ [◈]     │ │ [◈]     │   2-line title · meta line
- │ Caching │ │Sharding │ │Consist… │   3 per row, max 2 rows
- │ ███ 6/6 │ │ █░░ 1/5 │ │ ░░░ 0/6 │   (6 tiles) per section
- ╰─────────╯ ╰─────────╯ ╰─────────╯
+ ╭────────────────╮ ╭────────────────╮ ╭──   one horizontal row per
+ │[◈]  ●─◆─●    ✓ │ │[◈]  ┌─┐→┌─┐    │ │     section, max 10 tiles,
+ │      ╲ ╱       │ │     └─┘ └─┘    │ │     snaps per tile; two
+ │─────────────── │ │─────────────── │ │     visible, third peeks
+ │ Caching        │ │ Sharding       │ │
+ │ ██████  6/6    │ │ █░░░░░  1/5    │ │     tile = thumbnail + icon
+ ╰────────────────╯ ╰────────────────╯ ╰──   badge, 2-line title, meta
  TECH STACK · NETWORK · MACHINE LEVEL      (topic tiles, same pattern)
  LANGUAGES 6     C++ · Go · Python · Java · Rust · C#  → language page
  PROBLEMS        tiles: 1/3 ★
@@ -25,7 +21,11 @@
  MY SYSTEMS      [+ New system] then systems (parts · edited)
 ```
 
-- Continue = `progress.recent` (max 12 stored, 6 shown): recorded on
+- Thumbnails: a system template → `MiniGraph`; otherwise the last frame
+  of the tile's first animation (`FrameThumb`, static, centre-cropped).
+  No preview → large faded icon.
+- "See all" pages use a wrapping 2-column grid of the same tiles.
+- Continue = `progress.recent` (max 12 stored, 10 shown): recorded on
   opening a lesson, topic, problem, standalone animation or language.
 - "See all ›" pushes a full grid (header = section title):
   `TopicsScreen` (group), `LanguageScreen` (one language's topics),
