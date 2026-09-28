@@ -1,0 +1,42 @@
+id: cs-gc
+title: "Garbage collection"
+group: languages
+language: csharp
+icon: recycle
+order: 2
+summary: "Generational GC, promotion, the Large Object Heap, pinning, and workstation vs server GC."
+info: "The .NET GC bets that most objects die young. Gen 0 is collected often and cheaply, survivors are promoted, and gen 2 is collected rarely, in the background. Big arrays and pinned buffers get their own heaps."
+algos: [cs-gc]
+lessons:
+  - id: generations
+    title: "Generations & promotion"
+    minutes: 4
+    algo: cs-gc
+    steps:
+      - title: "Gen 0, 1, 2"
+        body: "Allocation bumps a pointer in gen 0; survivors are compacted and promoted."
+        input: generations
+        check: { metric: manual }
+      - title: "Mid-life objects"
+        body: "Objects that reach gen 2 and then die cause expensive full collections. Pool or shorten them."
+        check: { metric: manual }
+
+  - id: loh
+    title: "Large objects & pinning"
+    minutes: 3
+    algo: cs-gc
+    steps:
+      - title: "LOH"
+        body: "Arrays of 85,000 bytes or more skip gen 0 and aren’t compacted by default. Rent them from ArrayPool."
+        input: loh
+        check: { metric: manual }
+
+  - id: gc-modes
+    title: "GC modes"
+    minutes: 3
+    algo: cs-gc
+    steps:
+      - title: "Workstation vs server"
+        body: "Server GC runs a heap and GC thread per core for throughput; background GC keeps gen 2 pauses short."
+        input: modes
+        check: { metric: manual }

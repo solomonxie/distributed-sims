@@ -1,0 +1,147 @@
+id: net-tcp
+title: TCP in depth
+group: network
+icon: arrow-left-right
+order: 5
+summary: Handshakes, sequence numbers, retransmission, congestion and flow control, Nagle, TIME_WAIT and resets.
+info: TCP turns a lossy packet network into a reliable, ordered byte stream. It pays for that with a handshake per connection, timers and retransmissions when packets are lost, and a congestion window that starts small and backs off on loss. Most latency mysteries in production (40 ms stalls, p99 spikes, connection storms, TIME_WAIT pile-ups) are TCP behaving exactly as designed.
+algos: [nw-tcp-conn, nw-tcp-loss, nw-cwnd, nw-flow]
+lessons:
+  - id: handshake
+    title: Three-way handshake
+    minutes: 4
+    algo: nw-tcp-conn
+    steps:
+      - title: SYN, SYN-ACK, ACK
+        body: Both sides choose a random starting sequence number and acknowledge the other's.
+        watch: Client and server states in the panel.
+        input: handshake
+        check: { metric: manual }
+      - title: SYN and accept queues
+        body: Half-open connections wait in the SYN queue, finished ones in the accept queue until accept().
+        check: { metric: manual }
+      - title: One RTT per connection
+        body: Pool and reuse connections; a new one costs a full round trip before data.
+        check: { metric: manual }
+
+  - id: seq-ack
+    title: Sequence & ACK numbers
+    minutes: 4
+    algo: nw-tcp-conn
+    steps:
+      - title: Bytes, not packets
+        body: seq is the first byte's number; ack is the next byte expected.
+        input: data
+        check: { metric: manual }
+      - title: Cumulative ACKs
+        body: One ACK confirms everything before it. Delayed ACK sends one per two segments.
+        check: { metric: manual }
+
+  - id: teardown
+    title: Teardown & TIME_WAIT
+    minutes: 4
+    algo: nw-tcp-conn
+    steps:
+      - title: FIN each way
+        body: Each direction closes separately, so a connection can be half-closed.
+        input: close
+        check: { metric: manual }
+      - title: CLOSE_WAIT
+        body: "The peer closed but your code didn't: a growing count is a socket leak."
+        check: { metric: manual }
+      - title: TIME_WAIT
+        body: The side that closes first holds the 4-tuple for 60 s. Busy clients run out of ports without keep-alive.
+        check: { metric: manual }
+
+  - id: resets
+    title: Refused, timed out, reset
+    minutes: 3
+    algo: nw-tcp-conn
+    steps:
+      - title: Three different failures
+        body: Refused means nothing listens; timeout means packets are dropped; reset means the other end aborted.
+        input: rst
+        check: { metric: manual }
+      - title: Who sends RSTs
+        body: Crashed processes, idle-timeout load balancers and firewalls. Match timestamps with tcpdump.
+        check: { metric: manual }
+
+  - id: retransmission
+    title: Loss & retransmission
+    minutes: 5
+    algo: nw-tcp-loss
+    steps:
+      - title: RTO
+        body: With nothing to trigger duplicate ACKs, only the retransmission timer notices a loss.
+        watch: How RTO is computed from RTT samples (tap the timer).
+        input: rto
+        check: { metric: manual }
+      - title: Fast retransmit
+        body: Three duplicate ACKs trigger a resend within about one RTT.
+        input: fastrtx
+        check: { metric: manual }
+      - title: Tail loss hurts
+        body: Short responses have no later segments to trigger dup ACKs, so their losses wait for the timer.
+        check: { metric: manual }
+
+  - id: hol
+    title: Head-of-line blocking
+    minutes: 3
+    algo: nw-tcp-loss
+    steps:
+      - title: In-order delivery
+        body: Bytes after a gap sit in the kernel until the gap is filled.
+        input: hol
+        check: { metric: manual }
+      - title: Why it matters
+        body: Every HTTP/2 stream on the connection waits. QUIC keeps streams independent.
+        check: { metric: manual }
+
+  - id: congestion
+    title: Congestion control
+    minutes: 6
+    algo: nw-cwnd
+    steps:
+      - title: Slow start
+        body: cwnd doubles every round trip until ssthresh.
+        watch: Bars are cwnd per round trip; the dashed line is ssthresh.
+        input: slowstart
+        check: { metric: manual }
+      - title: AIMD
+        body: "Add one MSS per RTT, halve on loss: the sawtooth."
+        input: aimd
+        check: { metric: manual }
+      - title: After a timeout
+        body: cwnd drops to 1 and slow start begins again.
+        input: timeout
+        check: { metric: manual }
+      - title: BBR
+        body: Paces at measured bottleneck bandwidth instead of filling buffers until loss.
+        input: bbr
+        check: { metric: manual }
+
+  - id: flow-control
+    title: Flow control
+    minutes: 3
+    algo: nw-flow
+    steps:
+      - title: Receive window
+        body: The receiver advertises free buffer space; zero means stop.
+        input: rwnd
+        check: { metric: manual }
+      - title: Slow readers
+        body: A full Recv-Q on the receiver means the application isn't reading, not a network problem.
+        check: { metric: manual }
+
+  - id: nagle
+    title: Nagle & delayed ACK
+    minutes: 3
+    algo: nw-flow
+    steps:
+      - title: The 40 ms stall
+        body: Two small writes plus Nagle plus delayed ACK add 40 ms per request.
+        input: nagle
+        check: { metric: manual }
+      - title: Fixes
+        body: Write each message in one call, or set TCP_NODELAY.
+        check: { metric: manual }

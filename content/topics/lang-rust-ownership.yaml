@@ -1,0 +1,49 @@
+id: rust-ownership
+title: "Ownership"
+group: languages
+language: rust
+icon: key-round
+order: 1
+summary: "Every value has one owner: moves, Clone vs Copy, and Drop running at end of scope."
+info: "Rust manages memory without a garbage collector by tracking ownership at compile time. Assignment moves ownership, the old name becomes unusable, and the owner’s scope end runs Drop exactly once, which is RAII enforced by the compiler."
+algos: [rust-own]
+lessons:
+  - id: moves
+    title: "Moves"
+    minutes: 3
+    algo: rust-own
+    steps:
+      - title: "One owner"
+        body: "let t = s moves the String: the stack words are copied, s is dead, the heap buffer has one owner."
+        watch: "Using s afterwards is error E0382."
+        input: move
+        check: { metric: manual }
+      - title: "No double free"
+        body: "Because only one owner exists, the buffer is freed exactly once when t goes out of scope."
+        check: { metric: manual }
+
+  - id: clone-copy
+    title: "Clone vs Copy"
+    minutes: 3
+    algo: rust-own
+    steps:
+      - title: "Explicit deep copies"
+        body: "clone() allocates a second buffer; Rust never deep-copies implicitly."
+        input: clone
+        check: { metric: manual }
+      - title: "Copy types"
+        body: "Integers, floats, bool and char are Copy: assignment duplicates the bits and both stay valid."
+        check: { metric: manual }
+
+  - id: drop
+    title: "Drop & RAII"
+    minutes: 3
+    algo: rust-own
+    steps:
+      - title: "Reverse order"
+        body: "Values drop in reverse declaration order at the end of their scope."
+        input: drop
+        check: { metric: manual }
+      - title: "Resources"
+        body: "Files close, locks unlock and sockets shut on drop. Call drop(x) to release early."
+        check: { metric: manual }

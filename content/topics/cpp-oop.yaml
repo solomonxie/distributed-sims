@@ -1,6 +1,7 @@
 id: cpp-oop
 title: Classes & OOP
-group: cpp
+group: languages
+language: cpp
 icon: boxes
 order: 3
 summary: Classes that keep their invariants. Constructors, lifetime order, copy and move, inheritance, virtual dispatch, interfaces and operators.

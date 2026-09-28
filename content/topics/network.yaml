@@ -1,8 +1,8 @@
 id: network
-title: Network
-group: topics
+title: Networks in distributed systems
+group: network
 icon: network
-order: 10
+order: 1
 summary: Distance, lost packets, broken links and exhausted connections between your boxes.
 info: Every hop costs time, and the speed of light sets a floor between regions. Networks drop packets, split into sides that can't see each other, and cache stale answers (DNS). Connection pools and load-balancer layers decide how that shows up for users.
 problems: [google-maps]

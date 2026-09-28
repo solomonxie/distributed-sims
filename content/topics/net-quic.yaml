@@ -1,0 +1,64 @@
+id: net-quic
+title: UDP & QUIC
+group: network
+icon: zap
+order: 6
+summary: "Datagrams without guarantees, and QUIC: TLS built in, fewer round trips, independent streams, connection migration."
+info: "UDP is IP with ports and nothing else, so applications that need speed or custom reliability build on it. QUIC is the most important of them: a full transport in user space, encrypted from the first packet, with streams that don't block each other and connection IDs that survive network changes. HTTP/3 runs on QUIC."
+algos: [nw-quic]
+lessons:
+  - id: udp
+    title: UDP
+    minutes: 3
+    algo: nw-quic
+    steps:
+      - title: Fire and forget
+        body: No handshake, no ACKs. A lost datagram is simply gone.
+        input: udp
+        check: { metric: manual }
+      - title: Reliability in the app
+        body: DNS clients time out and retry; games send the latest state instead of resending old state.
+        check: { metric: manual }
+
+  - id: quic-handshake
+    title: QUIC handshakes
+    minutes: 4
+    algo: nw-quic
+    steps:
+      - title: TCP + TLS
+        body: Two round trips before a request, three before the response.
+        input: tcp-tls
+        check: { metric: manual }
+      - title: QUIC
+        body: Transport and TLS combine into one round trip.
+        input: quic
+        check: { metric: manual }
+      - title: 0-RTT
+        body: Resumed connections send the request in the first packet. Replayable, so only for idempotent requests.
+        check: { metric: manual }
+
+  - id: streams
+    title: Independent streams
+    minutes: 3
+    algo: nw-quic
+    steps:
+      - title: No transport HOL
+        body: A lost packet stalls only its own stream.
+        input: streams
+        check: { metric: manual }
+      - title: Compare with TCP
+        body: Over TCP every stream would wait for that retransmission.
+        check: { metric: manual }
+
+  - id: migration
+    title: Connection migration
+    minutes: 3
+    algo: nw-quic
+    steps:
+      - title: Connection IDs
+        body: QUIC connections survive an IP change, from Wi-Fi to cellular.
+        input: migration
+        check: { metric: manual }
+      - title: Load balancers
+        body: Must route by connection ID, not 4-tuple, or migrated packets land on the wrong server.
+        check: { metric: manual }

@@ -1,0 +1,77 @@
+id: py-runtime
+title: "CPython & bytecode"
+group: languages
+language: python
+icon: cpu
+order: 1
+summary: "How python app.py actually runs: parse, compile to bytecode, and an interpreter loop executing it opcode by opcode."
+info: "CPython is a compiler plus a virtual machine. Your source becomes code objects full of bytecode, and a C loop in ceval.c executes them one opcode at a time, checking types as it goes. Knowing this explains why Python is flexible, why tight loops are slow, and what the .pyc files are."
+algos: [py-pipeline, py-bytecode]
+lessons:
+  - id: compile
+    title: "From source to code objects"
+    minutes: 4
+    algo: py-pipeline
+    steps:
+      - title: "Parse"
+        body: "The tokenizer and parser turn text into an abstract syntax tree (ast module)."
+        input: compile
+        check: { metric: manual }
+      - title: "Compile"
+        body: "The compiler emits bytecode into code objects, one per module, function and class body."
+        watch: "Tap code object for what it holds."
+        check: { metric: manual }
+      - title: "Cache"
+        body: "Imported modules save their code object to __pycache__ so the next start skips compiling."
+        check: { metric: manual }
+
+  - id: eval-loop
+    title: "The eval loop"
+    minutes: 4
+    algo: py-pipeline
+    steps:
+      - title: "Fetch, dispatch, repeat"
+        body: "ceval.c reads one opcode at a time and jumps to its handler."
+        input: eval
+        check: { metric: manual }
+      - title: "Frames and the value stack"
+        body: "Each call gets a frame with locals and a small stack of object pointers."
+        check: { metric: manual }
+      - title: "Why loops are slow"
+        body: "Every opcode pays for dispatch and dynamic type checks. Move hot loops into C-backed code (built-ins, NumPy)."
+        check: { metric: manual }
+
+  - id: bytecode
+    title: "Reading bytecode with dis"
+    minutes: 5
+    algo: py-bytecode
+    steps:
+      - title: "LOAD_FAST and BINARY_OP"
+        body: "Function locals are array slots; operators dispatch on the operand types at run time."
+        input: add
+        check: { metric: manual }
+      - title: "Globals are dict lookups"
+        body: "Module-level code uses LOAD_NAME and STORE_NAME, which are dictionary lookups."
+        watch: "Compare with LOAD_FAST in the function."
+        input: loop
+        check: { metric: manual }
+      - title: "Attribute access"
+        body: "Each obj.attr is a LOAD_ATTR lookup; 3.11+ specialises hot ones. Hoist repeated attributes into locals in tight loops."
+        input: attr
+        check: { metric: manual }
+
+  - id: pyc
+    title: "The .pyc cache"
+    minutes: 3
+    algo: py-pipeline
+    steps:
+      - title: "What is cached"
+        body: "Only imported modules, not the script you run directly."
+        input: pyc
+        check: { metric: manual }
+      - title: "Invalidation"
+        body: "A .pyc records the source mtime and size; a mismatch triggers recompiling."
+        check: { metric: manual }
+      - title: "What it saves"
+        body: "Start-up time only. Execution speed is unchanged."
+        check: { metric: manual }

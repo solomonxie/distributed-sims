@@ -1,0 +1,87 @@
+id: net-tools
+title: Network debugging toolbox
+group: network
+icon: wrench
+order: 11
+summary: Latency numbers, and reading ping, mtr, dig, curl timing, tcpdump and ss output.
+info: "When something is slow or broken \"on the network\", a handful of tools answer almost every question: is it reachable, where is the time going, what did DNS say, what packets actually flowed, and which sockets are stuck. Each lesson walks through real output line by line, with what to conclude from it."
+algos: [nw-tools, nw-latency]
+lessons:
+  - id: latency-numbers
+    title: Latency numbers
+    minutes: 3
+    algo: nw-latency
+    steps:
+      - title: Distance sets the floor
+        body: Light in fibre covers about 200 km per millisecond.
+        input: rtt
+        check: { metric: manual }
+      - title: Sequential calls
+        body: Round trips add up; batch and parallelise across regions.
+        check: { metric: manual }
+
+  - id: ping-mtr
+    title: ping & mtr
+    minutes: 4
+    algo: nw-tools
+    steps:
+      - title: ping
+        body: Reachability, RTT, loss and jitter.
+        input: ping
+        check: { metric: manual }
+      - title: mtr
+        body: Per-hop loss and latency; only loss that persists to the end is real.
+        input: traceroute
+        check: { metric: manual }
+
+  - id: dig
+    title: dig
+    minutes: 3
+    algo: nw-tools
+    steps:
+      - title: Ask DNS directly
+        body: See the answer, remaining TTL and which server replied.
+        input: dig
+        check: { metric: manual }
+      - title: Compare resolvers
+        body: Query several resolvers to find stale caches after a change.
+        check: { metric: manual }
+
+  - id: curl-timing
+    title: curl timing
+    minutes: 4
+    algo: nw-tools
+    steps:
+      - title: Where did the time go?
+        body: DNS, connect, TLS, time to first byte, total.
+        input: curl
+        check: { metric: manual }
+      - title: Network or server
+        body: connect minus dns is one RTT; the gap to first byte is the backend.
+        check: { metric: manual }
+
+  - id: tcpdump
+    title: Reading tcpdump
+    minutes: 5
+    algo: nw-tools
+    steps:
+      - title: Flags tell the story
+        body: S, S., ., P., F, R.
+        input: tcpdump
+        check: { metric: manual }
+      - title: Retransmissions and resets
+        body: Count them to separate network loss from middlebox timeouts.
+        check: { metric: manual }
+
+  - id: ss
+    title: Sockets with ss
+    minutes: 4
+    algo: nw-tools
+    steps:
+      - title: States and queues
+        body: LISTEN, ESTAB, CLOSE-WAIT, TIME-WAIT and what large queues mean.
+        input: ss
+        check: { metric: manual }
+      - title: Before and after
+        body: Snapshot ss -s during an incident to spot leaks and slow consumers.
+        check: { metric: manual }

@@ -1,0 +1,62 @@
+id: rust-borrowing
+title: "Borrowing & lifetimes"
+group: languages
+language: rust
+icon: lock
+order: 2
+summary: "Shared and mutable borrows, the borrow checker, lifetimes, and what unsafe does and doesn’t unlock."
+info: "References let code use a value without owning it. The borrow checker enforces aliasing XOR mutation (many readers or one writer) and makes sure no reference outlives its data. These rules rule out whole classes of bugs C++ only catches at run time."
+algos: [rust-borrow]
+lessons:
+  - id: borrows
+    title: "Shared & mutable borrows"
+    minutes: 3
+    algo: rust-borrow
+    steps:
+      - title: "&T and &mut T"
+        body: "Any number of &T, or exactly one &mut T, never both at the same time."
+        input: shared
+        check: { metric: manual }
+      - title: "Borrows end at last use"
+        body: "A borrow lasts until its last use, not the end of the block, so a later &mut is fine."
+        check: { metric: manual }
+
+  - id: borrow-checker
+    title: "Why the borrow checker says no"
+    minutes: 3
+    algo: rust-borrow
+    steps:
+      - title: "Reallocation"
+        body: "push on a full Vec moves its buffer. A live &v[0] would dangle, so push is rejected while it’s in use."
+        watch: "The C++ version compiles and crashes."
+        input: conflict
+        check: { metric: manual }
+      - title: "Fixes"
+        body: "Copy the value out, finish using the borrow first, or index instead of holding a reference."
+        check: { metric: manual }
+
+  - id: lifetimes
+    title: "Lifetimes"
+    minutes: 4
+    algo: rust-borrow
+    steps:
+      - title: "Labels, not runtime data"
+        body: "'a ties the output reference to its inputs so the compiler can check it never outlives them."
+        input: lifetime
+        check: { metric: manual }
+      - title: "Elision"
+        body: "Most functions need no annotations; the compiler infers the obvious case of one input reference."
+        check: { metric: manual }
+
+  - id: unsafe
+    title: "unsafe"
+    minutes: 2
+    algo: rust-borrow
+    steps:
+      - title: "What it unlocks"
+        body: "Dereferencing raw pointers, calling unsafe functions and FFI. The borrow checker still applies to references."
+        input: unsafe
+        check: { metric: manual }
+      - title: "Wrap it"
+        body: "Keep unsafe blocks small, document the invariant with a SAFETY comment, and expose a safe API."
+        check: { metric: manual }

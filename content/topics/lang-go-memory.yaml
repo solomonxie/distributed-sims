@@ -1,0 +1,63 @@
+id: go-memory
+title: "Memory & garbage collection"
+group: languages
+language: go
+icon: memory-stick
+order: 2
+summary: "Escape analysis, growable goroutine stacks, and Go’s concurrent tri-colour garbage collector."
+info: "Go decides at compile time whether a value can live on the stack; only what escapes costs the GC anything. The collector itself runs concurrently with your code, trading some CPU and a write barrier for sub-millisecond pauses."
+algos: [go-escape, go-gc]
+lessons:
+  - id: escape
+    title: "Escape analysis"
+    minutes: 3
+    algo: go-escape
+    steps:
+      - title: "Stays on the stack"
+        body: "Values that don’t outlive their function live in the frame: free to allocate and invisible to the GC."
+        input: stack
+        check: { metric: manual }
+      - title: "Escapes to the heap"
+        body: "Returning a pointer to a local is legal; the compiler moves it to the heap. go build -gcflags=-m shows every decision."
+        input: escape
+        check: { metric: manual }
+
+  - id: stacks
+    title: "Growable stacks"
+    minutes: 3
+    algo: go-escape
+    steps:
+      - title: "2 KB to start"
+        body: "Each goroutine stack starts tiny and doubles by copying when a call needs more room."
+        input: growth
+        check: { metric: manual }
+      - title: "Why pointers get fixed up"
+        body: "Copying moves frames, so the runtime rewrites pointers into the stack. That is why cgo may not keep Go pointers."
+        check: { metric: manual }
+
+  - id: gc
+    title: "Concurrent mark & sweep"
+    minutes: 4
+    algo: go-gc
+    steps:
+      - title: "Tri-colour marking"
+        body: "White, grey, black: marking spreads from the roots until nothing is grey, then white objects are swept."
+        input: tricolor
+        check: { metric: manual }
+      - title: "Write barrier"
+        body: "While marking, pointer stores shade their target grey so a black object never hides a live white one."
+        input: barrier
+        check: { metric: manual }
+
+  - id: tuning
+    title: "GOGC & GOMEMLIMIT"
+    minutes: 3
+    algo: go-gc
+    steps:
+      - title: "The pacer"
+        body: "GOGC=100 starts the next cycle when the heap doubles its live size. Higher means fewer cycles and more memory."
+        input: pacing
+        check: { metric: manual }
+      - title: "Containers"
+        body: "Set GOMEMLIMIT below the container limit so GC tightens up instead of the process being OOM-killed."
+        check: { metric: manual }

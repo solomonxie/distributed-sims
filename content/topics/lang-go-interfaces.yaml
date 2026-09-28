@@ -1,0 +1,48 @@
+id: go-interfaces
+title: "Interfaces & errors"
+group: languages
+language: go
+icon: plug
+order: 3
+summary: "Interface values as (itab, data) pairs, the typed-nil trap, and errors, defer, panic and recover."
+info: "Go interfaces are satisfied implicitly and stored as two words. Knowing that layout explains both dynamic dispatch and the classic bug where a nil pointer makes a non-nil error. Errors are ordinary values; panic is reserved for bugs."
+algos: [go-iface]
+lessons:
+  - id: itab
+    title: "Interface values & dispatch"
+    minutes: 3
+    algo: go-iface
+    steps:
+      - title: "Two words"
+        body: "An interface value holds an itab pointer and a data pointer. The itab caches the concrete type’s methods."
+        input: itab
+        check: { metric: manual }
+      - title: "Implicit"
+        body: "A type implements an interface just by having its methods. No implements keyword."
+        check: { metric: manual }
+
+  - id: nil-gotcha
+    title: "The typed nil trap"
+    minutes: 2
+    algo: go-iface
+    steps:
+      - title: "Non-nil nil"
+        body: "Returning a nil *MyErr as error sets the type word, so err != nil is true."
+        input: nilgotcha
+        check: { metric: manual }
+      - title: "Rule"
+        body: "Return a literal nil on success, and check errors with errors.Is and errors.As."
+        check: { metric: manual }
+
+  - id: errors
+    title: "defer, panic & recover"
+    minutes: 3
+    algo: go-iface
+    steps:
+      - title: "defer"
+        body: "Deferred calls run last-in first-out when the function exits, even while panicking."
+        input: defer
+        check: { metric: manual }
+      - title: "Errors are values"
+        body: "Return error for expected failures, wrap with %w, and keep panic for programmer bugs."
+        check: { metric: manual }

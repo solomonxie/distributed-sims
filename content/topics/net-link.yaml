@@ -1,0 +1,71 @@
+id: net-link
+title: Ethernet, ARP & switching
+group: network
+icon: cable
+order: 3
+summary: "How frames find the next hop: MAC addresses, ARP, switches learning, VLANs and the default gateway."
+info: "Inside one network segment, IP addresses are useless on their own: frames are delivered by MAC address. ARP bridges the two, switches learn where each MAC lives, and VLANs carve one switch into isolated segments. Anything off-subnet is framed to the gateway's MAC while the IP header still names the final destination."
+algos: [nw-link]
+lessons:
+  - id: arp
+    title: ARP
+    minutes: 4
+    algo: nw-link
+    steps:
+      - title: IP to MAC
+        body: To send to 10.0.0.9 on its own subnet, a host must learn that IP's MAC first.
+        watch: The broadcast request and unicast reply.
+        input: arp
+        check: { metric: manual }
+      - title: The ARP cache
+        body: Replies are cached for minutes. Stale entries after an IP moves cause strange partial outages.
+        check: { metric: manual }
+      - title: Gratuitous ARP
+        body: Failover tools (keepalived, VRRP) announce "this IP is now at my MAC" so neighbours update at once.
+        check: { metric: manual }
+
+  - id: switching
+    title: Switches & MAC tables
+    minutes: 3
+    algo: nw-link
+    steps:
+      - title: Learning
+        body: A switch learns MAC → port from source addresses and floods unknown destinations.
+        input: switch
+        check: { metric: manual }
+      - title: Private conversations
+        body: Once learned, frames go only where they need to.
+        check: { metric: manual }
+      - title: Loops
+        body: Two paths between switches create broadcast storms; spanning tree blocks redundant links.
+        check: { metric: manual }
+
+  - id: vlans
+    title: VLANs & trunks
+    minutes: 3
+    algo: nw-link
+    steps:
+      - title: Isolation
+        body: A VLAN is its own broadcast domain on shared hardware.
+        input: vlan
+        check: { metric: manual }
+      - title: 802.1Q tags
+        body: Trunks carry many VLANs by tagging each frame with a 12-bit id.
+        check: { metric: manual }
+      - title: Routing between VLANs
+        body: Crossing VLANs goes through a router or firewall, which is where tier-to-tier rules live.
+        check: { metric: manual }
+
+  - id: gateway
+    title: Leaving the subnet
+    minutes: 3
+    algo: nw-link
+    steps:
+      - title: Default route
+        body: Off-subnet traffic is sent to the gateway's MAC with the final IP unchanged.
+        watch: MAC changes, IP stays.
+        input: gateway
+        check: { metric: manual }
+      - title: Every hop re-frames
+        body: Routers strip the frame, forward the packet and build a new frame for the next link.
+        check: { metric: manual }

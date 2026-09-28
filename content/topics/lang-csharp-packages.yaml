@@ -1,0 +1,46 @@
+id: cs-packages
+title: "Assemblies & NuGet"
+group: languages
+language: csharp
+icon: package
+order: 5
+summary: "Namespaces vs assemblies, project references, NuGet restore, transitive resolution and lock files."
+info: "Namespaces organise names; assemblies are what you build, deploy and version, and they are the boundary for internal. NuGet restores packages into a global cache and resolves transitive versions by lowest applicable version with nearest-wins."
+algos: [cs-packages]
+lessons:
+  - id: assemblies
+    title: "Namespaces & assemblies"
+    minutes: 3
+    algo: cs-packages
+    steps:
+      - title: "Two different things"
+        body: "using imports a namespace; ProjectReference adds an assembly dependency."
+        input: assemblies
+        check: { metric: manual }
+      - title: "internal"
+        body: "The assembly is the privacy boundary; InternalsVisibleTo opens it for tests."
+        check: { metric: manual }
+
+  - id: nuget
+    title: "NuGet restore"
+    minutes: 3
+    algo: cs-packages
+    steps:
+      - title: "Restore"
+        body: "dotnet restore resolves the graph, fills ~/.nuget/packages and writes project.assets.json."
+        input: nuget
+        check: { metric: manual }
+
+  - id: transitive
+    title: "Transitive versions & lock files"
+    minutes: 4
+    algo: cs-packages
+    steps:
+      - title: "Lowest applicable"
+        body: "NuGet picks the lowest version satisfying every requirement; a direct reference wins over transitive ones."
+        input: transitive
+        check: { metric: manual }
+      - title: "Repeatable restores"
+        body: "packages.lock.json and Directory.Packages.props keep every project on the same versions."
+        watch: "dotnet list package --include-transitive shows the graph."
+        check: { metric: manual }

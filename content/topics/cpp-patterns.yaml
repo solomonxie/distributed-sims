@@ -1,6 +1,7 @@
 id: cpp-patterns
 title: Design patterns & idioms
-group: cpp
+group: languages
+language: cpp
 icon: shapes
 order: 9
 summary: The GoF patterns in modern C++, plus the idioms real codebases lean on. When to use each, what it costs, and the lighter C++ alternative.

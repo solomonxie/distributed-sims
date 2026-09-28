@@ -1,0 +1,71 @@
+id: go-concurrency
+title: "Goroutines & channels"
+group: languages
+language: go
+icon: zap
+order: 1
+summary: "How Go runs 100k goroutines on a few threads, and how channels and select coordinate them."
+info: "Go’s concurrency lives in the runtime, not the OS. Goroutines are cheap user-space tasks scheduled onto a handful of threads, network I/O is made non-blocking behind your back, and channels are a locked queue with parked goroutines on both ends."
+algos: [go-sched, go-chan]
+lessons:
+  - id: goroutines
+    title: "Goroutines & the GMP scheduler"
+    minutes: 4
+    algo: go-sched
+    steps:
+      - title: "G, M and P"
+        body: "Goroutines (G) run on OS threads (M), and a thread needs a P to run Go code. GOMAXPROCS sets the number of Ps, usually the core count."
+        watch: "go f() lands on P0’s local run queue."
+        input: gmp
+        check: { metric: manual }
+      - title: "Cheap to create"
+        body: "A goroutine starts with a 2 KB stack and switches in about 100 ns without entering the kernel. Tens of thousands is normal."
+        check: { metric: manual }
+
+  - id: stealing
+    title: "Work stealing, syscalls & the netpoller"
+    minutes: 4
+    algo: go-sched
+    steps:
+      - title: "Work stealing"
+        body: "An idle P steals half of another P’s queue, so every core stays busy without a global lock."
+        input: steal
+        check: { metric: manual }
+      - title: "Blocking syscalls"
+        body: "A thread stuck in a file read loses its P to a spare thread, so the other goroutines keep running."
+        input: syscall
+        check: { metric: manual }
+      - title: "The netpoller"
+        body: "Socket reads park only the goroutine in epoll or kqueue. Code looks blocking; the runtime is asynchronous."
+        watch: "One Go process can hold 100k connections."
+        check: { metric: manual }
+
+  - id: channels
+    title: "Channels"
+    minutes: 4
+    algo: go-chan
+    steps:
+      - title: "Unbuffered"
+        body: "Send and receive must meet. The first to arrive parks on the channel until the other comes."
+        input: unbuffered
+        check: { metric: manual }
+      - title: "Buffered"
+        body: "A ring buffer absorbs bursts; a full buffer blocks the sender just the same."
+        input: buffered
+        check: { metric: manual }
+      - title: "close and range"
+        body: "close(ch) wakes every receiver; for v := range ch ends when the channel is closed and drained. Only the sender should close."
+        check: { metric: manual }
+
+  - id: select
+    title: "select & cancellation"
+    minutes: 3
+    algo: go-chan
+    steps:
+      - title: "Waiting on many"
+        body: "select parks on every case at once and runs whichever becomes ready first, picking randomly among ties."
+        input: select
+        check: { metric: manual }
+      - title: "Cancellation"
+        body: "Put ctx.Done() in every blocking select so work stops when the request is cancelled or times out."
+        check: { metric: manual }

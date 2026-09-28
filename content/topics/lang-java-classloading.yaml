@@ -1,0 +1,73 @@
+id: java-classloading
+title: "Class loading, packages & modules"
+group: languages
+language: java
+icon: folder-tree
+order: 2
+summary: "Parent-first class loader delegation, load → link → initialize, what import really does, and JPMS modules vs the classpath."
+info: "Java loads classes lazily, on first use, through a chain of class loaders that always ask their parent first. Imports are purely compile-time names. The classpath is a flat list where the first JAR wins; the module system adds explicit dependencies and real encapsulation on top."
+algos: [java-classload]
+lessons:
+  - id: loaders
+    title: "Class loaders & delegation"
+    minutes: 4
+    algo: java-classload
+    steps:
+      - title: "Three loaders"
+        body: "Bootstrap (java.base), platform (other JDK modules), application (your classpath)."
+        input: delegation
+        check: { metric: manual }
+      - title: "Parent first"
+        body: "A loader asks its parent before looking itself, so core classes can’t be replaced."
+        check: { metric: manual }
+      - title: "Class identity"
+        body: "Name plus loader: the same class loaded twice by different loaders gives two incompatible types (ClassCastException in app servers)."
+        check: { metric: manual }
+
+  - id: lifecycle
+    title: "Load, link, initialize"
+    minutes: 4
+    algo: java-classload
+    steps:
+      - title: "Lazy"
+        body: "Classes load on first active use, not at start-up."
+        input: lifecycle
+        check: { metric: manual }
+      - title: "Linking"
+        body: "Verification, preparation of static fields, and resolution of symbolic references."
+        check: { metric: manual }
+      - title: "Static init failures"
+        body: "An exception in a static initialiser makes the class unusable: NoClassDefFoundError afterwards."
+        check: { metric: manual }
+
+  - id: packages-imports
+    title: "Packages & imports"
+    minutes: 3
+    algo: java-classload
+    steps:
+      - title: "import is compile-time"
+        body: "It only shortens names in source; bytecode always uses full names."
+        input: imports
+        check: { metric: manual }
+      - title: "Packages are directories"
+        body: "com.acme.util lives at com/acme/util inside the JAR."
+        check: { metric: manual }
+      - title: "Wildcards"
+        body: "import com.acme.* never includes subpackages."
+        check: { metric: manual }
+
+  - id: modules
+    title: "JPMS modules"
+    minutes: 4
+    algo: java-classload
+    steps:
+      - title: "Classpath"
+        body: "One flat namespace; the first JAR containing a class wins silently."
+        input: modules
+        check: { metric: manual }
+      - title: "module-info.java"
+        body: "requires and exports make dependencies and public API explicit."
+        check: { metric: manual }
+      - title: "Strong encapsulation"
+        body: "Non-exported packages are inaccessible, and split packages are rejected."
+        check: { metric: manual }

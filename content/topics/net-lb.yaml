@@ -1,0 +1,84 @@
+id: net-lb
+title: Load balancers, proxies & CDNs
+group: network
+icon: split
+order: 10
+summary: L4 vs L7 balancing, health checks and draining, stickiness vs hashing, CDN edges, cache headers and invalidation.
+info: Load balancers and CDNs sit between users and your servers, and they shape what failures look like. An L4 balancer spreads connections; an L7 proxy spreads requests and can retry, route and terminate TLS. Health checks decide who gets traffic, and bad ones cause outages. CDNs move content next to users and absorb most of the load, as long as cache keys and headers are right.
+algos: [nw-lb, nw-cdn]
+lessons:
+  - id: l4-l7
+    title: L4 vs L7
+    minutes: 5
+    algo: nw-lb
+    steps:
+      - title: L4
+        body: Connection-level balancing by 5-tuple; fast, protocol-agnostic.
+        input: l4
+        check: { metric: manual }
+      - title: L7
+        body: Request-level routing by host, path and headers, with TLS termination.
+        input: l7
+        check: { metric: manual }
+      - title: gRPC trap
+        body: Long-lived HTTP/2 connections through an L4 balancer pin to one backend.
+        check: { metric: manual }
+
+  - id: health-checks
+    title: Health checks & draining
+    minutes: 4
+    algo: nw-lb
+    steps:
+      - title: Ejecting backends
+        body: Failed checks remove a backend; passing ones restore it.
+        input: health
+        check: { metric: manual }
+      - title: Shallow liveness
+        body: Don't check dependencies in liveness, or one database blip ejects everything.
+        check: { metric: manual }
+      - title: Draining
+        body: Stop new requests, finish in-flight ones, then stop the process.
+        check: { metric: manual }
+
+  - id: stickiness
+    title: Stickiness & hashing
+    minutes: 3
+    algo: nw-lb
+    steps:
+      - title: Options
+        body: Round robin, sticky cookies, consistent hashing, or stateless backends.
+        input: sticky
+        check: { metric: manual }
+      - title: Prefer stateless
+        body: Keep sessions in a shared store so any backend can serve any request.
+        check: { metric: manual }
+
+  - id: cdn
+    title: CDN edges
+    minutes: 4
+    algo: nw-cdn
+    steps:
+      - title: A miss
+        body: Edge, shield and origin fill the cache on the first request.
+        input: miss
+        check: { metric: manual }
+      - title: A hit
+        body: Served near the user; the origin never sees it.
+        input: hit
+        check: { metric: manual }
+      - title: Cache keys
+        body: Headers in Vary and query strings split the cache and lower the hit rate.
+        check: { metric: manual }
+
+  - id: invalidation
+    title: Invalidation & staleness
+    minutes: 3
+    algo: nw-cdn
+    steps:
+      - title: Purge
+        body: Evict by URL or surrogate key within seconds.
+        input: invalidate
+        check: { metric: manual }
+      - title: Stale is a feature
+        body: stale-while-revalidate hides origin latency; stale-if-error survives origin outages.
+        check: { metric: manual }

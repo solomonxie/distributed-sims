@@ -1,0 +1,82 @@
+id: net-layers
+title: Layers & encapsulation
+group: network
+icon: layers
+order: 2
+summary: How bytes become segments, packets and frames, and what every header byte means.
+info: "Networking is layered so each layer solves one problem: the link moves frames between neighbours, IP moves packets across networks, TCP and UDP deliver to processes, and applications speak their own protocols. Each layer wraps the one above in its own header. Knowing the layers tells you what an \"L4 load balancer\" can see, why MTU problems look like hangs, and how to read a packet capture."
+algos: [nw-encap, nw-headers]
+lessons:
+  - id: model
+    title: The layer model
+    minutes: 3
+    algo: nw-encap
+    steps:
+      - title: Four layers in practice
+        body: TCP/IP has link, internet, transport and application layers. OSI adds three more names, and people still say L4 and L7.
+        watch: The PDU names at the bottom.
+        input: stack
+        check: { metric: manual }
+      - title: Peers talk through headers
+        body: Each layer only understands its own header on the other side. Everything above it is payload.
+        check: { metric: manual }
+      - title: L4 vs L7
+        body: An L4 device sees IPs and ports. An L7 device parses HTTP and can route by path.
+        check: { metric: manual }
+
+  - id: encapsulation
+    title: Encapsulation
+    minutes: 4
+    algo: nw-encap
+    steps:
+      - title: Wrapping
+        body: TCP adds 20 B, IP 20 B, Ethernet 14 B plus a 4 B trailer.
+        watch: Each layer's header appears in front of the payload.
+        input: encap
+        check: { metric: manual }
+      - title: Tap each header
+        body: Every header box explains what that layer adds and how to see it with tcpdump or ip.
+        check: { metric: manual }
+      - title: The receive path
+        body: The receiver peels headers in reverse, and only the payload reaches recv().
+        input: decap
+        check: { metric: manual }
+
+  - id: mtu-mss
+    title: MTU & MSS
+    minutes: 4
+    algo: nw-encap
+    steps:
+      - title: 1500 bytes
+        body: Ethernet carries at most 1500 B of IP packet. That leaves 1460 B of TCP payload, the MSS.
+        input: mtu
+        check: { metric: manual }
+      - title: Tunnels shrink it
+        body: VPNs, VXLAN and IPsec add headers, so the inner MTU is smaller.
+        check: { metric: manual }
+      - title: MTU black holes
+        body: "If ICMP \"fragmentation needed\" is filtered, large packets vanish while small ones work. Symptom: SSH logs in, then hangs on big output."
+        check: { metric: manual }
+
+  - id: headers
+    title: Header byte layouts
+    minutes: 5
+    algo: nw-headers
+    steps:
+      - title: IPv4
+        body: "20 bytes: TTL, protocol and the two addresses are what routers use."
+        watch: Highlighted fields per step.
+        input: ipv4
+        check: { metric: manual }
+      - title: TCP
+        body: Ports, sequence and ACK numbers, flags and the receive window.
+        input: tcp
+        check: { metric: manual }
+      - title: UDP
+        body: 8 bytes, nothing else. Reliability is up to the application.
+        input: udp
+        check: { metric: manual }
+      - title: Ethernet
+        body: MACs for this hop only, and the EtherType of what is inside.
+        input: eth
+        check: { metric: manual }

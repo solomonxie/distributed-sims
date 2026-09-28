@@ -1,0 +1,58 @@
+id: java-jit
+title: "JIT compilation"
+group: languages
+language: java
+icon: zap
+order: 3
+summary: "Tiered compilation from interpreter to C1 to C2, profile-driven inlining, deoptimization, and why the JVM needs warm-up."
+info: "The JVM compiles your code while it runs. It interprets first, compiles hot methods quickly with C1 while collecting a profile, then recompiles the hottest with C2 using that profile. Because the optimised code rests on assumptions from the profile, the JVM can also throw it away when those assumptions break."
+algos: [java-jit]
+lessons:
+  - id: tiers
+    title: "Tiered compilation"
+    minutes: 4
+    algo: java-jit
+    steps:
+      - title: "Tier 0"
+        body: "Interpreter, counting calls and loop iterations."
+        input: tiers
+        check: { metric: manual }
+      - title: "Tier 3 (C1)"
+        body: "Quick compile with profiling."
+        check: { metric: manual }
+      - title: "Tier 4 (C2)"
+        body: "Profile-guided, heavily optimised compile. Watch it with -XX:+PrintCompilation."
+        check: { metric: manual }
+
+  - id: inlining-deopt
+    title: "Inlining & deoptimization"
+    minutes: 5
+    algo: java-jit
+    steps:
+      - title: "Inlining"
+        body: "Monomorphic call sites are inlined behind a cheap class check."
+        input: inline
+        check: { metric: manual }
+      - title: "Why it matters"
+        body: "Inlining enables escape analysis, unrolling and vectorisation."
+        check: { metric: manual }
+      - title: "Deoptimization"
+        body: "A new receiver type breaks the assumption and falls back to the interpreter."
+        input: deopt
+        check: { metric: manual }
+
+  - id: warmup
+    title: "Warm-up"
+    minutes: 3
+    algo: java-jit
+    steps:
+      - title: "Cold start"
+        body: "First requests run interpreted and are slow."
+        input: warmup
+        check: { metric: manual }
+      - title: "Benchmark properly"
+        body: "Use JMH, which runs warm-up iterations before measuring."
+        check: { metric: manual }
+      - title: "Faster starts"
+        body: "CDS/AOT caches and CRaC checkpoints reduce warm-up for short-lived services."
+        check: { metric: manual }

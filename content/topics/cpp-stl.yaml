@@ -1,6 +1,7 @@
 id: cpp-stl
 title: STL containers & algorithms
-group: cpp
+group: languages
+language: cpp
 icon: library
 order: 4
 summary: The standard library's containers and algorithms, drawn as memory. What each costs, when to pick it, and the bugs they invite.

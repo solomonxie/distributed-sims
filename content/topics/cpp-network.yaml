@@ -1,6 +1,7 @@
 id: cpp-network
 title: Network servers & C10K
-group: cpp
+group: languages
+language: cpp
 icon: server
 order: 10
 summary: Build a server from raw sockets up to 10,000 concurrent connections. TCP streams, HTTP, epoll, backpressure and benchmarking.
