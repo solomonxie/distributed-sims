@@ -1,0 +1,33 @@
+// Side-effect imports: each group registers its behaviours.
+import './edge';
+import './compute';
+import './store';
+import './sharding';
+import './cache';
+import './messaging';
+import './coordination';
+import './transactions';
+import './security';
+import './stores';
+import './geo';
+import './special';
+import './composite';
+
+import './tech-kafka';
+import './tech-redis';
+import './tech-nginx';
+import './tech-spark';
+import './tech-airflow';
+import './tech-celery';
+import './tech-temporal';
+import './tech-flink';
+import './tech-rabbitmq';
+import './tech-redis-cluster';
+import './tech-k8s';
+import './tech-postgres';
+import './tech-zk';
+import './analytics';
+import './tech-cassandra';
+import './tech-elasticsearch';
+import './tech-dynamodb';
+export * from './registry';
