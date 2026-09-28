@@ -1,8 +1,10 @@
 import { allDemos, frames, getDemo } from '../src/algo';
 import type { Shape } from '../src/algo';
 import { BELADY_REFS, missRate, pageWalk, replace, STANDARD_REFS, WALK_VA } from '../src/machine/lib/sims';
+import { regValue, run, STACK_TOP } from '../src/machine/lib/x86';
+import { layoutStruct, vectorGrowth } from '../src/machine/cpp';
 
-const GROUPS = ['machine-cpu', 'machine-memory', 'machine-bus'];
+const GROUPS = ['machine-cpu', 'machine-memory', 'machine-bus', 'machine-asm', 'machine-cpp'];
 const machine = () => allDemos().filter((d) => GROUPS.includes(d.group));
 
 function points(s: Shape): number[] {
@@ -84,4 +86,59 @@ test('page walk ends at frame 0x9C with offset 0xC41', () => {
   const fs = frames(getDemo('mem-paging')!, { tlb: 'miss' });
   const phys = fs[fs.length - 1].panel!.rows.find((r) => r.label === 'physical')!;
   expect(phys.value).toBe('0x9CC41');
+});
+
+describe('x86 interpreter', () => {
+  const last = (src: string[], init = {}, mem: [number, number][] = [], entry?: string) => {
+    const r = run(src, init, mem, entry);
+    return r.steps[r.steps.length - 1].state;
+  };
+
+  test('INT_MAX + 1 sets OF and SF; 0xFFFFFFFF + 1 sets CF and ZF', () => {
+    const a = last(['mov eax, 0x7FFFFFFF', 'add eax, 1']);
+    expect(regValue(a, 'eax')).toBe(-2147483648);
+    expect(a.flags).toMatchObject({ OF: true, SF: true, CF: false, ZF: false });
+    const b = last(['mov ecx, -1', 'add ecx, 1']);
+    expect(b.flags).toMatchObject({ CF: true, ZF: true, OF: false });
+  });
+
+  test('cmp 5, 9: SF and CF set; jl taken', () => {
+    const r = run(['mov eax, 5', 'cmp eax, 9', 'jl .x', 'mov eax, 0', '.x:', 'inc eax']);
+    expect(r.steps.find((s) => s.taken !== undefined)!.taken).toBe(true);
+    expect(regValue(r.steps[r.steps.length - 1].state, 'eax')).toBe(6);
+  });
+
+  test('loop sums 1..4 and array sums with scaled index', () => {
+    expect(regValue(last(['xor eax, eax', 'mov ecx, 1', '.l:', 'cmp ecx, edi', 'jg .d', 'add eax, ecx', 'inc ecx', 'jmp .l', '.d:', 'ret'], { edi: 4 }), 'eax')).toBe(10);
+    const mem: [number, number][] = [3, 1, 4, 1, 5].map((v, i) => [0x1000 + 4 * i, v]);
+    expect(regValue(last(['xor eax, eax', 'xor ecx, ecx', '.l:', 'add eax, DWORD PTR [rdi+rcx*4]', 'inc rcx', 'cmp rcx, rsi', 'jne .l', 'ret'], { rdi: 0x1000, rsi: 5 }, mem), 'eax')).toBe(14);
+  });
+
+  test('recursive fact(3) = 6 and the stack is balanced', () => {
+    const src = ['main:', 'mov edi, 3', 'call fact', 'ret', 'fact:', 'push rbp', 'mov rbp, rsp', 'push rbx', 'mov ebx, edi', 'mov eax, 1', 'cmp edi, 1', 'jle .out', 'dec edi', 'call fact', 'imul eax, ebx', '.out:', 'pop rbx', 'pop rbp', 'ret'];
+    const st = last(src, {}, [], 'main');
+    expect(regValue(st, 'eax')).toBe(6);
+    expect(st.regs.rsp).toBe(STACK_TOP);
+  });
+
+  test('asm-stack frames demo ends with fact(3) = 6', () => {
+    const fs = frames(getDemo('asm-stack')!, { p: 'frames' });
+    expect(fs[fs.length - 1].shapes.some((s) => s.t === 'rect' && s.id === 'r-eax' && s.label === '6')).toBe(true);
+  });
+});
+
+test('struct layout: padding and reordering', () => {
+  const t = (name: string, size: number) => ({ name, type: '', size, align: size });
+  const bad = layoutStruct([t('a', 1), t('b', 8), t('c', 1), t('d', 4)]);
+  expect(bad.fields.map((f) => f.offset)).toEqual([0, 8, 16, 20]);
+  expect(bad).toMatchObject({ size: 24, align: 8, padding: 10 });
+  expect(layoutStruct([t('b', 8), t('d', 4), t('a', 1), t('c', 1)])).toMatchObject({ size: 16, padding: 2, tail: 2 });
+});
+
+test('vector doubling: amortised < 2 moves per element; reserve avoids reallocation', () => {
+  const g = vectorGrowth(9);
+  expect(g.caps).toEqual([1, 2, 4, 8, 16]);
+  expect(g).toMatchObject({ allocs: 5, moves: 15 });
+  for (const n of [10, 100, 1000]) expect(vectorGrowth(n).moves).toBeLessThan(2 * n);
+  expect(vectorGrowth(9, 9)).toMatchObject({ allocs: 1, moves: 0 });
 });

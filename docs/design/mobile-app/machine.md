@@ -75,6 +75,29 @@ leak" chaos is visible here as run-queue growth or page-fault storms.
 - **Networking on the wire** — NIC ring buffers → kernel → socket buffer
   → app; where latency hides
 
+### Languages (progressive tracks)
+Each language is a topic; lessons go fundamentals → advanced, each
+opening one demo whose steps switch its inputs (`step.input`).
+Engine: `engine/src/machine/{asm,cpp}.ts`; `lib/x86.ts` is a small
+x86-64 interpreter (Intel syntax, integer subset, flags, stack) so asm
+demos step real code; `lib/code.ts` maps source lines ↔ compiler output.
+
+- **Assembly** (`machine-asm`, x86-64 primary, ARM64 noted) — registers
+  & mov · flags · addressing · branches · loops & arrays · stack &
+  call/ret · calling convention & frames · SIMD · reading compiler
+  output. Demos: `asm-registers`, `asm-memory`, `asm-branches`,
+  `asm-stack` (code + registers + flags + memory/stack, stepped per
+  instruction), `asm-simd` (scalar/SSE/AVX lanes), `asm-compiler`
+  (C → -O0/-O2/ARM64).
+- **C++** (`machine-cpp`) — compile & link · layout & padding · pointers
+  · stack/heap lifetime · RAII · copy vs move · templates & zero-cost ·
+  vector & cache · vtables · atomics & memory model · UB. Demos:
+  `cpp-build` (TU → .o symbols → link errors), `cpp-layout` (byte grid),
+  `cpp-memory` / `cpp-raii` / `cpp-move` (frames + heap blocks, pointers
+  as arrows), `cpp-vector` (growth, invalidation, vector vs list lines),
+  `cpp-vtable`, `cpp-atomics` (race / lock xadd + MESI / release-acquire),
+  `cpp-codegen` (templates, range-for, UB → asm).
+
 ## UI
 
 Reuses the algorithm player chrome (playback bar, narration, step back) —
@@ -84,7 +107,9 @@ by the running system) and **model view** (stepped, standalone demo).
 ## In the Learn track
 
 Topic group **Machine level**: CPU · Memory · Paging · Chips & buses ·
-Storage devices · Host networking. "Bridge" lessons connect up:
+Storage devices · Host networking · Assembly · C++. Algo lessons open the
+player with a lesson card on top (step title/body/watch, Next/Finish,
+marks progress); a step's `input` switches the demo preset. "Bridge" lessons connect up:
 - "Why is my p99 bad?" → service node → host → GC pause / page faults
 - "Why is Redis fast?" → RAM vs SSD on the hierarchy scale
 - "Why does Kafka love sequential IO?" → page cache + disk model

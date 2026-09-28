@@ -1,0 +1,223 @@
+id: machine-cpp
+title: C++
+group: machine
+icon: braces
+order: 8
+summary: How C++ maps onto the machine, from build and object layout to lifetime, moves, vtables, atomics and UB.
+info: C++ gives you the machine with abstractions that compile away. Knowing what each feature costs in bytes, loads and branches is the whole skill. Objects have a layout you can draw, lifetimes tied to scopes, and a memory model that sits directly on the cache coherence of the CPU. Undefined behaviour is a contract with the optimiser, not a hardware accident.
+algos: [cpp-build, cpp-layout, cpp-memory, cpp-raii, cpp-move, cpp-codegen, cpp-vector, cpp-vtable, cpp-atomics]
+lessons:
+  - id: build
+    title: Compile & link
+    minutes: 4
+    algo: cpp-build
+    steps:
+      - title: Translation units
+        body: "#include pastes headers in. Each .cpp then compiles alone into an object file."
+        input: ok
+        check: { metric: manual }
+      - title: Symbols
+        body: square(int) is mangled to _Z6squarei. Objects list what they define (T) and what they need (U).
+        watch: The linker draws the U → T match.
+        check: { metric: manual }
+      - title: Undefined reference
+        body: Compiles fine, fails to link. A declaration without a definition anywhere in the build.
+        input: undefined
+        check: { metric: manual }
+      - title: Multiple definition
+        body: A function body in a header, included twice. Mark it inline or move it to one .cpp.
+        input: duplicate
+        check: { metric: manual }
+
+  - id: layout
+    title: Types, sizeof & padding
+    minutes: 4
+    algo: cpp-layout
+    steps:
+      - title: Alignment
+        body: An int sits at a multiple of 4, a double at a multiple of 8. The compiler pads to get there.
+        watch: 14 bytes of data, sizeof 24.
+        input: bad
+        check: { metric: manual }
+      - title: Order fields largest first
+        body: Same fields, 16 bytes. A third less memory for every array of them.
+        input: good
+        check: { metric: manual }
+      - title: The hidden vptr
+        body: Any virtual function adds an 8-byte pointer to every object.
+        input: virtual
+        check: { metric: manual }
+      - title: Why it matters
+        body: Smaller structs mean more per 64-byte cache line. Fields written by different threads want separate lines (CPU → MESI).
+        check: { metric: manual }
+
+  - id: pointers
+    title: Pointers & references
+    minutes: 3
+    algo: cpp-memory
+    steps:
+      - title: A pointer is an address
+        body: "p = &x stores x's address. *p = 7 writes through it."
+        watch: The arrow is the address; x changes without being named.
+        input: pointers
+        check: { metric: manual }
+      - title: References
+        body: Another name for an existing object. Can't be null, can't be re-pointed. Usually compiled as a pointer.
+        check: { metric: manual }
+      - title: In assembly
+        body: "*p is just [rdi]. See Assembly → Memory addressing."
+        check: { metric: manual }
+
+  - id: stack-heap
+    title: Stack, heap & lifetime
+    minutes: 5
+    algo: cpp-memory
+    steps:
+      - title: Stack lifetime
+        body: Locals live in the frame and die at the closing brace. Allocation is one rsp subtract.
+        input: heap
+        check: { metric: manual }
+      - title: Heap lifetime
+        body: new outlives the function; it lives until delete. Forget delete and it leaks.
+        watch: The heap block survives make()'s frame, then leaks at the end.
+        check: { metric: manual }
+      - title: Dangling pointers
+        body: Returning &local points into a popped frame. The next call overwrites it.
+        watch: "*p reads 1234, garbage from other()."
+        input: dangling
+        check: { metric: manual }
+
+  - id: raii
+    title: RAII & destructors
+    minutes: 4
+    algo: cpp-raii
+    steps:
+      - title: Manual cleanup leaks
+        body: An exception skips the delete and fclose lines. 16 B and a file handle are gone.
+        input: raw
+        check: { metric: manual }
+      - title: Owned by the stack
+        body: vector and ofstream release in their destructors, which run during unwinding.
+        watch: Destructors run in reverse order of construction.
+        input: raii
+        check: { metric: manual }
+      - title: unique_ptr
+        body: The same idea for any heap object. Zero overhead over a raw pointer, and no delete to forget.
+        check: { metric: manual }
+
+  - id: move
+    title: Copy vs move
+    minutes: 4
+    algo: cpp-move
+    steps:
+      - title: Copy is deep
+        body: Copying a vector allocates a new block and copies every element.
+        input: copy
+        check: { metric: manual }
+      - title: Move steals
+        body: std::move lets b take a's pointer. a is left valid but empty. No allocation.
+        input: move
+        check: { metric: manual }
+      - title: Return by value
+        body: The result is built straight in the caller's slot. Return big objects by value.
+        input: ret
+        check: { metric: manual }
+
+  - id: templates
+    title: Templates & zero-cost abstractions
+    minutes: 4
+    algo: cpp-codegen
+    steps:
+      - title: One copy per type
+        body: twice<int> becomes lea, twice<double> becomes addsd. No runtime type checks.
+        input: template
+        check: { metric: manual }
+      - title: Iterators compile away
+        body: A range-for over a vector is the same 4-instruction pointer loop as hand-written C.
+        watch: Compare with Assembly → Reading compiler output, -O2.
+        input: rangefor
+        check: { metric: manual }
+      - title: The cost
+        body: Every instantiation is more code. Compile time and binary size grow, not run time.
+        check: { metric: manual }
+
+  - id: vector
+    title: vector & cache-friendly containers
+    minutes: 5
+    algo: cpp-vector
+    steps:
+      - title: Growth by doubling
+        body: A full vector allocates 2× and moves everything over. Amortised O(1) push_back.
+        watch: 5 allocations and 15 moves for 9 elements.
+        input: grow
+        check: { metric: manual }
+      - title: Iterator invalidation
+        body: A reallocation frees the old block. Iterators, pointers and references into it dangle.
+        check: { metric: manual }
+      - title: reserve
+        body: One allocation, no moves, iterators stay valid.
+        input: reserve
+        check: { metric: manual }
+      - title: vector vs list
+        body: Contiguous ints share cache lines; list nodes are scattered and each hop is a miss.
+        watch: 1 miss vs 9 for the same loop.
+        input: list
+        check: { metric: manual }
+
+  - id: virtual
+    title: Virtual dispatch & vtables
+    minutes: 4
+    algo: cpp-vtable
+    steps:
+      - title: vptr → vtable → function
+        body: s->area() loads the vptr, loads slot 2, jumps there.
+        input: circle
+        check: { metric: manual }
+      - title: Same call, other type
+        body: A Square's vptr leads to Square's table. One call site, many targets.
+        input: square
+        check: { metric: manual }
+      - title: Devirtualisation
+        body: If the exact type is known (final), the call is direct and inlined. No loads, no indirect branch.
+        input: direct
+        check: { metric: manual }
+
+  - id: atomics
+    title: Threads, atomics & the memory model
+    minutes: 5
+    algo: cpp-atomics
+    steps:
+      - title: counter++ is three instructions
+        body: Two threads load the same 0, both store 1. An update is lost.
+        watch: The MESI states flip as each core writes.
+        input: race
+        check: { metric: manual }
+      - title: std::atomic
+        body: fetch_add is one lock xadd. The core owns the line in M state for the whole read-modify-write.
+        watch: Correct, but the line bounces between cores (CPU → MESI).
+        input: atomic
+        check: { metric: manual }
+      - title: Release / acquire
+        body: A release store publishes every earlier write. An acquire load that sees it sees them too.
+        input: publish
+        check: { metric: manual }
+      - title: Defaults
+        body: Plain atomics are seq_cst, the safest ordering. Reach for mutex first; atomics are for small, hot state.
+        check: { metric: manual }
+
+  - id: ub
+    title: Undefined behaviour
+    minutes: 4
+    algo: cpp-codegen
+    steps:
+      - title: Signed overflow
+        body: The compiler assumes x + 1 never overflows, so x + 1 > x folds to true.
+        input: overflow
+        check: { metric: manual }
+      - title: Late null check
+        body: "*p before if (!p) proves p isn't null, so the check is deleted."
+        input: nullcheck
+        check: { metric: manual }
+      - title: Catch it
+        body: Build tests with -fsanitize=address,undefined. They catch dangling pointers, overflow and races (thread) at run time.
+        check: { metric: manual }

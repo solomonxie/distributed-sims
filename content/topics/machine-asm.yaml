@@ -1,0 +1,176 @@
+id: machine-asm
+title: Assembly
+group: machine
+icon: binary
+order: 7
+summary: What the CPU actually runs. x86-64 registers, flags, memory, branches, the stack and compiler output.
+info: Assembly is the CPU's own language, one instruction per line. A handful of ideas cover most of it (registers, flags, addressing modes, jumps, the stack), and they are what C, C++, Rust and Go all compile down to. Examples use x86-64 in Intel syntax, as Compiler Explorer shows it. ARM64, on phones and Apple silicon, is noted where it differs.
+algos: [asm-registers, asm-memory, asm-branches, asm-stack, asm-simd, asm-compiler]
+lessons:
+  - id: registers
+    title: Registers & mov
+    minutes: 3
+    algo: asm-registers
+    steps:
+      - title: op destination, source
+        body: "mov eax, 7 puts 7 in eax. add eax, ecx means eax += ecx. Every line is one instruction."
+        watch: The register that just changed lights up.
+        input: basics
+        check: { metric: manual }
+      - title: 16 registers, 0 ns away
+        body: rax…r15 are 64-bit; eax is the low 32 bits of rax. Writing eax zeroes the top half.
+        watch: No memory column here. Everything stays inside the core.
+        check: { metric: manual }
+      - title: ARM64
+        body: 31 registers x0–x30 (w0 = low 32 bits) and three operands, add x0, x1, x2. Same ideas, different spelling.
+        check: { metric: manual }
+
+  - id: flags
+    title: Arithmetic & flags
+    minutes: 4
+    algo: asm-registers
+    steps:
+      - title: cmp sets flags
+        body: cmp a, b computes a − b and keeps only the flags. ZF zero, SF sign, CF unsigned borrow, OF signed overflow.
+        watch: 5 vs 5 sets ZF; 5 vs 9 sets SF and CF.
+        input: flags
+        check: { metric: manual }
+      - title: Overflow vs carry
+        body: Same add, two verdicts. INT_MAX + 1 sets OF; 0xFFFFFFFF + 1 sets CF.
+        watch: The CPU has no signed add; the flags tell both stories.
+        input: overflow
+        check: { metric: manual }
+      - title: xor eax, eax
+        body: The zero idiom. You'll see it everywhere in compiler output.
+        check: { metric: manual }
+
+  - id: addressing
+    title: Memory addressing
+    minutes: 4
+    algo: asm-memory
+    steps:
+      - title: Load & store
+        body: "[rdi] is the memory at address rdi. mov eax, [rdi+4] loads a[1]; the reverse direction stores."
+        watch: Read cells turn blue, written ones orange.
+        input: load
+        check: { metric: manual }
+      - title: a[i] in one instruction
+        body: "[base + index × scale + disp]. Scale 1, 2, 4 or 8 matches char, short, int, pointer."
+        input: index
+        check: { metric: manual }
+      - title: lea
+        body: Computes an address without loading. Compilers abuse it for x*3, x*5, x*9.
+        input: lea
+        check: { metric: manual }
+      - title: Every load goes through the caches
+        body: A load that hits L1 is ~1 ns; one that misses to DRAM ~100 ns. See CPU → Caches.
+        check: { metric: manual }
+
+  - id: branches
+    title: Compare & branch
+    minutes: 3
+    algo: asm-branches
+    steps:
+      - title: if = cmp + jcc
+        body: cmp sets flags, jge jumps if a ≥ b, otherwise execution falls through into the other branch.
+        watch: The purple arrow shows where control goes.
+        input: if
+        check: { metric: manual }
+      - title: Branchless
+        body: cmovge picks a value without jumping. Nothing to mispredict.
+        input: cmov
+        check: { metric: manual }
+      - title: Why it matters
+        body: A mispredicted branch flushes ~15–20 cycles of work. Sorted data branches predictably; random data doesn't.
+        check: { metric: manual }
+
+  - id: loops
+    title: Loops & arrays
+    minutes: 4
+    algo: asm-branches
+    steps:
+      - title: A loop is a backward jump
+        body: Test, body, increment, jmp back. Five instructions per iteration here.
+        input: loop
+        check: { metric: manual }
+      - title: Walk an array
+        body: "add eax, [rdi+rcx*4] loads and adds a[i] in one go; the test sits at the bottom."
+        watch: One taken branch per iteration, the last one falls through.
+        input: array
+        check: { metric: manual }
+
+  - id: stack
+    title: The stack, call & ret
+    minutes: 4
+    algo: asm-stack
+    steps:
+      - title: push & pop
+        body: push subtracts 8 from rsp and stores; pop loads and adds 8. The stack grows down.
+        watch: Popped slots keep their old values. Dashed, not erased.
+        input: push
+        check: { metric: manual }
+      - title: call & ret
+        body: call pushes the return address and jumps; ret pops it back into the instruction pointer.
+        input: call
+        check: { metric: manual }
+
+  - id: frames
+    title: Calling convention & frames
+    minutes: 5
+    algo: asm-stack
+    steps:
+      - title: System V ABI
+        body: Integer args in rdi, rsi, rdx, rcx, r8, r9; result in rax. rbx, rbp, r12–r15 are callee-saved.
+        input: call
+        check: { metric: manual }
+      - title: Prologue & epilogue
+        body: push rbp; mov rbp, rsp opens a frame, pop rbp; ret closes it.
+        watch: Each fact(n) call stacks return address, saved rbp, saved rbx.
+        input: frames
+        check: { metric: manual }
+      - title: Stack overflow
+        body: Each frame is a few slots below rsp. Recurse deep enough and you run off the stack's 8 MB.
+        check: { metric: manual }
+      - title: ARM64
+        body: Args in x0–x7, result in x0. bl puts the return address in x30 instead of pushing it.
+        check: { metric: manual }
+
+  - id: simd
+    title: SIMD
+    minutes: 3
+    algo: asm-simd
+    steps:
+      - title: Scalar
+        body: One add per element plus loop overhead. 48 instructions for 8 ints.
+        input: scalar
+        check: { metric: manual }
+      - title: SSE, 4 lanes
+        body: A 128-bit xmm register holds 4 ints; paddd adds all 4 pairs at once.
+        input: sse
+        check: { metric: manual }
+      - title: AVX2, 8 lanes
+        body: 256-bit ymm registers do all 8 in one add. -O3 vectorizes loops like this automatically.
+        watch: 3 instructions instead of 48.
+        input: avx
+        check: { metric: manual }
+
+  - id: compiler
+    title: Reading compiler output
+    minutes: 5
+    algo: asm-compiler
+    steps:
+      - title: -O0
+        body: Every variable lives on the stack and every statement is translated alone. 11 instructions per iteration.
+        input: O0
+        check: { metric: manual }
+      - title: -O2
+        body: Variables move to registers, i becomes a pointer, the test moves to the bottom. 4 instructions per iteration.
+        input: O2
+        check: { metric: manual }
+      - title: ARM64
+        body: Load/store only. ldr then add, never add from memory. Fixed 4-byte instructions.
+        input: arm64
+        check: { metric: manual }
+      - title: Try it yourself
+        body: Paste a function into Compiler Explorer (godbolt.org) and match lines to asm like this.
+        check: { metric: manual }
