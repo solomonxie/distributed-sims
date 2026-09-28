@@ -8,7 +8,7 @@ type Nav = NativeStackNavigationProp<RootStackParamList>;
 export function openLesson(nav: Nav, t: TopicDef, l: LessonDef) {
   const algo = (l as any).algo as string | undefined;
   const tpl = (l as any).template as string | undefined;
-  if (algo) return nav.navigate('AlgorithmPlayer', { slug: algo });
+  if (algo) return nav.navigate('AlgorithmPlayer', { slug: algo, lesson: { topicId: t.id, lessonId: l.id } });
   if (tpl && templates[tpl]) {
     const doc = templates[tpl];
     return nav.navigate('Editor', { doc, readOnly: true, autoRun: true, guide: { kind: 'lesson', topicId: t.id, lessonId: l.id } });

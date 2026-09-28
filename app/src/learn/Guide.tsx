@@ -123,7 +123,7 @@ function LessonLayer({ guide, top }: { guide: GuideSpec; top: number }) {
               icon="arrow-right"
               onPress={() => {
                 const tpl = (nextLesson as any).template as string | undefined;
-                if ((nextLesson as any).algo) nav.replace('AlgorithmPlayer', { slug: (nextLesson as any).algo });
+                if ((nextLesson as any).algo) nav.replace('AlgorithmPlayer', { slug: (nextLesson as any).algo, lesson: { topicId: topic.id, lessonId: nextLesson.id } });
                 else if (tpl && templates[tpl]) nav.replace('Editor', { doc: templates[tpl], readOnly: true, autoRun: true, guide: { kind: 'lesson', topicId: topic.id, lessonId: nextLesson.id } });
               }}
             />

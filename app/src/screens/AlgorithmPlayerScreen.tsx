@@ -13,6 +13,7 @@ import { Icon } from '../ui/Icon';
 import { InfoButton } from '../ui/Info';
 import { haptic } from '../lib/haptics';
 import { bus } from '../debug/bus';
+import { AlgoLesson } from '../learn/AlgoLesson';
 
 const SPEEDS = [0.5, 1, 2, 4];
 
@@ -78,11 +79,19 @@ export function AlgorithmPlayerScreen() {
     setI(k);
   };
 
+  const lesson = route.params.lesson;
+  const pickInput = (id: string) => {
+    const k = demo.inputs.findIndex(x => x.id === id);
+    if (k < 0) return;
+    setCustom(null);
+    setPresetIdx(k);
+  };
   const editGraph = editing && demo.editable === 'graph' ? (custom ?? (demo.inputs[presetIdx]?.data as algo.GraphInput)) : null;
 
   return (
     <View style={{ flex: 1, backgroundColor: c.canvas }}>
       <ScrollView contentContainerStyle={{ padding: space.l, paddingBottom: 140 }}>
+        {lesson && !editing && <AlgoLesson topicId={lesson.topicId} lessonId={lesson.lessonId} onInput={pickInput} />}
         {demo.inputs.length > 1 && !editing && (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingBottom: space.m }}>
             {demo.inputs.map((inp, k) => (

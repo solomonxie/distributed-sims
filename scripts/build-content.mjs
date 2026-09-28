@@ -111,6 +111,8 @@ export interface LessonDef {
     title: string;
     body: string;
     watch?: string;
+    /** algo lessons: demo input id this step switches to */
+    input?: string;
     check?: { metric: MetricKey; target?: string; op: '<' | '<=' | '>=' | '>' | '='; value: number };
   }[];
 }

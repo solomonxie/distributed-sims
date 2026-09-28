@@ -15,7 +15,7 @@ export type RootStackParamList = {
   Problem: { problemId: string };
   Editor: { doc: SystemDoc; readOnly?: boolean; autoRun?: boolean; guide?: GuideSpec; title?: string; breadcrumb?: string[] };
   Metrics: undefined;
-  AlgorithmPlayer: { slug: string };
+  AlgorithmPlayer: { slug: string; lesson?: { topicId: string; lessonId: string } };
   Settings: undefined;
   Feedback: undefined;
   Tour: undefined;
