@@ -17,6 +17,7 @@ export type RootStackParamList = {
   Metrics: undefined;
   AlgorithmPlayer: { slug: string };
   Settings: undefined;
+  Feedback: undefined;
   Tour: undefined;
 };
 

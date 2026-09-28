@@ -15,6 +15,7 @@ import { AlgorithmsScreen } from '../screens/AlgorithmsScreen';
 import { AlgorithmPlayerScreen } from '../screens/AlgorithmPlayerScreen';
 import { MySystemsScreen } from '../screens/MySystemsScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
+import { FeedbackScreen } from '../screens/FeedbackScreen';
 import { EditorScreen } from '../screens/EditorScreen';
 import { MetricsScreen } from '../screens/MetricsScreen';
 import { TourScreen } from '../debug/TourScreen';
@@ -75,6 +76,7 @@ export function RootNavigator() {
       <Stack.Screen name="Problem" component={ProblemScreen} options={({ route }) => ({ title: problems.find(p => p.id === route.params.problemId)?.title ?? 'Problem' })} />
       <Stack.Screen name="AlgorithmPlayer" component={AlgorithmPlayerScreen} />
       <Stack.Screen name="Settings" component={SettingsScreen} />
+      <Stack.Screen name="Feedback" component={FeedbackScreen} />
       <Stack.Screen name="Metrics" component={MetricsScreen} />
       <Stack.Screen name="Editor" component={EditorScreen} options={{ headerShown: false, gestureEnabled: true, fullScreenGestureEnabled: false }} />
       <Stack.Screen name="Tour" component={TourScreen} options={{ headerShown: false }} />
