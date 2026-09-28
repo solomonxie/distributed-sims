@@ -1,0 +1,26 @@
+{
+  "extends": "@react-native/typescript-config",
+  "compilerOptions": {
+    "paths": {
+      "@dsims/engine": [
+        "../engine/src"
+      ],
+      "@dsims/content": [
+        "../content/dist"
+      ]
+    },
+    "noUnusedLocals": false
+  },
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    "../engine/src/**/*.ts",
+    "../content/dist/*.ts"
+  ],
+  "exclude": [
+    "**/node_modules",
+    "**/Pods",
+    "ios/build",
+    "scripts"
+  ]
+}
