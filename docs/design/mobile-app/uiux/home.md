@@ -164,5 +164,8 @@ event-driven) · Import from Files…
  Export all systems…
  Reset progress…                      !
  ABOUT
+ Feedback                        2 open ›
  Version 0.1.0 (12)
 ```
+
+Feedback → `FeedbackScreen`: multiline add, list (text, date, status chip, agent note); tap chip = status, long-press = delete. Stored in `Documents/feedback.json` (app-feedback contract).
