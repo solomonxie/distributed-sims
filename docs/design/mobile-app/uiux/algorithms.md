@@ -50,6 +50,24 @@ Algos tab → list → player. Spec: `../algorithms.md`.
 - Input presets (menu on title): Small graph · City grid · Negative edge
   (shows why Dijkstra fails → link to Bellman-Ford).
 
+- Tap-to-explain: a box with a `detail` (title, text, sample code) shows a
+  small accent `i` in its corner; tapping it pauses playback and opens a
+  bottom sheet. Caption under the note: "Tap a box marked i for details
+  and sample code." Hit-test = topmost detail box under the tap.
+
+```
+ ╭ main.cpp — a source file        ✕ ╮
+ │ Plain text you write. The compiler │
+ │ reads it plus every header …       │
+ │ ┌────────────────────────────────┐ │
+ │ │ #include "math.h"              │ │
+ │ │ int main() { … square(3) … }   │ │
+ │ └────────────────────────────────┘ │
+```
+
+- List has three segments: Algorithms · Machine · C++ (`cpp-*` groups and
+  `machine-cpp`).
+
 States:
 ```
 done       T reached: path lit, "Shortest A→T = 10 via C, F"

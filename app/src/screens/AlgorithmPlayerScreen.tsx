@@ -14,6 +14,7 @@ import { InfoButton } from '../ui/Info';
 import { haptic } from '../lib/haptics';
 import { bus } from '../debug/bus';
 import { AlgoLesson } from '../learn/AlgoLesson';
+import { DetailSheet, detailAt } from '../ui/DetailSheet';
 
 const SPEEDS = [0.5, 1, 2, 4];
 
@@ -30,6 +31,7 @@ export function AlgorithmPlayerScreen() {
   const [i, setI] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(1);
+  const [detail, setDetail] = useState<algo.Detail | undefined>(undefined);
   const input = custom ?? demo?.inputs[presetIdx]?.data;
   const frames = useMemo(() => (demo ? algo.frames(demo, input) : []), [demo, input]);
   const prevRef = useRef<algo.Frame | undefined>(undefined);
@@ -86,6 +88,14 @@ export function AlgorithmPlayerScreen() {
     setCustom(null);
     setPresetIdx(k);
   };
+  const tapStage = (sx: number, sy: number) => {
+    const d = frames[i] && detailAt(frames[i].shapes, (sx / size) * 1000, (sy / size) * 1000);
+    if (!d) return;
+    haptic('light');
+    setPlaying(false);
+    setDetail(d);
+  };
+  const stageTap = Gesture.Tap().onEnd(e => runOnJS(tapStage)(e.x, e.y));
   const editGraph = editing && demo.editable === 'graph' ? (custom ?? (demo.inputs[presetIdx]?.data as algo.GraphInput)) : null;
 
   return (
@@ -119,7 +129,13 @@ export function AlgorithmPlayerScreen() {
           </ScrollView>
         )}
         <View style={[styles.stage, { backgroundColor: c.surface1, borderColor: c.hairline }]}>
-          {editGraph ? <GraphEditor size={size} graph={editGraph} onChange={g => setCustom(g)} /> : frame ? <FrameCanvas frame={frame} prev={prevRef.current} size={size} /> : null}
+          {editGraph ? <GraphEditor size={size} graph={editGraph} onChange={g => setCustom(g)} /> : frame ? (
+            <GestureDetector gesture={stageTap}>
+              <View>
+                <FrameCanvas frame={frame} prev={prevRef.current} size={size} />
+              </View>
+            </GestureDetector>
+          ) : null}
         </View>
         {editing ? (
           <Text v="callout" color={c.text2} style={{ marginTop: space.m }}>
@@ -134,6 +150,11 @@ export function AlgorithmPlayerScreen() {
               {frame.done && <Icon name="circle-check" size={16} color={c.ok} />}
             </View>
             <Text style={{ fontSize: 16, lineHeight: 23, marginTop: 4 }}>{frame.note}</Text>
+            {frame.shapes.some(s => (s.t === 'rect' || s.t === 'node') && s.detail) && (
+              <Text v="caption" color={c.text3} style={{ marginTop: 6 }}>
+                Tap a box marked i for details and sample code.
+              </Text>
+            )}
             {frame.panel && frame.panel.rows.length > 0 && (
               <Card style={{ marginTop: space.m }} padded>
                 <Text v="caption">{frame.panel.title}</Text>
@@ -177,6 +198,7 @@ export function AlgorithmPlayerScreen() {
           </Pressable>
         </View>
       )}
+      <DetailSheet detail={detail} onClose={() => setDetail(undefined)} />
       {editing && (
         <View style={[styles.bar, { backgroundColor: c.surface1, borderTopColor: c.hairline, justifyContent: 'center', gap: 12 }]}>
           <Button title="Reset" onPress={() => setCustom(null)} />
