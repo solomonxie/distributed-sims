@@ -142,3 +142,14 @@ test('vector doubling: amortised < 2 moves per element; reserve avoids reallocat
   for (const n of [10, 100, 1000]) expect(vectorGrowth(n).moves).toBeLessThan(2 * n);
   expect(vectorGrowth(9, 9)).toMatchObject({ allocs: 1, moves: 0 });
 });
+
+test('algo lessons reference real demos and inputs', () => {
+  const topics: { id: string; lessons: { id: string; algo?: string; steps: { input?: string }[] }[] }[] = require('../../content/dist/topics.json');
+  for (const t of topics)
+    for (const l of t.lessons) {
+      if (!l.algo) continue;
+      const d = getDemo(l.algo);
+      expect(d).toBeDefined();
+      for (const s of l.steps) if (s.input) expect([`${t.id}/${l.id}`, d!.inputs.some((i) => i.id === s.input)]).toEqual([`${t.id}/${l.id}`, true]);
+    }
+});

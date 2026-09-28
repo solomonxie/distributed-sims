@@ -97,6 +97,16 @@ demos step real code; `lib/code.ts` maps source lines ↔ compiler output.
   as arrows), `cpp-vector` (growth, invalidation, vector vs list lines),
   `cpp-vtable`, `cpp-atomics` (race / lock xadd + MESI / release-acquire),
   `cpp-codegen` (templates, range-for, UB → asm).
+- **C++ at project scale** (same topic, after the language lessons) —
+  CMake phases & cache · targets & PUBLIC/PRIVATE/INTERFACE · deps
+  (find_package, FetchContent, vcpkg) · build types, genex, presets ·
+  CI matrix & sanitizers · install/export · layered architecture &
+  cycles · build times (fan-out, fwd decls, pimpl, ccache/PCH/unity/
+  modules) · static vs shared, RPATH, visibility · ABI & ODR. Demos in
+  `engine/src/machine/cppproject.ts`: `cmake-pipeline`, `cmake-targets`,
+  `cmake-deps`, `cmake-config`, `cpp-architecture`, `cpp-rebuild`,
+  `cpp-libs`, `cpp-abi`, drawn with `lib/board.ts` (declarative
+  box/arrow scenes, per-beat tones and code highlights).
 
 ## UI
 
