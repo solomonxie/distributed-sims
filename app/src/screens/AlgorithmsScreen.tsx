@@ -20,8 +20,10 @@ const GROUP_ICON: Record<string, string> = {
   'machine-cpu': 'cpu',
   'machine-memory': 'memory-stick',
   'machine-bus': 'circuit-board',
+  'machine-asm': 'binary',
+  'machine-cpp': 'braces',
 };
-const GROUP_LABEL: Record<string, string> = { 'machine-cpu': 'CPU', 'machine-memory': 'Memory', 'machine-bus': 'Chips, buses & I/O' };
+const GROUP_LABEL: Record<string, string> = { 'machine-cpu': 'CPU', 'machine-memory': 'Memory', 'machine-bus': 'Chips, buses & I/O', 'machine-asm': 'Assembly', 'machine-cpp': 'C++' };
 
 export function AlgorithmsScreen() {
   const { c } = useTheme();

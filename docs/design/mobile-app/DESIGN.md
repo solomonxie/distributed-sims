@@ -38,8 +38,9 @@ covering patterns and protocols, not just throughput.
   node you can drill into and break at the internals level.
 - **Machine level**: CPU (pipeline, caches, coherence, scheduling),
   memory (hierarchy, virtual memory, paging, TLB, page cache, NUMA),
-  chips & buses (bus cycles, DRAM, PCIe, DMA), storage devices. Reached
-  by zooming system → service → host → chip.
+  chips & buses (bus cycles, DRAM, PCIe, DMA), storage devices; Assembly
+  and C++ as progressive language tracks. Reached by zooming system →
+  service → host → chip.
 - **Every example is illustrated**: animated + interactive in the app's
   own canvas/players, never text-only (`technologies.md → Illustration rule`).
 - **Algorithm visualizer**: step-through animations of the algorithms these
@@ -101,7 +102,7 @@ Detailed lists live in sibling specs; one-line summary here.
 | `topics.md` | Learn track: 16 topics → lessons (the owner's topic list + paradigms) |
 | `problems.md` | Problems track: 20 real-world system-design presets |
 | `algorithms.md` | Algorithm visualizer demos |
-| `machine.md` | Machine level: host view + CPU/memory/bus/paging models |
+| `machine.md` | Machine level: host view + CPU/memory/bus/paging models + Assembly/C++ tracks |
 | `technologies.md` | Under the hood: composite components with simulated internals |
 | `engine.md` | simulation model, metrics, determinism, performance budget |
 

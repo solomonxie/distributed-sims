@@ -8,5 +8,7 @@ import './ratelimit';
 import '../machine/cpu';
 import '../machine/memory';
 import '../machine/bus';
+import '../machine/asm';
+import '../machine/cpp';
 
 export * from './frames';
