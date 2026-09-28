@@ -14,3 +14,12 @@ build/
 *.tfstate.backup
 *.tfvars
 ansible/inventory.ini
+app/ios/Local.xcconfig
+app/ios/Pods/
+app/ios/build/
+content/dist/
+engine/dist/
+*.xcuserstate
+xcuserdata/
+app/ios/build-mac/
+Local.mk
