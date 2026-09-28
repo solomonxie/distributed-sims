@@ -1,0 +1,87 @@
+group: { id: tech, label: Under the hood, order: 14 }
+# Cassandra internals (technologies.md v1.1). Composite skin: cassandra-ring. Protocol kinds: cassandra.*
+types:
+  - type: cassandra-driver
+    label: Cassandra driver
+    description: Client library in your app — token-aware routing to a replica, consistency level per query, local-DC policy
+    icon: plug
+    costPerInstanceMonth: 0
+    knobs:
+      - { key: writeCL, label: Write CL, kind: enum, default: QUORUM, options: [ONE, TWO, LOCAL_ONE, QUORUM, LOCAL_QUORUM, EACH_QUORUM, ALL] }
+      - { key: readCL, label: Read CL, kind: enum, default: ONE, options: [ONE, TWO, LOCAL_ONE, QUORUM, LOCAL_QUORUM, EACH_QUORUM, ALL], help: "R + W > RF gives read-your-writes (QUORUM + QUORUM)" }
+      - { key: localDc, label: Local DC, kind: string, default: "", help: DCAwareRoundRobinPolicy — only coordinators in this DC }
+      - { key: tokenAware, label: Token aware, kind: bool, default: true, help: Send each query to a node that owns the key (saves a hop) }
+      - { key: deletePct, label: Deletes, kind: percent, default: 0, min: 0, max: 100, help: Share of writes that are DELETEs (each leaves a tombstone) }
+      - { key: slots, label: Slots, kind: int, default: 256, min: 1, max: 10000, advanced: true }
+      - { key: p50Ms, label: Client p50, kind: ms, default: 0.2, min: 0.01, max: 1000, advanced: true }
+      - { key: p99Ms, label: Client p99, kind: ms, default: 1, min: 0.01, max: 5000, advanced: true }
+      - { key: costMonth, label: Cost / month, kind: number, default: 0, min: 0, max: 100000, unit: $, advanced: true }
+  - type: cassandra-node
+    label: Cassandra node
+    description: Ring member owning vnode token ranges; coordinates any request, stores replicas in an LSM tree, gossips health
+    icon: brand:cassandra
+    costPerInstanceMonth: 100
+    knobs:
+      - { key: dc, label: Datacenter, kind: string, default: dc1 }
+      - { key: replicationFactor, label: RF per DC, kind: int, default: 3, min: 1, max: 9, help: Keyspace NetworkTopologyStrategy replication per datacenter }
+      - { key: vnodes, label: num_tokens, kind: int, default: 16, min: 1, max: 256, help: Token ranges per node (vnodes); spreads ownership and rebuild load }
+      - { key: slots, label: Slots, kind: int, default: 32, min: 1, max: 4096, help: concurrent_reads/writes }
+      - { key: p50Ms, label: Read p50, kind: ms, default: 0.5, min: 0.01, max: 5000, help: Replica read with one SSTable }
+      - { key: p99Ms, label: Read p99, kind: ms, default: 3, min: 0.01, max: 30000 }
+      - { key: writeP50Ms, label: Write p50, kind: ms, default: 0.3, min: 0.01, max: 5000, help: Commitlog append + memtable insert }
+      - { key: writeP99Ms, label: Write p99, kind: ms, default: 2, min: 0.01, max: 30000 }
+      - { key: hintedHandoff, label: Hinted handoff, kind: bool, default: true }
+      - { key: hintWindowSec, label: max_hint_window, kind: number, default: 10800, min: 1, max: 864000, unit: s, help: Stop storing hints for a node down longer than this (real default 3h) }
+      - { key: memtableMb, label: Memtable size, kind: number, default: 2, min: 0.1, max: 8192, unit: MB, help: Flush to an SSTable at this size (sim-scaled; real ≈ 1/4 heap) }
+      - { key: compaction, label: Compaction, kind: enum, default: STCS, options: [STCS, LCS], help: "STCS: cheap writes, reads touch many SSTables; LCS: ~1 SSTable per read, ~3× more compaction IO" }
+      - { key: compactionMbps, label: Compaction throughput, kind: number, default: 16, min: 0.1, max: 10000, unit: MB/s, help: compaction_throughput (sim-scaled; real default 64 MB/s) }
+      - { key: concurrentCompactors, label: Concurrent compactors, kind: int, default: 1, min: 1, max: 32, advanced: true }
+      - { key: minThreshold, label: STCS min_threshold, kind: int, default: 4, min: 2, max: 32, advanced: true }
+      - { key: sstableReadMs, label: Per-SSTable read, kind: ms, default: 0.4, min: 0, max: 1000, advanced: true, help: Extra cost per SSTable a read has to check }
+      - { key: compactionReadX, label: Read slowdown while compacting, kind: number, default: 2, min: 1, max: 50, advanced: true }
+      - { key: tombstoneScanMs, label: Per-tombstone scan, kind: ms, default: 0.005, min: 0, max: 10, advanced: true }
+      - { key: tombstoneWarn, label: tombstone_warn_threshold, kind: int, default: 1000, min: 1, max: 10000000, advanced: true }
+      - { key: tombstoneFail, label: tombstone_failure_threshold, kind: int, default: 100000, min: 1, max: 10000000, advanced: true }
+      - { key: gcGraceSec, label: gc_grace_seconds, kind: number, default: 864000, min: 0, max: 31536000, unit: s, advanced: true, help: Tombstones older than this are purged at compaction }
+      - { key: rowKb, label: Row size, kind: number, default: 1, min: 0.01, max: 100000, unit: KB, advanced: true }
+      - { key: gossipMs, label: Gossip interval, kind: ms, default: 1000, min: 50, max: 60000, advanced: true }
+      - { key: gossipFanout, label: Gossip fanout, kind: int, default: 2, min: 1, max: 16, advanced: true }
+      - { key: convictMs, label: Failure detector, kind: ms, default: 5000, min: 100, max: 600000, advanced: true, help: No fresh heartbeat for this long → DOWN (phi_convict_threshold 8, sim-scaled) }
+      - { key: writeTimeoutMs, label: write_request_timeout, kind: ms, default: 1000, min: 10, max: 60000, advanced: true }
+      - { key: readTimeoutMs, label: read_request_timeout, kind: ms, default: 1000, min: 10, max: 60000, advanced: true }
+      - { key: speculativeRetryMs, label: speculative_retry, kind: ms, default: 50, min: 1, max: 60000, advanced: true, help: Ask one more replica if a read replica is this slow }
+      - { key: coordP50Ms, label: Coordinator p50, kind: ms, default: 0.1, min: 0.01, max: 1000, advanced: true }
+      - { key: coordP99Ms, label: Coordinator p99, kind: ms, default: 0.5, min: 0.01, max: 5000, advanced: true }
+      - { key: cluster, label: Cluster name, kind: string, default: main, advanced: true }
+      - { key: queueLimit, label: Queue limit, kind: int, default: 2000, min: 0, max: 100000, advanced: true }
+      - { key: costMonth, label: Cost / month, kind: number, default: 100, min: 0, max: 100000, unit: $ }
+skins:
+  - name: cassandra-ring
+    type: kv-store
+    label: Cassandra (internals)
+    description: A real 6-node Cassandra ring inside one node — driver, vnodes, gossip, RF 3; tap ⤢ to drill in
+    icon: brand:cassandra
+    tags: [nosql, wide-column, self-hosted, composite]
+    tech: cassandra
+    defaults: { members: 6, replicationFactor: 3, costMonth: 600 }
+    ports: { in: driver }
+    internals:
+      schemaVersion: 1
+      id: cassandra-ring
+      name: Cassandra ring
+      nodes:
+        - { id: driver, type: cassandra-driver, name: driver, pos: { x: 195, y: 50 }, config: { writeCL: QUORUM, readCL: ONE } }
+        - { id: n1, type: cassandra-node, name: n1, pos: { x: 195, y: 170 } }
+        - { id: n2, type: cassandra-node, name: n2, pos: { x: 320, y: 240 } }
+        - { id: n3, type: cassandra-node, name: n3, pos: { x: 320, y: 380 } }
+        - { id: n4, type: cassandra-node, name: n4, pos: { x: 195, y: 450 } }
+        - { id: n5, type: cassandra-node, name: n5, pos: { x: 70, y: 380 } }
+        - { id: n6, type: cassandra-node, name: n6, pos: { x: 70, y: 240 } }
+      edges:
+        - { id: d-n1, from: driver, to: n1 }
+        - { id: d-n2, from: driver, to: n2 }
+        - { id: d-n3, from: driver, to: n3 }
+        - { id: d-n4, from: driver, to: n4 }
+        - { id: d-n5, from: driver, to: n5 }
+        - { id: d-n6, from: driver, to: n6 }
+      containers: []

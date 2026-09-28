@@ -1,0 +1,203 @@
+{
+  "schemaVersion": 1,
+  "id": "tech-rediscluster-reshard",
+  "name": "Redis Cluster: live resharding",
+  "description": "A 4th primary rc-7 joined with no slots. Rebalance moves a quarter of the slots to it while traffic keeps flowing.",
+  "nodes": [
+    {
+      "id": "users",
+      "type": "web-client",
+      "skin": "react-spa",
+      "name": "Users",
+      "pos": {
+        "x": 195,
+        "y": 30
+      },
+      "config": {}
+    },
+    {
+      "id": "app",
+      "type": "redis-cluster-client",
+      "skin": "redis-cluster-lettuce",
+      "name": "app (cluster client)",
+      "pos": {
+        "x": 195,
+        "y": 130
+      },
+      "config": {}
+    },
+    {
+      "id": "rc1",
+      "type": "redis-cluster-node",
+      "skin": "redis-cluster-primary",
+      "name": "rc-1",
+      "pos": {
+        "x": 55,
+        "y": 260
+      },
+      "config": {
+        "slotRange": "0-5460"
+      }
+    },
+    {
+      "id": "rc2",
+      "type": "redis-cluster-node",
+      "skin": "redis-cluster-primary",
+      "name": "rc-2",
+      "pos": {
+        "x": 195,
+        "y": 260
+      },
+      "config": {
+        "slotRange": "5461-10922"
+      }
+    },
+    {
+      "id": "rc3",
+      "type": "redis-cluster-node",
+      "skin": "redis-cluster-primary",
+      "name": "rc-3",
+      "pos": {
+        "x": 335,
+        "y": 260
+      },
+      "config": {
+        "slotRange": "10923-16383"
+      }
+    },
+    {
+      "id": "rc4",
+      "type": "redis-cluster-node",
+      "skin": "redis-cluster-replica",
+      "name": "rc-4",
+      "pos": {
+        "x": 55,
+        "y": 380
+      },
+      "config": {
+        "replicaOf": "rc1"
+      }
+    },
+    {
+      "id": "rc5",
+      "type": "redis-cluster-node",
+      "skin": "redis-cluster-replica",
+      "name": "rc-5",
+      "pos": {
+        "x": 195,
+        "y": 380
+      },
+      "config": {
+        "replicaOf": "rc2"
+      }
+    },
+    {
+      "id": "rc6",
+      "type": "redis-cluster-node",
+      "skin": "redis-cluster-replica",
+      "name": "rc-6",
+      "pos": {
+        "x": 335,
+        "y": 380
+      },
+      "config": {
+        "replicaOf": "rc3"
+      }
+    },
+    {
+      "id": "rc7",
+      "type": "redis-cluster-node",
+      "skin": "redis-cluster-primary",
+      "name": "rc-7 (new)",
+      "pos": {
+        "x": 335,
+        "y": 130
+      },
+      "config": {
+        "slotRange": ""
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-users-app",
+      "from": "users",
+      "to": "app"
+    },
+    {
+      "id": "e-app-rc1",
+      "from": "app",
+      "to": "rc1"
+    },
+    {
+      "id": "e-app-rc2",
+      "from": "app",
+      "to": "rc2"
+    },
+    {
+      "id": "e-app-rc3",
+      "from": "app",
+      "to": "rc3"
+    },
+    {
+      "id": "e-rc1-rc4",
+      "from": "rc1",
+      "to": "rc4",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "e-rc2-rc5",
+      "from": "rc2",
+      "to": "rc5",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "e-rc3-rc6",
+      "from": "rc3",
+      "to": "rc6",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "e-app-rc7",
+      "from": "app",
+      "to": "rc7"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 120,
+    "sources": [
+      {
+        "id": "s1",
+        "node": "users",
+        "shape": {
+          "kind": "constant",
+          "rps": 1000
+        },
+        "readRatio": 0.7
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "api.streamly.tv",
+    "read": {
+      "path": "/v1/me/resume/{key}",
+      "body": "{\"title_id\": {key}, \"position_s\": {value}}"
+    },
+    "write": {
+      "method": "PUT",
+      "path": "/v1/me/resume/{key}",
+      "reqBody": "{\"position_s\": {value}}",
+      "status": 204,
+      "body": ""
+    },
+    "cachePrefix": "resume:"
+  }
+}

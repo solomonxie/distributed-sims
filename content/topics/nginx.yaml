@@ -1,0 +1,156 @@
+id: nginx
+title: nginx
+group: under-the-hood
+icon: server-cog
+order: 7
+summary: Why a few event-loop workers outrun a process per connection — and what stalls a loop.
+info: nginx runs one master and one worker per core. Each worker is a single-threaded event loop over non-blocking sockets, so 10,000 connections cost memory, not threads. Static files go out with sendfile (zero-copy); proxied requests reuse keep-alive upstream connections. Anything that blocks inside a worker blocks every connection it owns.
+problems: [tinyurl]
+lessons:
+  - id: anatomy
+    title: Anatomy of nginx
+    minutes: 3
+    template: tech-nginx-anatomy
+    steps:
+      - title: The parts
+        body: A master process and 4 workers, one per core. Half the requests are static files, half are proxied to the app.
+        watch: The badge shows the worker count.
+        check: { metric: badge:4 workers, target: nginx, op: '>=', value: 1 }
+      - title: Thousands of connections, 4 threads
+        body: 2,000 idle keep-alive clients stay connected. Each costs a few KB, not a thread.
+        check: { metric: gauge:connections, target: nginx, op: '>=', value: 2000 }
+      - title: Mostly idle CPU
+        body: 3k req/s barely touches 4 cores — each worker only wakes for sockets that are ready.
+        check: { metric: util, target: nginx, op: '<', value: 10 }
+
+  - id: lifecycle
+    title: "Lifecycle: one request"
+    minutes: 3
+    template: tech-nginx-anatomy
+    steps:
+      - title: Accept and parse
+        body: A worker accepts the connection, reads the request line and headers, and matches a location block.
+        check: { metric: rps, target: nginx, op: '>=', value: 2000 }
+      - title: Static → sendfile
+        body: For a file, the kernel copies disk → page cache → NIC by DMA. The bytes never enter the worker.
+        check: { metric: p99, target: nginx, op: '<', value: 60 }
+      - title: Or proxy upstream
+        body: Otherwise the worker forwards it over a pooled keep-alive connection and goes back to other sockets while it waits.
+        check: { metric: rps, target: app, op: '>=', value: 1000 }
+      - title: Stream the response
+        body: When the upstream answers, the worker streams it back to the client. One loop juggled all of this.
+        check: { metric: availability, op: '>=', value: 99.9 }
+
+  - id: vs-apache
+    title: "Why fast: nginx vs Apache prefork at 10k connections"
+    minutes: 4
+    template: tech-nginx-vs-apache
+    steps:
+      - title: 10,000 open connections each
+        body: Same clients, same 5k req/s. Left, nginx with 4 workers; right, Apache prefork with at most 256 processes.
+        check: { metric: time, op: '>=', value: 4 }
+      - title: nginx is fine
+        body: Idle connections just sit in epoll. 10k of them cost ~25 MB.
+        check: { metric: availability, target: users-a, op: '>=', value: 99.9 }
+      - title: Prefork runs out of processes
+        body: Each keep-alive client pins a process until its next request. 256 processes for 10,000 clients — the rest wait in the backlog and time out.
+        check: { metric: availability, target: users-b, op: '<', value: 50 }
+      - title: Memory and context switches
+        body: 256 processes × 20 MB = 5 GB, and the kernel switches between them tens of thousands of times a second.
+        check: { metric: gauge:memMb, target: apache, op: '>=', value: 5000 }
+
+  - id: sendfile
+    title: "Why fast: sendfile zero-copy"
+    minutes: 3
+    template: tech-nginx-sendfile
+    steps:
+      - title: Same files, same load
+        body: 20k req/s of 200 KB files on both. Left has sendfile on, right has it off.
+        check: { metric: time, op: '>=', value: 3 }
+      - title: Copying costs CPU
+        body: Without sendfile each byte goes disk → kernel → worker → kernel → NIC. The workers burn CPU on memcpy.
+        check: { metric: util, target: nginx-copy, op: '>=', value: 50 }
+      - title: Zero-copy doesn't
+        body: With sendfile the worker just tells the kernel which file range to send.
+        check: { metric: util, target: nginx-sf, op: '<', value: 20 }
+
+  - id: blocking
+    title: "Break it: a blocking call stalls a worker"
+    minutes: 3
+    template: tech-nginx-blocking
+    steps:
+      - title: Healthy
+        body: Four workers split the connections evenly.
+        check: { metric: availability, op: '>=', value: 99.9 }
+      - title: Block worker 1
+        body: A module in worker 1 now makes a blocking call per request (sync DNS, a disk read on NFS). While it waits, its loop runs nothing else.
+        action: { event: { kind: blocking-call, target: nginx, params: { ms: 200 } } }
+        check: { metric: badge:worker 1 blocked, target: nginx, op: '>=', value: 1 }
+      - title: A quarter of users suffer
+        body: Every connection owned by worker 1 stalls and its backlog overflows; the other three workers are fine.
+        check: { metric: errRate, target: users, op: '>=', value: 10 }
+
+  - id: slowloris
+    title: "Break it: slowloris"
+    minutes: 3
+    template: tech-nginx-slowloris
+    steps:
+      - title: Both healthy
+        body: nginx on the left, Apache prefork on the right, 5k req/s each.
+        check: { metric: availability, target: users-b, op: '>=', value: 99 }
+      - title: Attack Apache
+        body: 5,000 connections that send one header byte every few seconds. Each pins an Apache process.
+        action: { event: { kind: slowloris, target: apache, params: { conns: 5000 } } }
+        check: { metric: availability, target: users-b, op: '<', value: 10 }
+      - title: Attack nginx
+        body: Same attack. Each slow connection is just a socket in epoll — 2.5 KB — and worker_connections 10240 × 4 has room.
+        action: { event: { kind: slowloris, target: nginx, params: { conns: 5000 } } }
+        check: { metric: availability, target: users-a, op: '>=', value: 99.9 }
+
+  - id: worker-connections
+    title: "Break it: too few worker_connections"
+    minutes: 2
+    template: tech-nginx-anatomy
+    steps:
+      - title: Room to spare
+        body: 2,000 idle clients over 4 workers × 1024 connections.
+        check: { metric: availability, op: '>=', value: 99.9 }
+      - title: Cut the limit
+        body: Drop worker_connections to 102. Idle keep-alive clients alone fill every worker.
+        action: { event: { kind: conn-exhaustion, target: nginx } }
+        check: { metric: eventMatch:worker_connections, op: '>=', value: 2 }
+      - title: New connections refused
+        body: Nothing is slow — nginx just can't accept more. Size worker_connections for clients plus upstream sockets.
+        check: { metric: errRate, target: users, op: '>=', value: 50 }
+
+  - id: keepalive
+    title: "Break it: upstream without keepalive"
+    minutes: 3
+    template: tech-nginx-keepalive
+    steps:
+      - title: A new connection per request
+        body: Every proxied request does a TCP handshake to the app, then leaves the port in TIME_WAIT for 60s.
+        check: { metric: gauge:timeWait, target: nginx, op: '>=', value: 10000 }
+      - title: Ports run out
+        body: 2k req/s × 60s > 28k ephemeral ports. connect() starts failing.
+        check: { metric: eventMatch:ephemeral ports, op: '>=', value: 1 }
+      - title: Requests fail
+        body: The app is healthy; nginx simply has no port to reach it. Turn on upstream keepalive to reuse a small pool.
+        check: { metric: errRate, target: users, op: '>=', value: 50 }
+
+  - id: reload
+    title: "Graceful reload vs restart"
+    minutes: 3
+    template: tech-nginx-anatomy
+    steps:
+      - title: Reload the config
+        body: nginx -s reload — the master starts new workers; old ones stop accepting and finish their connections.
+        action: { event: { kind: config-push, target: nginx } }
+        check: { metric: eventMatch:old workers stop accepting, op: '>=', value: 1 }
+      - title: Nothing dropped
+        body: Clients never notice.
+        check: { metric: availability, op: '>=', value: 99.9 }
+      - title: Now a hard restart
+        body: Stopping and starting the process drops every open connection and refuses new ones until it's back.
+        action: { event: { kind: restart, target: nginx, params: { downSec: 5 } } }
+        check: { metric: availability, op: '<', value: 90 }

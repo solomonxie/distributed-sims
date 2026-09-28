@@ -1,0 +1,106 @@
+group: { id: tech, label: Under the hood, order: 14 }
+# Elasticsearch internals (technologies.md v1.1). Composite skin: elasticsearch-cluster. Protocol kinds: es.*
+types:
+  - type: es-app
+    label: Search app
+    description: Your application (or Kibana) calling Elasticsearch over REST — match queries, aggregations, bulk indexing
+    icon: app-window
+    costPerInstanceMonth: 0
+    knobs:
+      - { key: query, label: Query type, kind: enum, default: match, options: [match, terms-agg], help: "terms-agg: a dashboard aggregation — heavy on every shard and on the coordinating node" }
+      - { key: newFieldPct, label: Docs with new fields, kind: percent, default: 0, min: 0, max: 100, help: Share of indexed docs carrying a never-seen field name (dynamic mapping) }
+      - { key: costMonth, label: Cost / month, kind: number, default: 0, min: 0, max: 100000, unit: $, advanced: true }
+  - type: es-coord
+    label: ES coordinating node
+    description: Routes writes to the primary shard; runs searches as query-then-fetch across one copy of every shard and reduces the results
+    icon: split
+    costPerInstanceMonth: 120
+    knobs:
+      - { key: slots, label: Slots, kind: int, default: 16, min: 1, max: 4096 }
+      - { key: p50Ms, label: Reduce p50, kind: ms, default: 0.5, min: 0.01, max: 5000 }
+      - { key: p99Ms, label: Reduce p99, kind: ms, default: 3, min: 0.01, max: 30000 }
+      - { key: aggReduceMs, label: Agg reduce per shard, kind: ms, default: 30, min: 0, max: 60000, help: Merging per-shard buckets of a terms aggregation }
+      - { key: aggMb, label: Agg memory, kind: number, default: 60, min: 0, max: 100000, unit: MB, help: Bucket memory one in-flight aggregation holds }
+      - { key: breakerMb, label: Parent circuit breaker, kind: number, default: 400, min: 1, max: 1000000, unit: MB, help: Over this, requests fail with circuit_breaking_exception (429) }
+      - { key: fetchShards, label: Shards in fetch phase, kind: int, default: 2, min: 1, max: 1000, advanced: true }
+      - { key: allowPartial, label: allow_partial_search_results, kind: bool, default: true, advanced: true }
+      - { key: shardTimeoutMs, label: Shard request timeout, kind: ms, default: 1000, min: 10, max: 60000, advanced: true }
+      - { key: indexTimeoutMs, label: Index timeout, kind: ms, default: 1000, min: 10, max: 60000, advanced: true }
+      - { key: mappingTimeoutMs, label: Put-mapping timeout, kind: ms, default: 3000, min: 10, max: 60000, advanced: true }
+      - { key: routeMs, label: Routing cost, kind: ms, default: 0.1, min: 0, max: 1000, advanced: true }
+      - { key: cluster, label: Cluster name, kind: string, default: main, advanced: true }
+      - { key: queueLimit, label: Queue limit, kind: int, default: 1000, min: 0, max: 100000, advanced: true }
+      - { key: costMonth, label: Cost / month, kind: number, default: 120, min: 0, max: 100000, unit: $ }
+  - type: es-master
+    label: ES master-eligible node
+    description: Holds the cluster state; a majority of master-eligible nodes elects one master, which tracks nodes and allocates shards
+    icon: crown
+    costPerInstanceMonth: 60
+    knobs:
+      - { key: followerCheckMs, label: Follower check interval, kind: ms, default: 1000, min: 100, max: 60000 }
+      - { key: followerRetries, label: Follower check retries, kind: int, default: 3, min: 1, max: 100 }
+      - { key: followerTimeoutMs, label: Follower check timeout, kind: ms, default: 500, min: 10, max: 60000, advanced: true }
+      - { key: delayedTimeoutSec, label: Delayed allocation, kind: number, default: 5, min: 0, max: 86400, unit: s, help: index.unassigned.node_left.delayed_timeout (real default 1m) }
+      - { key: totalFieldsLimit, label: Total fields limit, kind: int, default: 1000, min: 1, max: 1000000, help: index.mapping.total_fields.limit }
+      - { key: mappingUpdateMs, label: Cluster-state update, kind: ms, default: 5, min: 0.1, max: 60000, advanced: true }
+      - { key: perFieldMs, label: Publish cost per field, kind: ms, default: 0.05, min: 0, max: 100, advanced: true, help: Bigger mappings make every cluster-state publication slower }
+      - { key: slots, label: Cluster-state threads, kind: int, default: 1, min: 1, max: 16, advanced: true, help: Cluster-state updates run one at a time }
+      - { key: queueLimit, label: Pending tasks limit, kind: int, default: 500, min: 0, max: 100000, advanced: true }
+      - { key: cluster, label: Cluster name, kind: string, default: main, advanced: true }
+      - { key: costMonth, label: Cost / month, kind: number, default: 60, min: 0, max: 100000, unit: $ }
+  - type: es-data
+    label: ES data node
+    description: Holds primary and replica shards (Lucene indexes); indexes into a buffer + translog, refreshes into segments, merges, recovers peers
+    icon: hard-drive
+    costPerInstanceMonth: 250
+    knobs:
+      - { key: shards, label: Index primary shards, kind: int, default: 3, min: 1, max: 64, help: Index setting (read from the first data node) }
+      - { key: replicas, label: Index replicas, kind: int, default: 1, min: 0, max: 5 }
+      - { key: refreshMs, label: refresh_interval, kind: ms, default: 1000, min: 50, max: 300000, help: How often new docs become searchable; each refresh writes a small segment }
+      - { key: slots, label: Thread pool, kind: int, default: 8, min: 1, max: 4096, help: search/write threads }
+      - { key: p50Ms, label: Shard query p50, kind: ms, default: 3, min: 0.01, max: 5000 }
+      - { key: p99Ms, label: Shard query p99, kind: ms, default: 15, min: 0.01, max: 30000 }
+      - { key: aggShardMs, label: Shard aggregation, kind: ms, default: 80, min: 0, max: 60000, help: Extra work per shard for a terms aggregation }
+      - { key: indexP50Ms, label: Index p50, kind: ms, default: 1, min: 0.01, max: 5000 }
+      - { key: indexP99Ms, label: Index p99, kind: ms, default: 5, min: 0.01, max: 30000 }
+      - { key: refreshCostMs, label: Refresh cost, kind: ms, default: 100, min: 0, max: 60000, advanced: true, help: Per shard per refresh (segment write) }
+      - { key: mergeCostMs, label: Merge cost, kind: ms, default: 400, min: 0, max: 600000, advanced: true, help: Merging 10 small segments into one }
+      - { key: flushThresholdMb, label: Translog flush size, kind: number, default: 512, min: 1, max: 100000, unit: MB, advanced: true, help: Lucene commit and translog trim at this size }
+      - { key: flushCostMs, label: Flush cost, kind: ms, default: 50, min: 0, max: 60000, advanced: true }
+      - { key: shardMb, label: Shard size, kind: number, default: 200, min: 1, max: 1000000, unit: MB, help: Bytes copied by a peer recovery }
+      - { key: recoveryMbps, label: Recovery rate, kind: number, default: 40, min: 1, max: 10000, unit: MB/s, help: indices.recovery.max_bytes_per_sec }
+      - { key: docKb, label: Doc size, kind: number, default: 1, min: 0.01, max: 100000, unit: KB, advanced: true }
+      - { key: initialFields, label: Mapped fields, kind: int, default: 40, min: 0, max: 100000, advanced: true }
+      - { key: fetchP50Ms, label: Fetch p50, kind: ms, default: 1, min: 0.01, max: 5000, advanced: true }
+      - { key: fetchP99Ms, label: Fetch p99, kind: ms, default: 5, min: 0.01, max: 30000, advanced: true }
+      - { key: replicaTimeoutMs, label: Replication timeout, kind: ms, default: 1000, min: 10, max: 60000, advanced: true }
+      - { key: cluster, label: Cluster name, kind: string, default: main, advanced: true }
+      - { key: queueLimit, label: Queue limit, kind: int, default: 200, min: 0, max: 100000, advanced: true, help: Thread-pool queue; beyond it requests get 429 es_rejected_execution_exception }
+      - { key: costMonth, label: Cost / month, kind: number, default: 250, min: 0, max: 100000, unit: $ }
+skins:
+  - name: elasticsearch-cluster
+    type: search-index
+    label: Elasticsearch (internals)
+    description: A real Elasticsearch cluster inside one node — coordinating node, 3 master-eligible, 3 data nodes, 3 shards × 1 replica; tap ⤢ to drill in
+    icon: search
+    tags: [search, self-hosted, composite]
+    tech: elasticsearch
+    defaults: { shards: 3, replicas: 1, refreshMs: 1000, costMonth: 1100 }
+    ports: { in: coord }
+    internals:
+      schemaVersion: 1
+      id: elasticsearch-cluster
+      name: Elasticsearch cluster
+      nodes:
+        - { id: coord, type: es-coord, name: coordinating, pos: { x: 195, y: 60 } }
+        - { id: m1, type: es-master, name: master-1, pos: { x: 70, y: 180 } }
+        - { id: m2, type: es-master, name: master-2, pos: { x: 195, y: 180 } }
+        - { id: m3, type: es-master, name: master-3, pos: { x: 320, y: 180 } }
+        - { id: d1, type: es-data, name: data-1, pos: { x: 70, y: 320 } }
+        - { id: d2, type: es-data, name: data-2, pos: { x: 195, y: 320 } }
+        - { id: d3, type: es-data, name: data-3, pos: { x: 320, y: 320 } }
+      edges:
+        - { id: c-d1, from: coord, to: d1, config: { timeoutMs: 1000 } }
+        - { id: c-d2, from: coord, to: d2, config: { timeoutMs: 1000 } }
+        - { id: c-d3, from: coord, to: d3, config: { timeoutMs: 1000 } }
+      containers: []

@@ -1,0 +1,148 @@
+{
+  "schemaVersion": 1,
+  "id": "tech-pg-wal",
+  "name": "Postgres: WAL, fsync and group commit",
+  "description": "Two identical primaries on a slow 10ms fsync disk. Left: synchronous_commit=on (COMMIT waits for the WAL fsync). Right: off (COMMIT returns first).",
+  "nodes": [
+    {
+      "id": "users",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 100,
+        "y": 40
+      },
+      "config": {}
+    },
+    {
+      "id": "users2",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 290,
+        "y": 40
+      },
+      "config": {}
+    },
+    {
+      "id": "app-a",
+      "type": "service",
+      "name": "app",
+      "pos": {
+        "x": 100,
+        "y": 170
+      },
+      "config": {
+        "instances": 4,
+        "slots": 64,
+        "p50Ms": 1,
+        "p99Ms": 3
+      }
+    },
+    {
+      "id": "app-b",
+      "type": "service",
+      "name": "app",
+      "pos": {
+        "x": 290,
+        "y": 170
+      },
+      "config": {
+        "instances": 4,
+        "slots": 64,
+        "p50Ms": 1,
+        "p99Ms": 3
+      }
+    },
+    {
+      "id": "pg-on",
+      "type": "pg-primary",
+      "skin": "postgres-primary",
+      "name": "sync commit on",
+      "pos": {
+        "x": 100,
+        "y": 320
+      },
+      "config": {
+        "fsyncMs": 10
+      }
+    },
+    {
+      "id": "pg-off",
+      "type": "pg-primary",
+      "skin": "postgres-primary",
+      "name": "sync commit off",
+      "pos": {
+        "x": 290,
+        "y": 320
+      },
+      "config": {
+        "fsyncMs": 10,
+        "synchronousCommit": "off"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-users-app-a",
+      "from": "users",
+      "to": "app-a"
+    },
+    {
+      "id": "e-users2-app-b",
+      "from": "users2",
+      "to": "app-b"
+    },
+    {
+      "id": "e-app-a-pg-on",
+      "from": "app-a",
+      "to": "pg-on"
+    },
+    {
+      "id": "e-app-b-pg-off",
+      "from": "app-b",
+      "to": "pg-off"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 180,
+    "sources": [
+      {
+        "id": "s1",
+        "node": "users",
+        "shape": {
+          "kind": "constant",
+          "rps": 200
+        },
+        "readRatio": 0.2
+      },
+      {
+        "id": "s2",
+        "node": "users2",
+        "shape": {
+          "kind": "constant",
+          "rps": 200
+        },
+        "readRatio": 0.2
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "api.brewcart.com",
+    "read": {
+      "path": "/v1/orders/{key}",
+      "body": "{\"order_id\": {key}, \"total_cents\": {value}, \"status\": \"paid\"}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/v1/orders",
+      "reqBody": "{\"customer_id\": {key}, \"total_cents\": {value}}",
+      "status": 201,
+      "body": "{\"order_id\": {key}, \"status\": \"paid\"}"
+    },
+    "table": "orders",
+    "valCol": "total_cents"
+  }
+}

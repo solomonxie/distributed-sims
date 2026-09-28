@@ -1,0 +1,93 @@
+{
+  "schemaVersion": 1,
+  "id": "tech-spark-lifecycle",
+  "name": "Spark: one job end to end",
+  "description": "One job every 20s: stage 1 reads input and writes shuffle blocks, stage 2 and 3 fetch them, the result goes back to the driver.",
+  "nodes": [
+    {
+      "id": "driver",
+      "type": "spark-driver",
+      "skin": "spark-driver-std",
+      "name": "Driver",
+      "pos": {
+        "x": 195,
+        "y": 60
+      },
+      "config": {
+        "cronSec": 20
+      }
+    },
+    {
+      "id": "exec-1",
+      "type": "spark-executor",
+      "skin": "spark-executor-std",
+      "name": "Executor 1",
+      "pos": {
+        "x": 55,
+        "y": 220
+      },
+      "config": {}
+    },
+    {
+      "id": "exec-2",
+      "type": "spark-executor",
+      "skin": "spark-executor-std",
+      "name": "Executor 2",
+      "pos": {
+        "x": 195,
+        "y": 220
+      },
+      "config": {}
+    },
+    {
+      "id": "exec-3",
+      "type": "spark-executor",
+      "skin": "spark-executor-std",
+      "name": "Executor 3",
+      "pos": {
+        "x": 335,
+        "y": 220
+      },
+      "config": {}
+    }
+  ],
+  "edges": [
+    {
+      "id": "d-e1",
+      "from": "driver",
+      "to": "exec-1"
+    },
+    {
+      "id": "d-e2",
+      "from": "driver",
+      "to": "exec-2"
+    },
+    {
+      "id": "d-e3",
+      "from": "driver",
+      "to": "exec-3"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 120,
+    "sources": [],
+    "events": []
+  },
+  "wire": {
+    "host": "spark-master.internal:6066",
+    "read": {
+      "path": "/api/v1/applications/app-{key}/jobs",
+      "body": "[{\"jobId\": {key}, \"status\": \"SUCCEEDED\", \"numStages\": 3}]"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/v1/submissions/create",
+      "reqBody": "{\"mainClass\": \"reco.TopItems\", \"appArgs\": [\"--k\", \"20\"]}",
+      "status": 200,
+      "body": "{\"submissionId\": \"driver-{key}\", \"success\": true}"
+    },
+    "table": "top_items",
+    "valCol": "score"
+  }
+}

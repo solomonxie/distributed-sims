@@ -1,0 +1,88 @@
+id: machine-cpu
+title: CPU
+group: machine
+icon: cpu
+order: 1
+summary: What a core does each cycle, why caches decide speed, and what threads cost.
+info: A core overlaps instructions in a pipeline and reorders them around stalls, but it can only go as fast as data arrives from its caches. Cores keep their private caches coherent by snooping each other, which makes shared writes expensive. The OS scheduler slices cores between threads, and more threads than cores means waiting.
+algos: [cpu-pipeline, cpu-ooo, cpu-cache, cpu-mesi, cpu-scheduling]
+lessons:
+  - id: pipeline
+    title: Pipeline & hazards
+    minutes: 4
+    algo: cpu-pipeline
+    steps:
+      - title: Five stages in parallel
+        body: Fetch, decode, execute, memory and writeback each work on a different instruction every cycle. SUB needs r1 before ADD has written it back.
+        watch: Bubbles appear in ID while SUB waits; the panel counts stall slots.
+        check: { metric: manual }
+      - title: Forwarding
+        body: Switch the input to "Hazard, forwarding". The result goes straight from EX to the next instruction over a bypass wire.
+        watch: No bubbles; 8 cycles, the ideal.
+        check: { metric: manual }
+      - title: Branch mispredict
+        body: Switch to "Branch mispredict". The branch resolves in EX and the two instructions fetched after it are flushed.
+        watch: The flush counter; real 20-stage cores lose ~15–20 cycles per miss.
+        check: { metric: manual }
+
+  - id: out-of-order
+    title: Out-of-order execution
+    minutes: 3
+    algo: cpu-ooo
+    steps:
+      - title: Don't wait for the slow load
+        body: LD r1 misses L1. Instead of freezing, the core issues the independent MUL, ADD and LD r9 around it.
+        watch: Instructions finish out of order in the reorder buffer.
+        check: { metric: manual }
+      - title: Retire in order
+        body: Results stay invisible until every older instruction is done, then retire up to 4 per cycle. That keeps exceptions precise.
+        watch: All 6 retire together at cycle 15, vs ~20 in order.
+        check: { metric: manual }
+
+  - id: caches
+    title: Caches & locality
+    minutes: 4
+    algo: cpu-cache
+    steps:
+      - title: A miss walks the hierarchy
+        body: A load misses L1, L2 and L3 and goes to DRAM, ~100 ns. The whole 64-byte line comes back and fills every level.
+        watch: The next load 8 bytes later is an L1 hit, 100× faster.
+        check: { metric: manual }
+      - title: Row-major loop
+        body: Switch to "Row-major loop". Walking memory in order uses all 16 ints of every line.
+        watch: Miss rate stays at 1/16.
+        check: { metric: manual }
+      - title: Column-major loop
+        body: Switch to "Column-major loop". Each step jumps to a new line, and lines are evicted before reuse.
+        watch: Every access misses, so the same work runs ~12× slower.
+        check: { metric: manual }
+
+  - id: coherence
+    title: Cache coherence (MESI)
+    minutes: 4
+    algo: cpu-mesi
+    steps:
+      - title: Shared reads are free
+        body: Three cores read the same line and all hold it Shared. A write must invalidate every other copy first.
+        watch: Line states change M/E/S/I with each bus transaction.
+        check: { metric: manual }
+      - title: False sharing
+        body: Switch to "False sharing". Two unrelated counters on one 64-byte line make the line ping-pong between cores.
+        watch: Every write is a ~50 ns coherence miss instead of ~1 ns.
+        check: { metric: manual }
+      - title: Pad it
+        body: Switch to "Padded". Each counter gets its own line, and after the first write every write is a local hit.
+        check: { metric: manual }
+
+  - id: scheduling
+    title: Threads & scheduling
+    minutes: 3
+    algo: cpu-scheduling
+    steps:
+      - title: Threads fit the cores
+        body: 4 threads on 4 cores each get a core for their whole 12 ms. Latency equals CPU time.
+        check: { metric: manual }
+      - title: Oversubscribed
+        body: Switch to "12 threads · 4 cores". Ready threads wait in the run queue and every slice costs a context switch.
+        watch: Average finish goes from 12 ms to 32 ms for the same work; that's a thread pool sized too big.
+        check: { metric: manual }

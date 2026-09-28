@@ -1,0 +1,44 @@
+id: rate-limiter
+title: Rate limiter
+icon: gauge
+category: infra
+order: 16
+summary: One global limit enforced by many gateways at once.
+requirements:
+  - Limit each API key to N req/s across all gateway instances; answer 429 above it
+  - 3+ gateway instances · 1k limit checks/s per key · millions of keys
+  - Over-admit ≤ 5% · check adds < 2ms · limiter outage must not take the API down
+estimates:
+  - 1M rps total checks · one Redis INCR/Lua call each (~0.3ms) · ~100 B state per key
+designs:
+  - { id: v1, title: "Naive: local token bucket per gateway", template: problem-rate-limiter-v1 }
+  - { id: v2, title: "Reference: shared bucket in Redis, fail open", template: problem-rate-limiter-v2 }
+challenges:
+  - id: scraper
+    title: "Scraper: 4× the limit across 3 gateways"
+    template: problem-rate-limiter-v2
+    scenario:
+      durationSec: 60
+      sources: [{ id: clients, node: users, shape: { kind: constant, rps: 800 } }]
+      events:
+        - { atSec: 15, event: { kind: traffic, action: burst, params: { x: 5 }, durationSec: 45 } }
+    pass:
+      - { metric: p99, op: '<', value: 150 }
+      - { metric: anomalies, op: '=', value: 0 }
+      - { metric: costMonth, op: '<=', value: 500 }
+  - id: redis-down
+    title: "Counter store down"
+    template: problem-rate-limiter-v2
+    scenario:
+      durationSec: 60
+      sources: [{ id: clients, node: users, shape: { kind: constant, rps: 800 } }]
+      events:
+        - { atSec: 20, event: { kind: kill, target: redis, durationSec: 40 } }
+    pass:
+      - { metric: availability, op: '>=', value: 99.5 }
+      - { metric: p99, op: '<', value: 150 }
+keyIdeas:
+  - { label: Token bucket, link: "algo:token-bucket" }
+  - { label: Sliding window, link: "algo:sliding-window" }
+  - { label: Distributed limiter, link: "lesson:rate-limit/distributed-limiter" }
+  - { label: Fail open vs fail closed, link: "lesson:microservices/circuit-breaker" }

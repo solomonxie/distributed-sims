@@ -1,0 +1,160 @@
+{
+  "schemaVersion": 1,
+  "id": "lesson-txn-outbox",
+  "name": "Lesson: transactional outbox",
+  "description": "Two order services publish order events to Kafka. Left writes its DB and then publishes directly (dual write). Right writes the event into an outbox table in the same DB transaction; Debezium relays it to Kafka.",
+  "nodes": [
+    {
+      "id": "web",
+      "type": "web-client",
+      "name": "Shoppers",
+      "pos": {
+        "x": 195,
+        "y": 60
+      }
+    },
+    {
+      "id": "a",
+      "type": "service",
+      "name": "Orders (dual write)",
+      "pos": {
+        "x": 90,
+        "y": 200
+      }
+    },
+    {
+      "id": "b",
+      "type": "service",
+      "name": "Orders (outbox)",
+      "pos": {
+        "x": 300,
+        "y": 200
+      }
+    },
+    {
+      "id": "dw",
+      "type": "outbox-relay",
+      "name": "Direct publish",
+      "pos": {
+        "x": 90,
+        "y": 340
+      },
+      "config": {
+        "mode": "dual-write"
+      }
+    },
+    {
+      "id": "ob",
+      "type": "outbox-relay",
+      "skin": "debezium",
+      "name": "Outbox + Debezium",
+      "pos": {
+        "x": 300,
+        "y": 340
+      }
+    },
+    {
+      "id": "k",
+      "type": "log-stream",
+      "skin": "kafka",
+      "name": "orders topic",
+      "pos": {
+        "x": 195,
+        "y": 480
+      }
+    },
+    {
+      "id": "w",
+      "type": "worker",
+      "name": "Order consumers",
+      "pos": {
+        "x": 195,
+        "y": 620
+      },
+      "config": {
+        "idempotent": true
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "web",
+      "to": "a",
+      "config": {
+        "ratio": 0.5
+      }
+    },
+    {
+      "id": "e2",
+      "from": "web",
+      "to": "b",
+      "config": {
+        "ratio": 0.5
+      }
+    },
+    {
+      "id": "e3",
+      "from": "a",
+      "to": "dw"
+    },
+    {
+      "id": "e4",
+      "from": "b",
+      "to": "ob"
+    },
+    {
+      "id": "e5",
+      "from": "dw",
+      "to": "k",
+      "config": {
+        "timeoutMs": 500
+      }
+    },
+    {
+      "id": "e6",
+      "from": "ob",
+      "to": "k",
+      "config": {
+        "timeoutMs": 500
+      }
+    },
+    {
+      "id": "e7",
+      "from": "k",
+      "to": "w"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 300,
+    "sources": [
+      {
+        "id": "s1",
+        "node": "web",
+        "shape": {
+          "kind": "constant",
+          "rps": 100
+        },
+        "readRatio": 0
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "shop.example",
+    "read": {
+      "path": "/api/orders/{key}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/orders",
+      "reqBody": "{\"sku\": \"SKU-{key}\", \"qty\": 1}",
+      "status": 201,
+      "body": "{\"order_id\": {key}, \"status\": \"placed\"}"
+    },
+    "table": "orders",
+    "valCol": "status",
+    "topic": "orders"
+  }
+}

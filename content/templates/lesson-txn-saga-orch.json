@@ -1,0 +1,108 @@
+{
+  "schemaVersion": 1,
+  "id": "lesson-txn-saga-orch",
+  "name": "Lesson: orchestrated saga",
+  "description": "An orchestrator runs each checkout as local steps: create order \u2192 charge payment \u2192 reserve inventory. If a step fails it runs compensations for the finished steps in reverse.",
+  "nodes": [
+    {
+      "id": "web",
+      "type": "web-client",
+      "name": "Checkout",
+      "pos": {
+        "x": 195,
+        "y": 60
+      }
+    },
+    {
+      "id": "orch",
+      "type": "txn-coordinator",
+      "skin": "saga-orchestrator",
+      "name": "Orchestrator",
+      "pos": {
+        "x": 195,
+        "y": 190
+      }
+    },
+    {
+      "id": "order",
+      "type": "service",
+      "name": "Order",
+      "pos": {
+        "x": 55,
+        "y": 330
+      }
+    },
+    {
+      "id": "payment",
+      "type": "service",
+      "name": "Payment",
+      "pos": {
+        "x": 195,
+        "y": 330
+      }
+    },
+    {
+      "id": "inventory",
+      "type": "service",
+      "name": "Inventory",
+      "pos": {
+        "x": 335,
+        "y": 330
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "web",
+      "to": "orch",
+      "config": {
+        "timeoutMs": 5000
+      }
+    },
+    {
+      "id": "e2",
+      "from": "orch",
+      "to": "order"
+    },
+    {
+      "id": "e3",
+      "from": "orch",
+      "to": "payment"
+    },
+    {
+      "id": "e4",
+      "from": "orch",
+      "to": "inventory"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 300,
+    "sources": [
+      {
+        "id": "s1",
+        "node": "web",
+        "shape": {
+          "kind": "constant",
+          "rps": 40
+        },
+        "readRatio": 0
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "shop.example",
+    "read": {
+      "path": "/api/orders/{key}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/checkout",
+      "reqBody": "{\"cart_id\": {key}, \"card\": \"tok_visa\"}",
+      "status": 202,
+      "body": "{\"order_id\": {key}, \"status\": \"pending\"}"
+    }
+  }
+}

@@ -1,0 +1,148 @@
+{
+  "schemaVersion": 1,
+  "id": "lesson-mq-redelivery",
+  "name": "At-least-once & duplicates",
+  "description": "Each order lands on two SQS queues (visibility timeout 3s). Both workers ack only after processing a batch. If a worker crashes mid-batch, the whole batch is redelivered: the plain worker applies some orders twice, and the idempotent one skips the ones it has already seen.",
+  "nodes": [
+    {
+      "id": "users",
+      "type": "web-client",
+      "name": "Shoppers",
+      "pos": {
+        "x": 195,
+        "y": 40
+      }
+    },
+    {
+      "id": "api",
+      "type": "service",
+      "name": "Orders API",
+      "pos": {
+        "x": 195,
+        "y": 150
+      }
+    },
+    {
+      "id": "q-plain",
+      "type": "queue",
+      "name": "Queue",
+      "pos": {
+        "x": 75,
+        "y": 280
+      },
+      "skin": "sqs",
+      "config": {
+        "visibilityMs": 3000,
+        "ordering": "ordered"
+      }
+    },
+    {
+      "id": "w-plain",
+      "type": "worker",
+      "name": "Worker",
+      "pos": {
+        "x": 75,
+        "y": 420
+      },
+      "skin": "celery-worker",
+      "config": {
+        "ackMode": "late",
+        "batch": 10,
+        "slots": 3,
+        "p50Ms": 20,
+        "p99Ms": 60,
+        "ackMs": 50
+      }
+    },
+    {
+      "id": "q-idem",
+      "type": "queue",
+      "name": "Queue",
+      "pos": {
+        "x": 315,
+        "y": 280
+      },
+      "skin": "sqs",
+      "config": {
+        "visibilityMs": 3000,
+        "ordering": "ordered"
+      }
+    },
+    {
+      "id": "w-idem",
+      "type": "worker",
+      "name": "Worker · idempotent",
+      "pos": {
+        "x": 315,
+        "y": 420
+      },
+      "skin": "celery-worker",
+      "config": {
+        "ackMode": "late",
+        "batch": 10,
+        "slots": 3,
+        "p50Ms": 20,
+        "p99Ms": 60,
+        "ackMs": 50,
+        "idempotent": true
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "users->api",
+      "from": "users",
+      "to": "api"
+    },
+    {
+      "id": "api->q-plain",
+      "from": "api",
+      "to": "q-plain"
+    },
+    {
+      "id": "api->q-idem",
+      "from": "api",
+      "to": "q-idem"
+    },
+    {
+      "id": "q-plain->w-plain",
+      "from": "q-plain",
+      "to": "w-plain"
+    },
+    {
+      "id": "q-idem->w-idem",
+      "from": "q-idem",
+      "to": "w-idem"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 120,
+    "sources": [
+      {
+        "id": "s1",
+        "node": "users",
+        "shape": {
+          "kind": "constant",
+          "rps": 100
+        },
+        "readRatio": 0
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "shop.example",
+    "read": {
+      "path": "/api/orders/{key}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/orders",
+      "reqBody": "{\"sku\": \"SKU-{key}\", \"qty\": 1}",
+      "status": 202,
+      "body": "{\"order_id\": {key}, \"status\": \"queued\"}"
+    },
+    "topic": "orders"
+  }
+}

@@ -1,0 +1,112 @@
+{
+  "schemaVersion": 1,
+  "id": "tech-nginx-slowloris",
+  "name": "nginx vs Apache: slowloris",
+  "description": "An attacker opens 5,000 connections and sends one header byte every few seconds. nginx (worker_connections 10240) holds them for ~2.5 KB each; Apache needs a process for each.",
+  "nodes": [
+    {
+      "id": "users-a",
+      "type": "web-client",
+      "name": "Users → nginx",
+      "pos": {
+        "x": 110,
+        "y": 40
+      }
+    },
+    {
+      "id": "nginx",
+      "type": "nginx-server",
+      "name": "nginx",
+      "pos": {
+        "x": 110,
+        "y": 160
+      },
+      "skin": "nginx-internals",
+      "config": {
+        "workers": 4,
+        "workerConnections": 10240,
+        "clients": 100
+      }
+    },
+    {
+      "id": "users-b",
+      "type": "web-client",
+      "name": "Users → Apache",
+      "pos": {
+        "x": 280,
+        "y": 40
+      }
+    },
+    {
+      "id": "apache",
+      "type": "apache-prefork",
+      "name": "Apache prefork",
+      "pos": {
+        "x": 280,
+        "y": 160
+      },
+      "skin": "apache-httpd-prefork",
+      "config": {
+        "maxRequestWorkers": 256,
+        "clients": 100
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "users-a-nginx",
+      "from": "users-a",
+      "to": "nginx",
+      "config": {
+        "timeoutMs": 3000
+      }
+    },
+    {
+      "id": "users-b-apache",
+      "from": "users-b",
+      "to": "apache",
+      "config": {
+        "timeoutMs": 3000
+      }
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 300,
+    "sources": [
+      {
+        "id": "s-a",
+        "node": "users-a",
+        "shape": {
+          "kind": "constant",
+          "rps": 5000
+        },
+        "readRatio": 1
+      },
+      {
+        "id": "s-b",
+        "node": "users-b",
+        "shape": {
+          "kind": "constant",
+          "rps": 5000
+        },
+        "readRatio": 1
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "forum.retrobits.org",
+    "read": {
+      "path": "/threads/{key}",
+      "body": "{\"id\": {key}, \"title\": \"Amiga 500 repair\", \"replies\": {value}}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/threads/{key}/replies",
+      "reqBody": "{\"body\": \"Try recapping the board\"}",
+      "status": 201,
+      "body": "{\"reply_id\": {key}}"
+    }
+  }
+}

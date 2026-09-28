@@ -1,0 +1,47 @@
+id: craigslist
+title: Craigslist
+icon: newspaper
+category: product
+order: 6
+summary: Post classified ads with photos; browse and search them by city.
+requirements:
+  - Post, edit, expire listings with up to 8 photos
+  - Browse by city/category; full-text search
+  - New posts searchable within 5s
+  - 50M page views/day · 1M new posts/day · 700 cities
+  - Search p99 < 300ms · 99.9% available
+estimates:
+  - Reads ~3k/s (98%) · posts ~12/s, 10× at evening peak
+  - Photos 1M × 5 × 300 KB = 1.5 TB/day → object store, not DB
+  - Listings 1M/day × 2 KB → 700 GB/yr, sharded by region
+designs:
+  - { id: v1, title: "Naive: monolith, one DB, batch reindex", template: problem-craigslist-v1 }
+  - { id: v2, title: "Reference: region shards, 1s search refresh, S3 + CDN", template: problem-craigslist-v2 }
+challenges:
+  - id: search-freshness
+    title: "Search freshness < 5s (≤ 3k stale results)"
+    template: problem-craigslist-v2
+    scenario:
+      durationSec: 60
+      sources: [{ id: visits, node: users, shape: { kind: constant, rps: 3000 }, readRatio: 0.98, keys: { kind: uniform } }]
+      events: []
+    pass:
+      - { metric: anomalies, op: '<=', value: 3000 }
+      - { metric: p99, op: '<', value: 300 }
+      - { metric: availability, op: '>=', value: 99.9 }
+  - id: evening-peak
+    title: "Evening peak: 3× traffic, 10× posts"
+    template: problem-craigslist-v2
+    scenario:
+      durationSec: 60
+      sources: [{ id: visits, node: users, shape: { kind: constant, rps: 3000 }, readRatio: 0.95, keys: { kind: uniform } }]
+      events: [{ atSec: 20, event: { kind: traffic, action: ramp, params: { x: 3 }, durationSec: 20 } }]
+    pass:
+      - { metric: p99, op: '<', value: 300 }
+      - { metric: availability, op: '>=', value: 99.9 }
+      - { metric: costMonth, op: '<=', value: 2500 }
+keyIdeas:
+  - { label: Inverted index, link: "algo:inverted-index" }
+  - { label: Refresh interval = search freshness, link: "lesson:search/refresh-interval" }
+  - { label: Shard listings by region, link: "lesson:sharding/hash-vs-range" }
+  - { label: Blobs in object store behind a CDN, link: "lesson:caching/cdn" }

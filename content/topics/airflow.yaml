@@ -1,0 +1,154 @@
+id: airflow
+title: Airflow
+group: under-the-hood
+icon: wind
+order: 3
+summary: Workflow scheduler — a loop over a metadata DB that turns schedules into DagRuns and task instances.
+info: Airflow's scheduler is a loop of database queries. It creates DagRuns when a schedule interval passes, moves task instances through scheduled → queued → running → success, and hands queued ones to an executor (Local, Celery or Kubernetes). All state lives in the metadata DB, so the DB is the heart, and every limit (parallelism, pools, max_active_runs) is a count in it.
+algos: []
+problems: []
+lessons:
+  - id: anatomy
+    title: Anatomy of Airflow
+    minutes: 3
+    template: tech-airflow-anatomy
+    steps:
+      - title: Scheduler parses DAGs
+        body: The scheduler parses the DAG files, then loops every second over the Metadata DB.
+        check: { metric: eventMatch:parsed, op: '>=', value: 1 }
+      - title: DagRuns on schedule
+        body: Every 5s (think @hourly) the scheduler inserts a DagRun with three task instances.
+        watch: The Scheduler label counts runs, queued and running task instances.
+        check: { metric: gauge:runsActive, target: scheduler, op: '>=', value: 2 }
+      - title: Executor → workers
+        body: Queued task instances go to the CeleryExecutor, which hands them to Worker 1 and 2.
+        check: { metric: gauge:running, target: scheduler, op: '>=', value: 1 }
+      - title: The DB is the heart
+        body: Workers write state and heartbeats straight to the Metadata DB; the scheduler only reads it.
+        check: { metric: eventMatch:success in, op: '>=', value: 1 }
+  - id: lifecycle
+    title: A task instance's lifecycle
+    minutes: 4
+    template: tech-airflow-lifecycle
+    steps:
+      - title: none → scheduled
+        body: The first DagRun narrates its task states. extract has no upstream, so it is scheduled straight away.
+        check: { metric: 'eventMatch:extract: none → scheduled', op: '>=', value: 1 }
+      - title: scheduled → queued
+        body: The scheduler checks parallelism and pool slots, then queues it on the executor.
+        check: { metric: 'eventMatch:extract: scheduled → queued', op: '>=', value: 1 }
+      - title: queued → running
+        body: A worker picks it up and writes running (plus its hostname) to the DB, then heartbeats every second.
+        check: { metric: 'eventMatch:extract: queued → running', op: '>=', value: 1 }
+      - title: running → success
+        body: Only after extract succeeds does transform become scheduled — the dependency lives in the DB too.
+        check: { metric: 'eventMatch:transform: none → scheduled', op: '>=', value: 1 }
+      - title: DagRun success
+        body: When every task instance is success, the scheduler marks the DagRun success.
+        check: { metric: eventMatch:run_1 success, op: '>=', value: 1 }
+  - id: db-slow
+    title: Slow metadata DB stalls everything
+    minutes: 3
+    template: tech-airflow-db-slow
+    steps:
+      - title: Healthy loop
+        body: Each scheduler loop is a batch of ~8 queries; it takes around 100ms.
+        check: { metric: gauge:runsDone, target: scheduler, op: '>=', value: 1 }
+      - title: Slow the DB 20×
+        body: Tap ⚡ Break → Slow on the Metadata DB (lock contention, a vacuum, a bad index).
+        action: { event: { kind: slow, target: meta-db, params: { x: 20 }, durationSec: 20 } }
+        check: { metric: gauge:loopMs, target: scheduler, op: '>=', value: 1500 }
+      - title: Nothing moves
+        body: Scheduling, heartbeats and state updates all queue on the same DB, so tasks sit in queued even with idle workers.
+        check: { metric: gauge:queued, target: scheduler, op: '>=', value: 1 }
+      - title: Recovery
+        body: When the DB recovers the loop drops back to ~100ms and the backlog drains.
+        check: { metric: gauge:loopMs, target: scheduler, op: '<', value: 400 }
+  - id: zombie
+    title: Worker killed → zombie tasks
+    minutes: 3
+    template: tech-airflow-zombie
+    steps:
+      - title: Tasks running on both workers
+        body: Running tasks heartbeat to the DB every second.
+        check: { metric: gauge:running, target: worker-1, op: '>=', value: 1 }
+      - title: Kill Worker 1
+        body: Tap ⚡ Break → Kill on Worker 1. Its task instances still say running in the DB.
+        action: { event: { kind: kill, target: worker-1 } }
+        check: { metric: up, target: worker-1, op: '=', value: 0 }
+      - title: Zombie detection
+        body: No heartbeat for 10s (300s by default), so the scheduler declares them zombies.
+        check: { metric: eventMatch:zombie detected, op: '>=', value: 1 }
+      - title: Retry elsewhere
+        body: With retries left, each zombie goes up_for_retry and later runs on Worker 2.
+        check: { metric: gauge:zombies, target: scheduler, op: '>=', value: 1 }
+  - id: catchup
+    title: catchup=True backfill flood
+    minutes: 3
+    template: tech-airflow-catchup
+    steps:
+      - title: Unpaused with 40 missed intervals
+        body: catchup=True creates a DagRun for every interval since start_date — all at once.
+        check: { metric: eventMatch:catchup=true, op: '>=', value: 1 }
+      - title: max_active_runs caps it
+        body: 16 runs start, the other 24 wait in queued state.
+        check: { metric: gauge:runsQueued, target: scheduler, op: '>=', value: 10 }
+      - title: Slots flooded
+        body: 16 runs want 16 tasks but the workers have 8 slots, so task instances pile up in queued.
+        check: { metric: gauge:queued, target: scheduler, op: '>=', value: 5 }
+      - title: Draining the backlog
+        body: It clears eventually; set catchup=False (or a lower max_active_runs) to avoid starving other DAGs.
+        check: { metric: gauge:runsDone, target: scheduler, op: '>=', value: 20 }
+  - id: sensors-poke
+    title: Sensors eating all slots
+    minutes: 3
+    template: tech-airflow-sensors-poke
+    steps:
+      - title: A sensor per run
+        body: Each run starts with wait_for_file in poke mode — it sleeps in a worker slot until the file lands (30s).
+        check: { metric: gauge:sensorsRunning, target: scheduler, op: '>=', value: 4 }
+      - title: Every slot is a sleeping sensor
+        body: New runs keep arriving every 3s; soon all 8 slots hold sensors.
+        check: { metric: gauge:sensorsRunning, target: scheduler, op: '>=', value: 8 }
+      - title: Real work starves
+        body: extract tasks sit in queued even though nothing is computing.
+        check: { metric: gauge:queued, target: scheduler, op: '>=', value: 3 }
+  - id: sensors-deferrable
+    title: Deferrable sensors free the slots
+    minutes: 3
+    template: tech-airflow-sensors-deferrable
+    steps:
+      - title: Defer to the triggerer
+        body: The sensor pokes once, then defers; the Triggerer waits with one async loop.
+        check: { metric: gauge:deferred, target: scheduler, op: '>=', value: 3 }
+      - title: Slots stay free
+        body: Dozens of waits cost no worker slot (mode=reschedule is the older fix, freeing the slot between pokes).
+        check: { metric: gauge:triggers, target: triggerer, op: '>=', value: 5 }
+      - title: Resume
+        body: When the file lands the trigger fires, the task resumes and downstream tasks run.
+        check: { metric: gauge:runsDone, target: scheduler, op: '>=', value: 1 }
+  - id: non-idempotent-retry
+    title: Non-idempotent task retried
+    minutes: 3
+    template: tech-airflow-retry
+    steps:
+      - title: Tasks fail after writing
+        body: Each task INSERTs rows, then 25% fail on a network error.
+        check: { metric: eventMatch:up_for_retry, op: '>=', value: 1 }
+      - title: The retry inserts again
+        body: Airflow retries the whole task, so the INSERT runs twice. Make tasks idempotent (MERGE / overwrite a partition).
+        check: { metric: anomaly:duplicate, op: '>=', value: 1 }
+  - id: scheduler-ha
+    title: Two schedulers without row locks
+    minutes: 3
+    template: tech-airflow-ha
+    steps:
+      - title: HA schedulers
+        body: Two schedulers run the same loop against one DB for high availability.
+        check: { metric: gauge:runsDone, target: scheduler-1, op: '>=', value: 1 }
+      - title: Race on a task instance
+        body: MySQL 5.7 has no SELECT … FOR UPDATE SKIP LOCKED, so both can read the same scheduled row and queue it.
+        check: { metric: eventMatch:race, op: '>=', value: 1 }
+      - title: Task runs twice
+        body: The same task executes on two workers. With Postgres row locks (swap the DB skin) the second scheduler skips locked rows.
+        check: { metric: anomaly:duplicate, op: '>=', value: 1 }

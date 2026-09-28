@@ -1,0 +1,47 @@
+id: tinyurl
+title: TinyURL
+icon: link
+category: classic
+order: 4
+summary: Shorten long URLs; redirect fast, forever.
+requirements:
+  - Create a short link; redirect to the long URL
+  - Optional custom alias and expiry
+  - 100M new links/day · 10B redirects/day (100:1)
+  - Redirect p99 < 50ms · 99.99% available
+estimates:
+  - Writes 1.2k/s · reads 115k/s
+  - 7 base62 chars = 3.5T codes
+  - 500 B/link × 36B links over 1 year ≈ 18 TB
+designs:
+  - { id: v1, title: "Naive: app + one Postgres", template: problem-tinyurl-v1 }
+  - { id: v2, title: "Reference: CDN 301s, Redis, Snowflake IDs", template: problem-tinyurl-v2 }
+challenges:
+  - id: viral-link
+    title: "Viral link: 100:1 read burst, hot key, p99 < 50ms"
+    template: problem-tinyurl-v2
+    scenario:
+      durationSec: 60
+      sources: [{ id: clicks, node: users, shape: { kind: constant, rps: 5000 }, readRatio: 0.99, keys: { kind: zipf, s: 1 } }]
+      events:
+        - { atSec: 25, event: { kind: traffic, action: hot-key, params: { hot: 0.5 }, durationSec: 40 } }
+        - { atSec: 30, event: { kind: traffic, action: burst, params: { x: 5 }, durationSec: 30 } }
+    pass:
+      - { metric: p99, op: '<', value: 50 }
+      - { metric: availability, op: '>=', value: 99.9 }
+  - id: launch-day
+    title: "Launch day: 20k rps on a budget"
+    template: problem-tinyurl-v2
+    scenario:
+      durationSec: 60
+      sources: [{ id: clicks, node: users, shape: { kind: ramp, from: 5000, to: 20000, overSec: 30 }, readRatio: 0.99, keys: { kind: zipf, s: 1 } }]
+      events: []
+    pass:
+      - { metric: p99, op: '<', value: 50 }
+      - { metric: availability, op: '>=', value: 99.9 }
+      - { metric: costMonth, op: '<=', value: 1500 }
+keyIdeas:
+  - { label: Snowflake IDs → base62, link: "algo:snowflake" }
+  - { label: Read-heavy → cache-aside, link: "lesson:caching/cache-aside" }
+  - { label: 301 vs 302 decides CDN hit ratio, link: "lesson:caching/cdn" }
+  - { label: Hot link → request coalescing, link: "lesson:caching/stampede" }

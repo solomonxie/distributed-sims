@@ -1,0 +1,170 @@
+{
+  "schemaVersion": 1,
+  "id": "problem-tinyurl-v2",
+  "name": "URL shortener",
+  "description": "Redirects are cacheable 301s served from CDN PoPs near users; misses hit Redis, then Postgres read replicas. New codes come from a Snowflake-style ID generator, base62-encoded.",
+  "nodes": [
+    {
+      "id": "users",
+      "type": "web-client",
+      "skin": "react-spa",
+      "name": "Users",
+      "pos": {
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "id": "cdn",
+      "type": "cdn",
+      "skin": "cloudfront",
+      "name": "CDN (301s)",
+      "pos": {
+        "x": 0,
+        "y": 110
+      },
+      "config": {
+        "originShield": true
+      }
+    },
+    {
+      "id": "lb",
+      "type": "load-balancer",
+      "skin": "aws-alb",
+      "name": "Load balancer",
+      "pos": {
+        "x": 0,
+        "y": 220
+      }
+    },
+    {
+      "id": "app",
+      "type": "service",
+      "skin": "go-service",
+      "name": "URL service",
+      "pos": {
+        "x": 0,
+        "y": 330
+      },
+      "config": {
+        "instances": 3
+      }
+    },
+    {
+      "id": "idgen",
+      "type": "id-generator",
+      "skin": "snowflake-idgen",
+      "name": "ID generator",
+      "pos": {
+        "x": 110,
+        "y": 440
+      }
+    },
+    {
+      "id": "redis",
+      "type": "cache",
+      "skin": "redis",
+      "name": "Link cache",
+      "pos": {
+        "x": -80,
+        "y": 440
+      },
+      "config": {
+        "capacityKeys": 1024,
+        "ttlSec": 3600,
+        "coalescing": true
+      }
+    },
+    {
+      "id": "db",
+      "type": "relational-db",
+      "skin": "postgres",
+      "name": "Links DB",
+      "pos": {
+        "x": -80,
+        "y": 550
+      },
+      "config": {
+        "replicas": 2
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "users-cdn",
+      "from": "users",
+      "to": "cdn",
+      "config": {
+        "timeoutMs": 5000,
+        "latencyMs": 5
+      }
+    },
+    {
+      "id": "cdn-lb",
+      "from": "cdn",
+      "to": "lb"
+    },
+    {
+      "id": "lb-app",
+      "from": "lb",
+      "to": "app"
+    },
+    {
+      "id": "app-idgen",
+      "from": "app",
+      "to": "idgen",
+      "config": {
+        "op": "write"
+      }
+    },
+    {
+      "id": "app-redis",
+      "from": "app",
+      "to": "redis"
+    },
+    {
+      "id": "redis-db",
+      "from": "redis",
+      "to": "db"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 60,
+    "sources": [
+      {
+        "id": "clicks",
+        "node": "users",
+        "shape": {
+          "kind": "constant",
+          "rps": 5000
+        },
+        "readRatio": 0.99,
+        "keys": {
+          "kind": "zipf",
+          "s": 1
+        }
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "sho.rt",
+    "read": {
+      "path": "/{code}",
+      "status": 301,
+      "location": "https://blog.example.com/posts/{key}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/links",
+      "reqBody": "{\"url\": \"https://blog.example.com/posts/{key}\"}",
+      "status": 201,
+      "body": "{\"code\": \"{code}\", \"short_url\": \"https://sho.rt/{code}\"}"
+    },
+    "table": "links",
+    "keyCol": "code",
+    "valCol": "long_url",
+    "cachePrefix": "link:"
+  }
+}

@@ -1,0 +1,46 @@
+id: ticket-booking
+title: Ticket booking
+icon: ticket
+category: product
+order: 9
+summary: Sell a fixed number of seats to a stampede without selling any twice.
+requirements:
+  - Browse events and seat maps; hold seats; pay; get a ticket
+  - A seat is never sold twice; unpaid holds expire
+  - Survive on-sale stampedes 100× normal traffic
+  - 10M fans for one tour · 50k seats per show
+  - Browse p99 < 500ms · 0 double-sells
+estimates:
+  - Normal 50 rps → 5k rps in the first minute of an on-sale
+  - 80% browse (cacheable seat maps), 20% hold/buy
+  - Holds: 10 min TTL; ~70% convert to payment
+designs:
+  - { id: v1, title: "Naive: read-check-write", template: problem-ticket-booking-v1 }
+  - { id: v2, title: "Reference: CDN, waiting room, seat holds", template: problem-ticket-booking-v2 }
+challenges:
+  - id: flash-crowd
+    title: "Flash crowd 100×, 0 double-sell"
+    template: problem-ticket-booking-v2
+    scenario:
+      durationSec: 60
+      sources: [{ id: fans, node: users, shape: { kind: constant, rps: 50 }, readRatio: 0.8, keys: { kind: zipf, s: 1.2, keys: 8 } }]
+      events: [{ atSec: 10, event: { kind: traffic, action: flash-crowd, params: { x: 100 }, durationSec: 40 } }]
+    pass:
+      - { metric: anomalies, op: '=', value: 0 }
+      - { metric: p99, op: '<', value: 500 }
+  - id: sell-out
+    title: "Sell-out: hot show, sustained 40×"
+    template: problem-ticket-booking-v2
+    scenario:
+      durationSec: 60
+      sources: [{ id: fans, node: users, shape: { kind: constant, rps: 2000 }, readRatio: 0.8, keys: { kind: zipf, s: 1.5, keys: 4 } }]
+      events: []
+    pass:
+      - { metric: anomalies, op: '=', value: 0 }
+      - { metric: p99, op: '<', value: 500 }
+      - { metric: costMonth, op: '<=', value: 1000 }
+keyIdeas:
+  - { label: Seat holds with TTL (reservation), link: "lesson:distributed-transaction" }
+  - { label: Pessimistic vs optimistic locking, link: "lesson:consistency/conflict-resolution" }
+  - { label: Waiting room = leaky bucket, link: "lesson:rate-limit/token-vs-leaky" }
+  - { label: Cache seat maps at the edge, link: "lesson:caching/cdn" }

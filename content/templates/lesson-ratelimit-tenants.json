@@ -1,0 +1,182 @@
+{
+  "schemaVersion": 1,
+  "id": "lesson-ratelimit-tenants",
+  "name": "Per-tenant rate limits",
+  "description": "Acme and a noisy tenant share each limiter. Left: one global budget of 200 req/s. Right: 100 req/s per tenant. When the noisy tenant bursts 10×, it eats the global budget and Acme gets 429s; per-tenant buckets only throttle the noisy one.",
+  "nodes": [
+    {
+      "id": "acme-g",
+      "type": "web-client",
+      "name": "Acme",
+      "pos": {
+        "x": 25,
+        "y": 60
+      }
+    },
+    {
+      "id": "noisy-g",
+      "type": "web-client",
+      "name": "Noisy Co",
+      "pos": {
+        "x": 125,
+        "y": 60
+      }
+    },
+    {
+      "id": "rl-global",
+      "type": "rate-limiter",
+      "name": "Global limit",
+      "pos": {
+        "x": 75,
+        "y": 200
+      },
+      "config": {
+        "algorithm": "token-bucket",
+        "limit": 200,
+        "burst": 200,
+        "scope": "global"
+      }
+    },
+    {
+      "id": "acme-t",
+      "type": "web-client",
+      "name": "Acme",
+      "pos": {
+        "x": 265,
+        "y": 60
+      }
+    },
+    {
+      "id": "noisy-t",
+      "type": "web-client",
+      "name": "Noisy Co",
+      "pos": {
+        "x": 365,
+        "y": 60
+      }
+    },
+    {
+      "id": "rl-tenant",
+      "type": "rate-limiter",
+      "name": "Per-tenant limit",
+      "pos": {
+        "x": 315,
+        "y": 200
+      },
+      "config": {
+        "algorithm": "token-bucket",
+        "limit": 100,
+        "burst": 100,
+        "scope": "per-tenant"
+      }
+    },
+    {
+      "id": "api",
+      "type": "service",
+      "name": "API",
+      "pos": {
+        "x": 195,
+        "y": 340
+      },
+      "config": {
+        "instances": 8
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "acme-g->rl-global",
+      "from": "acme-g",
+      "to": "rl-global"
+    },
+    {
+      "id": "noisy-g->rl-global",
+      "from": "noisy-g",
+      "to": "rl-global"
+    },
+    {
+      "id": "acme-t->rl-tenant",
+      "from": "acme-t",
+      "to": "rl-tenant"
+    },
+    {
+      "id": "noisy-t->rl-tenant",
+      "from": "noisy-t",
+      "to": "rl-tenant"
+    },
+    {
+      "id": "rl-global->api",
+      "from": "rl-global",
+      "to": "api"
+    },
+    {
+      "id": "rl-tenant->api",
+      "from": "rl-tenant",
+      "to": "api"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 120,
+    "sources": [
+      {
+        "id": "acme-g",
+        "node": "acme-g",
+        "shape": {
+          "kind": "constant",
+          "rps": 80
+        },
+        "tenants": {
+          "acme": 1
+        }
+      },
+      {
+        "id": "noisy-g",
+        "node": "noisy-g",
+        "shape": {
+          "kind": "constant",
+          "rps": 80
+        },
+        "tenants": {
+          "noisy": 1
+        }
+      },
+      {
+        "id": "acme-t",
+        "node": "acme-t",
+        "shape": {
+          "kind": "constant",
+          "rps": 80
+        },
+        "tenants": {
+          "acme": 1
+        }
+      },
+      {
+        "id": "noisy-t",
+        "node": "noisy-t",
+        "shape": {
+          "kind": "constant",
+          "rps": 80
+        },
+        "tenants": {
+          "noisy": 1
+        }
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "api.saas.example",
+    "read": {
+      "path": "/v1/contacts/{key}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/v1/contacts",
+      "reqBody": "{\"email\": \"c{key}@acme.example\"}",
+      "status": 201,
+      "body": "{\"id\": {key}}"
+    }
+  }
+}

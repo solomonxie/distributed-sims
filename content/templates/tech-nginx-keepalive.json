@@ -1,0 +1,90 @@
+{
+  "schemaVersion": 1,
+  "id": "tech-nginx-keepalive",
+  "name": "nginx: upstream without keepalive",
+  "description": "Keepalive to the upstream is off: every proxied request opens a new TCP connection and leaves an ephemeral port in TIME_WAIT for 60s.",
+  "nodes": [
+    {
+      "id": "users",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 195,
+        "y": 40
+      }
+    },
+    {
+      "id": "nginx",
+      "type": "nginx-server",
+      "name": "nginx",
+      "pos": {
+        "x": 195,
+        "y": 170
+      },
+      "skin": "nginx-internals",
+      "config": {
+        "workers": 4,
+        "upstreamKeepalive": false
+      }
+    },
+    {
+      "id": "app",
+      "type": "service",
+      "name": "app upstream",
+      "pos": {
+        "x": 195,
+        "y": 300
+      },
+      "config": {
+        "instances": 4,
+        "slots": 64,
+        "p50Ms": 5,
+        "p99Ms": 20
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "users-nginx",
+      "from": "users",
+      "to": "nginx",
+      "config": {
+        "timeoutMs": 3000
+      }
+    },
+    {
+      "id": "nginx-app",
+      "from": "nginx",
+      "to": "app"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 300,
+    "sources": [
+      {
+        "id": "s1",
+        "node": "users",
+        "shape": {
+          "kind": "constant",
+          "rps": 2000
+        }
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "shop.lumenwear.com",
+    "read": {
+      "path": "/api/products/{key}",
+      "body": "{\"id\": {key}, \"name\": \"Linen shirt\", \"stock\": {value}}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/cart/items",
+      "reqBody": "{\"product_id\": {key}, \"qty\": 1}",
+      "status": 201,
+      "body": "{\"cart_items\": 3}"
+    }
+  }
+}

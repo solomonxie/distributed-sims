@@ -1,0 +1,131 @@
+id: consistency
+title: Consistency
+group: topics
+icon: git-compare
+order: 3
+summary: What a read is allowed to return when data lives on more than one machine.
+info: Replicas make reads cheap and data durable, but they are never perfectly in sync. Each consistency level decides which stale or reordered reads you accept in exchange for latency and availability. The anomaly counters on the run bar count every stale, reordered, lost or diverged read.
+algos: [clocks, crdt, gossip, merkle-tree]
+problems: [kv-store]
+lessons:
+  - id: replication-lag
+    title: Replication lag
+    minutes: 3
+    template: lesson-consistency-lag
+    steps:
+      - title: Write to the primary, read a replica
+        body: Replicas apply the primary's log ~30ms late. A read that lands in that gap returns the previous value.
+        watch: The stale-read counter ticks up slowly.
+        check: { metric: anomaly:stale-read, op: '>=', value: 20 }
+      - title: A replica falls behind
+        body: Tap ⚡ Break → Replica lag on Postgres. A long query or a backup can stall replay for seconds.
+        action: { event: { kind: replica-lag, target: db, params: { ms: 3000 }, durationSec: 60 } }
+        watch: The lag badge reads ~3s.
+        check: { metric: gauge:replLagMs, target: db, op: '>=', value: 2000 }
+      - title: Users read the past
+        body: Every read of a key written in the last 3s now returns old data; "I saved it, but it's gone" bug reports start here.
+        check: { metric: anomaly:stale-read, op: '>=', value: 500 }
+
+  - id: quorum
+    title: Quorum N/R/W
+    minutes: 5
+    template: lesson-consistency-quorum
+    steps:
+      - title: Two quorum settings
+        body: Both clusters keep every key on N=3 members. A waits for 1 ack per read and write; B waits for 2.
+        watch: Badges show R+W≤N on A and R+W>N on B.
+        check: { metric: time, op: '>=', value: 4 }
+      - title: Split cluster A
+        body: Tap ⚡ Break → Split brain on Cassandra ONE. Each side keeps accepting writes, and reads on one side miss the other side's writes.
+        action: { event: { kind: split-brain, target: kv-one, durationSec: 10 } }
+        check: { metric: anomaly:stale-read, op: '>=', value: 50 }
+      - title: The heal loses writes
+        body: After 10s the split heals. Keys written on both sides diverged; last-writer-wins keeps one and silently drops the other.
+        check: { metric: anomaly:divergence, op: '>=', value: 1 }
+      - title: Split cluster B
+        body: Now split Cassandra QUORUM. With R=W=2, the single member on the small side can't gather 2 acks, so it refuses.
+        action: { event: { kind: split-brain, target: kv-q, durationSec: 10 } }
+        watch: About a third of B's requests fail; the anomaly counters stay put.
+        check: { metric: errRate, target: kv-q, op: '>=', value: 15 }
+
+  - id: consistency-ladder
+    title: Consistency ladder
+    minutes: 5
+    template: lesson-consistency-ladder
+    steps:
+      - title: Four levels, one workload
+        body: Each cluster has replicas ~200ms behind. Only the read rule differs.
+        check: { metric: time, op: '>=', value: 5 }
+      - title: Eventual goes backwards
+        body: Eventual reads pick any replica. Two reads in a row can hit different replicas, so the second returns an older version.
+        watch: The out-of-order counter climbs.
+        check: { metric: anomaly:out-of-order, op: '>=', value: 20 }
+      - title: Monotonic never goes back
+        body: Monotonic pins each key to one replica, so versions only move forward. They can still be old.
+        watch: The stale-read counter keeps climbing.
+        check: { metric: anomaly:stale-read, op: '>=', value: 500 }
+      - title: Read-your-writes
+        body: The session carries the version of its last write. If the replica hasn't reached it, the read goes to the primary.
+        check: { metric: p99, target: db-ryw, op: '<=', value: 30 }
+      - title: Linearizable costs latency
+        body: Every read goes to the primary and confirms it is still leader first. No anomalies, but the slowest reads of the four.
+        watch: p99 on Linearizable runs ~2× the others.
+        check: { metric: p99, target: db-lin, op: '>=', value: 20 }
+
+  - id: sync-vs-async
+    title: Sync vs async replication
+    minutes: 4
+    template: lesson-consistency-sync-async
+    steps:
+      - title: Semi-sync waits for a replica
+        body: B acks a write only after one replica has stored it, so writes pay the replication delay.
+        check: { metric: p99, target: db-sync, op: '>=', value: 80 }
+      - title: Async answers at once
+        body: A acks as soon as the primary commits and ships the log afterwards.
+        check: { metric: p99, target: db-async, op: '<=', value: 30 }
+      - title: Kill A's primary
+        body: Tap ⚡ Break → Kill leader on Postgres async. Writes it acked but hadn't shipped die with it; failover takes 5s.
+        action: { event: { kind: kill-leader, target: db-async } }
+        watch: The lost-write counter jumps when the replica is promoted.
+        check: { metric: anomaly:lost-write, op: '>=', value: 1 }
+      - title: Kill B's primary
+        body: Now kill Postgres semi-sync's leader. Every acked write is already on a replica, so the promoted one has them all.
+        action: { event: { kind: kill-leader, target: db-sync } }
+        watch: A replica is promoted; lost-write doesn't move.
+        check: { metric: eventMatch:promoted, op: '>=', value: 2 }
+
+  - id: cap
+    title: CAP under partition
+    minutes: 5
+    template: lesson-consistency-cap
+    steps:
+      - title: Two systems, one network
+        body: Left, etcd (Raft, CP); right, Cassandra at ONE (AP). Wait for etcd to elect its 👑 leader.
+        check: { metric: time, op: '>=', value: 5 }
+      - title: Partition the zones
+        body: Tap ⚡ Break → Partition between Zone A and Zone B. etcd-3 is alone and can't reach a majority.
+        action: { event: { kind: partition, target: az-a, target2: az-b, durationSec: 15 } }
+        watch: Requests that land on etcd-3 fail. etcd chose consistency over availability.
+        check: { metric: errRate, target: api-cp, op: '>=', value: 20 }
+      - title: Split Cassandra
+        body: Now split Cassandra ONE. Both sides keep answering, so availability stays at 100%.
+        action: { event: { kind: split-brain, target: kv, durationSec: 10 } }
+        watch: Stale reads climb instead. Cassandra chose availability.
+        check: { metric: anomaly:stale-read, op: '>=', value: 20 }
+      - title: Pay on heal
+        body: When the split heals, keys written on both sides disagree and one version is dropped.
+        check: { metric: anomaly:divergence, op: '>=', value: 1 }
+
+  - id: conflict-resolution
+    title: Conflict resolution
+    minutes: 4
+    algo: crdt
+    steps:
+      - title: Concurrent writes
+        body: Three replicas accept increments while cut off from each other. Last-writer-wins would keep one replica's count and drop the rest.
+      - title: One slot per replica
+        body: A G-counter keeps a slot per replica, and each replica only bumps its own. Vector clocks use the same shape to detect that updates were concurrent.
+      - title: Merge = element-wise max
+        body: Merging takes the max of each slot, so order and repeats don't matter.
+      - title: Everyone converges
+        body: All replicas reach 2 + 1 + 3 = 6 whatever the merge order. Nothing is lost and no coordinator is needed.

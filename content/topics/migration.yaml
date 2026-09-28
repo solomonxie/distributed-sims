@@ -1,0 +1,114 @@
+id: migration
+title: Migration
+group: topics
+icon: arrow-right-left
+order: 8
+summary: Change a running system without taking it down, by shifting traffic, data and schema a step at a time.
+info: A safe migration is a series of small, reversible steps. Route a slice of traffic to the new thing, copy data and verify it before cutting over, change schemas without locking hot tables, and remember that DNS and caches keep pointing at the old world for a while.
+lessons:
+  - id: strangler-fig
+    title: Strangler fig
+    minutes: 4
+    template: lesson-migration-strangler
+    steps:
+      - title: 10% on the new service
+        body: The edge router sends 90% of requests to the legacy monolith and 10% to the new Orders service.
+        watch: Dots split roughly 9:1 at the router.
+        check: { metric: rps, target: orders-new, op: '>=', value: 10 }
+      - title: The new service has a bug
+        body: Ship a bad deploy to Orders (new) for 15s. Only the 10% slice routed to it fails.
+        action: { event: { kind: bad-deploy, target: orders-new, params: { errPct: 100 }, durationSec: 15 } }
+        watch: Users availability dips to ~90%, not 0.
+        check: { metric: availability, target: users, op: '<', value: 97 }
+      - title: Rolled back
+        body: The bad deploy is rolled back after 15s. Fix it, then move more traffic over.
+        check: { metric: availability, target: users, op: '>=', value: 99.5 }
+      - title: Shift traffic
+        body: Tap the router → Orders (new) edge and set its ratio to 0.5, and the router → monolith edge to 0.5. Repeat until the monolith gets nothing, then delete it.
+        watch: Orders (new) rps climbs to about half of all traffic.
+        check: { metric: rps, target: orders-new, op: '>=', value: 80 }
+
+  - id: db-migration
+    title: DB migration
+    minutes: 5
+    template: lesson-migration-dualwrite
+    steps:
+      - title: Copy every write
+        body: The app writes to the old DB, and each write is copied to the new cluster twice. Left is a best-effort dual-write, right is CDC (Debezium) tailing the old DB.
+        watch: Both relays show rows flowing into the new DBs.
+        check: { metric: 'gauge:relayed', target: cdc, op: '>=', value: 50 }
+      - title: The new cluster blips
+        body: Take the new cluster's AZ down for 10s. The dual-write can't reach its DB and silently drops those rows.
+        action: { event: { kind: az-down, target: new, durationSec: 10 } }
+        watch: Lost-write anomalies count rows that are now missing from the new DB.
+        check: { metric: 'anomaly:lost-write', op: '>=', value: 1 }
+      - title: CDC keeps a backlog
+        body: CDC reads the old DB's log, so unsent rows wait in its backlog instead of vanishing.
+        watch: The CDC badge's pending count grows while the cluster is down.
+        check: { metric: 'gauge:pending', target: cdc, op: '>=', value: 20 }
+      - title: Verify, then cut over
+        body: When the cluster returns, CDC backfills and its backlog drains to 0. Only cut reads over after a verify pass shows zero drift, which the dual-write copy can't pass without a full re-backfill.
+        check: { metric: 'gauge:pending', target: cdc, op: '<=', value: 0 }
+
+  - id: blue-green-canary
+    title: Blue/green vs canary
+    minutes: 4
+    template: lesson-migration-deploys
+    steps:
+      - title: Two rollout styles
+        body: Left, green (v2) already takes 100% of traffic and blue (v1) idles for rollback. Right, the canary takes 5% next to the stable fleet.
+        check: { metric: time, op: '>=', value: 5 }
+      - title: Bad build on green
+        body: Ship a bad deploy to Green for 10s. Every user on the left hits it at once.
+        action: { event: { kind: bad-deploy, target: green, params: { errPct: 100 }, durationSec: 10 } }
+        watch: Left availability falls to ~0%.
+        check: { metric: availability, target: users-bg, op: '<', value: 10 }
+      - title: Instant rollback
+        body: Blue/green rolls back by switching the router to blue, which is still warm. Here the deploy is reverted after 10s.
+        check: { metric: availability, target: users-bg, op: '>=', value: 99.5 }
+      - title: Same bad build as a canary
+        body: Ship the bad deploy to the Canary for 15s. Only its 5% slice fails, and the canary alarm stops the rollout.
+        action: { event: { kind: bad-deploy, target: canary, params: { errPct: 100 }, durationSec: 15 } }
+        watch: Right availability dips to about 95%.
+        check: { metric: availability, target: users-c, op: '<', value: 99 }
+
+  - id: schema-change
+    title: Schema change under load
+    minutes: 4
+    template: lesson-migration-schema
+    steps:
+      - title: Half the traffic writes
+        body: Two identical apps, 600 req/s each, half of them writes.
+        check: { metric: time, op: '>=', value: 5 }
+      - title: Plain ALTER TABLE
+        body: Run a locking ALTER on the left DB for 15s. Every write queues behind the table lock and times out after 1s.
+        action: { event: { kind: schema-lock, target: db-a, durationSec: 15 } }
+        watch: A schema lock badge on the DB, and left availability falls to about half.
+        check: { metric: availability, target: users-a, op: '<', value: 70 }
+      - title: Online migration
+        body: Run the same change on the right with gh-ost. It copies rows into a shadow table in the background (simulated here as a CPU hog for 15s), then swaps tables.
+        action: { event: { kind: cpu-hog, target: db-b, durationSec: 15 } }
+        watch: DB utilisation rises, but every write still succeeds.
+        check: { metric: util, target: db-b, op: '>=', value: 25 }
+
+  - id: region-move
+    title: Region move
+    minutes: 4
+    template: lesson-migration-region
+    steps:
+      - title: Replicate first
+        body: All users resolve to us-east-1. us-west-2 already runs the app on a replica of the data.
+        watch: Traffic flows only down the left stack.
+        check: { metric: rps, target: app-old, op: '>=', value: 50 }
+      - title: Switch DNS
+        body: Take the old load balancer out for 60s. DNS health checks mark it down in ~4s, but anyone holding a cached answer keeps going there.
+        action: { event: { kind: kill, target: lb-old, durationSec: 60 } }
+        watch: Errors during the TTL lag window.
+        check: { metric: availability, target: users, op: '<', value: 90 }
+      - title: TTL lag ends
+        body: When the 20s TTL runs out, clients resolve again and get us-west-2. Lower the TTL days before a planned move.
+        watch: The log shows DNS now resolving to the new LB.
+        check: { metric: 'eventMatch:now resolves to', op: '>=', value: 1 }
+      - title: Moved
+        body: All traffic now lands in us-west-2. Keep the old region warm until you're sure you won't roll back.
+        check: { metric: rps, target: app-new, op: '>=', value: 50 }

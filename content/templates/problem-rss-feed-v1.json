@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "id": "problem-rss-feed-v1",
+  "name": "RSS reader: naive",
+  "description": "A fetcher pulls every due feed immediately with no concurrency cap, and each timeline read merges subscriptions in Postgres.",
+  "nodes": [
+    {"id":"users","type":"mobile-client","skin":"ios-app","name":"Readers","pos":{"x":-80,"y":0}},
+    {"id":"scheduler","type":"bot","name":"Feed scheduler","pos":{"x":80,"y":0}},
+    {"id":"api","type":"service","skin":"node-service","name":"Reader API","pos":{"x":-80,"y":110},"config":{"instances":2}},
+    {"id":"fetcher","type":"service","skin":"go-service","name":"Fetcher","pos":{"x":80,"y":110},"config":{"instances":2}},
+    {"id":"db","type":"relational-db","skin":"postgres","name":"Feeds + items","pos":{"x":-80,"y":220},"config":{"p50Ms":15,"p99Ms":60}},
+    {"id":"publishers","type":"external-api","name":"Publisher sites","pos":{"x":80,"y":220},"config":{"quotaRps":100,"p50Ms":200,"p99Ms":1200,"availabilityPct":99.5}}
+  ],
+  "edges": [
+    {"id":"users-api","from":"users","to":"api","config":{"timeoutMs":5000}},
+    {"id":"api-db","from":"api","to":"db"},
+    {"id":"scheduler-fetcher","from":"scheduler","to":"fetcher","config":{"timeoutMs":5000}},
+    {"id":"fetcher-publishers","from":"fetcher","to":"publishers","config":{"timeoutMs":3000}},
+    {"id":"fetcher-db","from":"fetcher","to":"db"}
+  ],
+  "containers": [],
+  "scenario": {"durationSec":60,"sources":[{"id":"readers","node":"users","shape":{"kind":"constant","rps":3000},"readRatio":1,"keys":{"kind":"zipf","s":1.1}},{"id":"due-feeds","node":"scheduler","shape":{"kind":"constant","rps":60},"readRatio":0,"keys":{"kind":"uniform"}}],"events":[]},
+  "wire": {
+    "host": "api.reader.example",
+    "read": {
+      "method": "GET",
+      "path": "/v1/users/{key}/timeline",
+      "status": 200,
+      "body": "{\"items\": [{\"guid\": \"…\", \"title\": \"…\"}], \"unread\": 12}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/v1/subscriptions",
+      "reqBody": "{\"user_id\": {key}, \"feed_url\": \"https://blog.example.com/rss\"}",
+      "status": 201,
+      "body": "{\"feed_id\": {key}}"
+    },
+    "table": "feed_items",
+    "valCol": "title"
+  }
+}

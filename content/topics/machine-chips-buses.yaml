@@ -1,0 +1,66 @@
+id: machine-chips-buses
+title: Chips & buses
+group: machine
+icon: circuit-board
+order: 4
+summary: How bytes move between CPU, DRAM and devices, and why that costs what it costs.
+info: A cache miss becomes a bus transaction to DRAM, where rows must be opened before columns can be read. Devices sit on PCIe, a packet network, and move data with DMA while the CPU does other work. Most of a small IO's latency is the device itself; big IO is bandwidth-bound.
+algos: [bus-cycle, bus-dram, bus-pcie, bus-dma]
+lessons:
+  - id: bus-read
+    title: A memory read cycle
+    minutes: 3
+    algo: bus-cycle
+    steps:
+      - title: Row miss
+        body: The controller decodes the address to a bank, row and column. The open row is wrong, so it precharges, activates the new row, then reads.
+        watch: DRAM time adds up to ~44 ns; with queues a load sees ~100 ns.
+        check: { metric: manual }
+      - title: Row hit
+        body: Switch to "Row buffer hit". The row is already open, so only the column read remains.
+        watch: ~16 ns, ~2.7× faster.
+        check: { metric: manual }
+
+  - id: dram
+    title: DRAM banks & rows
+    minutes: 3
+    algo: bus-dram
+    steps:
+      - title: Row-buffer hits
+        body: Reading along one open row costs one column read each, ~14 ns.
+        check: { metric: manual }
+      - title: Conflicts
+        body: Switch to "Ping-pong rows". Alternating rows in one bank forces precharge + activate every time.
+        watch: 3× a hit per access.
+        check: { metric: manual }
+      - title: Spread across banks
+        body: Switch to "Rows in 2 banks". Each bank keeps its own row open, and the controller interleaves them.
+        check: { metric: manual }
+
+  - id: pcie
+    title: PCIe
+    minutes: 3
+    algo: bus-pcie
+    steps:
+      - title: A 4 KB NVMe read
+        body: Doorbell, command fetch, flash read, DMA and an interrupt, all as TLP packets on the link.
+        watch: ~63 µs total, but the transfer itself is 0.5 µs; small IO is latency-bound.
+        check: { metric: manual }
+      - title: A 1 MB read
+        body: Switch to "1 MB NVMe read". Now the transfer dominates.
+        watch: Big IO is bandwidth-bound, so more lanes would help.
+        check: { metric: manual }
+
+  - id: dma-zero-copy
+    title: DMA & zero-copy
+    minutes: 3
+    algo: bus-dma
+    steps:
+      - title: read() + write()
+        body: Serving a file with read then write copies the bytes twice through the CPU. That's 2 syscalls and 4 mode switches for data the app never looks at.
+        watch: CPU copies = 2.
+        check: { metric: manual }
+      - title: sendfile()
+        body: Switch to "sendfile()". The NIC gathers straight from page-cache pages by DMA.
+        watch: 0 CPU copies, 1 syscall; Kafka and nginx serve files this way.
+        check: { metric: manual }

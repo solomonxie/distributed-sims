@@ -1,0 +1,123 @@
+{
+  "schemaVersion": 1,
+  "id": "analytics-lakehouse",
+  "name": "Databricks lakehouse on S3",
+  "description": "Events stream into a Delta table on S3 (Auto Loader micro-batch every 2s + single-row appends), a batch job runs every 20s, and BI queries scan 5% of a 100GB table on an autoscaling 2\u20136 worker Photon cluster. OPTIMIZE compacts small files every 30s.",
+  "nodes": [
+    {
+      "id": "ingest",
+      "type": "iot-device",
+      "name": "Event ingest",
+      "pos": {
+        "x": 55,
+        "y": 60
+      }
+    },
+    {
+      "id": "bi",
+      "type": "web-client",
+      "name": "BI queries",
+      "pos": {
+        "x": 335,
+        "y": 60
+      }
+    },
+    {
+      "id": "lake",
+      "type": "lakehouse",
+      "name": "Databricks",
+      "pos": {
+        "x": 195,
+        "y": 200
+      },
+      "skin": "databricks",
+      "config": {
+        "minWorkers": 2,
+        "maxWorkers": 6,
+        "workerStartSec": 8,
+        "streamIngest": true,
+        "microBatchSec": 2,
+        "optimizeEverySec": 30,
+        "jobEverySec": 20,
+        "jobGB": 20,
+        "scanPct": 5,
+        "autoTerminateSec": 0
+      }
+    },
+    {
+      "id": "s3",
+      "type": "object-store",
+      "name": "Delta table \u00b7 S3",
+      "pos": {
+        "x": 195,
+        "y": 340
+      },
+      "skin": "s3"
+    }
+  ],
+  "edges": [
+    {
+      "id": "ingest-lake",
+      "from": "ingest",
+      "to": "lake",
+      "config": {
+        "timeoutMs": 30000
+      }
+    },
+    {
+      "id": "bi-lake",
+      "from": "bi",
+      "to": "lake",
+      "config": {
+        "timeoutMs": 60000
+      }
+    },
+    {
+      "id": "lake-s3",
+      "from": "lake",
+      "to": "s3"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 180,
+    "sources": [
+      {
+        "id": "events",
+        "node": "ingest",
+        "shape": {
+          "kind": "constant",
+          "rps": 1
+        },
+        "readRatio": 0
+      },
+      {
+        "id": "queries",
+        "node": "bi",
+        "shape": {
+          "kind": "constant",
+          "rps": 0.5
+        },
+        "readRatio": 1
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "lake.acme.io",
+    "read": {
+      "method": "GET",
+      "path": "/api/bi/revenue?store={key}",
+      "body": "{\"store_id\": {key}, \"revenue_7d\": 18230.5}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/v1/events",
+      "reqBody": "{\"store_id\": {key}, \"amount\": {value}}",
+      "status": 202,
+      "body": "{\"accepted\": 1}"
+    },
+    "table": "sales_events",
+    "valCol": "amount"
+  }
+}

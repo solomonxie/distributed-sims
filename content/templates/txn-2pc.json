@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "id": "txn-2pc",
+  "name": "2PC happy path",
+  "description": "Coordinator prepares 3 databases, then commits. Open the sequence view to see prepare → vote → commit.",
+  "nodes": [
+    { "id": "web", "type": "web-client", "name": "Checkout", "pos": { "x": 195, "y": 60 } },
+    { "id": "tm", "type": "txn-coordinator", "skin": "2pc-coordinator", "name": "Coordinator", "pos": { "x": 195, "y": 200 } },
+    { "id": "orders", "type": "relational-db", "skin": "postgres", "name": "Orders DB", "pos": { "x": 55, "y": 340 } },
+    { "id": "payments", "type": "relational-db", "skin": "postgres", "name": "Payments DB", "pos": { "x": 195, "y": 340 } },
+    { "id": "stock", "type": "relational-db", "skin": "postgres", "name": "Stock DB", "pos": { "x": 335, "y": 340 } }
+  ],
+  "edges": [
+    { "id": "e1", "from": "web", "to": "tm", "config": { "timeoutMs": 3000 } },
+    { "id": "e2", "from": "tm", "to": "orders" },
+    { "id": "e3", "from": "tm", "to": "payments" },
+    { "id": "e4", "from": "tm", "to": "stock" }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 60,
+    "sources": [{ "id": "s1", "node": "web", "shape": { "kind": "constant", "rps": 50 }, "readRatio": 0 }],
+    "events": [{ "atSec": 30, "event": { "kind": "disk-full", "target": "stock", "durationSec": 10 } }]
+  },
+  "wire": {
+    "host": "shop.acme.io",
+    "read": {
+      "method": "GET",
+      "path": "/api/orders/{key}",
+      "body": "{\"id\": {key}, \"status\": \"committed\"}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/checkout",
+      "reqBody": "{\"cart_id\": {key}, \"amount\": {value}}",
+      "status": 201,
+      "body": "{\"order_id\": {key}, \"status\": \"committed\"}"
+    },
+    "table": "orders",
+    "valCol": "status"
+  }
+}

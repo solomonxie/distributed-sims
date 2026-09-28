@@ -1,0 +1,159 @@
+{
+  "schemaVersion": 1,
+  "id": "tech-redis-aof",
+  "name": "Redis: appendfsync always vs everysec",
+  "description": "Both write an AOF. Left fsyncs before every reply; right fsyncs once a second in the background. Then the disk gets slow, then a crash.",
+  "nodes": [
+    {
+      "id": "users-a",
+      "type": "web-client",
+      "name": "Users always",
+      "pos": {
+        "x": 110,
+        "y": 40
+      }
+    },
+    {
+      "id": "app-a",
+      "type": "service",
+      "name": "app",
+      "pos": {
+        "x": 110,
+        "y": 160
+      },
+      "config": {
+        "instances": 4,
+        "slots": 256,
+        "p50Ms": 0.2,
+        "p99Ms": 1
+      }
+    },
+    {
+      "id": "r-always",
+      "type": "redis-server",
+      "name": "appendfsync always",
+      "pos": {
+        "x": 110,
+        "y": 290
+      },
+      "skin": "redis-internals",
+      "config": {
+        "appendonly": true,
+        "appendfsync": "always"
+      }
+    },
+    {
+      "id": "users-b",
+      "type": "web-client",
+      "name": "Users everysec",
+      "pos": {
+        "x": 280,
+        "y": 40
+      }
+    },
+    {
+      "id": "app-b",
+      "type": "service",
+      "name": "app",
+      "pos": {
+        "x": 280,
+        "y": 160
+      },
+      "config": {
+        "instances": 4,
+        "slots": 256,
+        "p50Ms": 0.2,
+        "p99Ms": 1
+      }
+    },
+    {
+      "id": "r-everysec",
+      "type": "redis-server",
+      "name": "appendfsync everysec",
+      "pos": {
+        "x": 280,
+        "y": 290
+      },
+      "skin": "redis-internals",
+      "config": {
+        "appendonly": true,
+        "appendfsync": "everysec",
+        "cluster": "r2"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "users-a-app-a",
+      "from": "users-a",
+      "to": "app-a",
+      "config": {
+        "timeoutMs": 3000
+      }
+    },
+    {
+      "id": "app-a-r-always",
+      "from": "app-a",
+      "to": "r-always",
+      "config": {
+        "timeoutMs": 3000
+      }
+    },
+    {
+      "id": "users-b-app-b",
+      "from": "users-b",
+      "to": "app-b",
+      "config": {
+        "timeoutMs": 3000
+      }
+    },
+    {
+      "id": "app-b-r-everysec",
+      "from": "app-b",
+      "to": "r-everysec",
+      "config": {
+        "timeoutMs": 3000
+      }
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 300,
+    "sources": [
+      {
+        "id": "s-a",
+        "node": "users-a",
+        "shape": {
+          "kind": "constant",
+          "rps": 10000
+        },
+        "readRatio": 0.5
+      },
+      {
+        "id": "s-b",
+        "node": "users-b",
+        "shape": {
+          "kind": "constant",
+          "rps": 10000
+        },
+        "readRatio": 0.5
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "api.arcadehub.gg",
+    "read": {
+      "path": "/v1/players/{key}/score",
+      "body": "{\"player_id\": {key}, \"score\": {value}}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/v1/scores",
+      "reqBody": "{\"player_id\": {key}, \"score\": {value}}",
+      "status": 201,
+      "body": "{\"rank\": 17}"
+    },
+    "cachePrefix": "score:"
+  }
+}

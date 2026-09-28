@@ -1,0 +1,91 @@
+{
+  "schemaVersion": 1,
+  "id": "lesson-network-pools",
+  "name": "Connection pool exhaustion",
+  "description": "The app keeps a pool of 20 DB connections, and each request holds one for the whole query. While the DB is fast, a few connections are enough. When queries slow down, all 20 stay busy, new requests queue for a connection and give up after 500ms.",
+  "nodes": [
+    {
+      "id": "users",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 195,
+        "y": 60
+      }
+    },
+    {
+      "id": "app",
+      "type": "monolith",
+      "name": "App · pool 20",
+      "pos": {
+        "x": 195,
+        "y": 200
+      },
+      "skin": "spring-monolith",
+      "config": {
+        "instances": 2,
+        "dbPool": 20,
+        "poolTimeoutMs": 500,
+        "gcPauses": false
+      }
+    },
+    {
+      "id": "db",
+      "type": "relational-db",
+      "name": "Postgres",
+      "pos": {
+        "x": 195,
+        "y": 340
+      },
+      "skin": "postgres"
+    }
+  ],
+  "edges": [
+    {
+      "id": "users->app",
+      "from": "users",
+      "to": "app",
+      "config": {
+        "timeoutMs": 3000
+      }
+    },
+    {
+      "id": "app->db",
+      "from": "app",
+      "to": "db",
+      "config": {
+        "timeoutMs": 2000
+      }
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 120,
+    "sources": [
+      {
+        "id": "s1",
+        "node": "users",
+        "shape": {
+          "kind": "constant",
+          "rps": 300
+        }
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "blog.example",
+    "read": {
+      "path": "/api/posts/{key}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/posts/{key}/comments",
+      "reqBody": "{\"text\": \"nice #{value}\"}",
+      "status": 201,
+      "body": "{\"comment_id\": {key}}"
+    },
+    "table": "comments",
+    "valCol": "body"
+  }
+}

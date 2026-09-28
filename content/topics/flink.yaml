@@ -1,0 +1,128 @@
+id: flink
+title: Flink
+group: under-the-hood
+icon: waves
+order: 8
+summary: Stateful stream processing — how Flink counts events in time windows and survives crashes without double counting.
+info: A JobManager schedules the job's subtasks into TaskManager slots. Sources read Kafka, chained operators run in one thread, keyBy shuffles events to keyed window operators. Checkpoint barriers flow with the data so every operator snapshots a consistent state; after a crash the job restores it and replays Kafka from the saved offsets. Watermarks decide when an event-time window is complete.
+problems: [telemetry]
+lessons:
+  - id: anatomy
+    title: Anatomy of a Flink job
+    minutes: 3
+    template: tech-flink-anatomy
+    steps:
+      - title: The parts
+        body: Events land in a Kafka topic. The JobManager deploys a job with parallelism 4 onto three TaskManagers with 2 slots each.
+        watch: The JobManager badge turns RUNNING; TaskManager badges show used slots.
+        check: { metric: gauge:running, target: jm, op: '=', value: 1 }
+      - title: Slots
+        body: Each slot runs one slice of the pipeline. 4 subtasks on 6 slots, so one TaskManager holds two and one slot stays free.
+        check: { metric: gauge:slotsUsed, target: tm1, op: '>=', value: 2 }
+      - title: Chained, then shuffled
+        body: Source and map are chained into one thread with no network hop. keyBy then sends each event to the window subtask that owns its key.
+        watch: Sequence view — flink.records between TaskManagers is the keyBy shuffle.
+        check: { metric: eventMatch:map chained, op: '>=', value: 1 }
+      - title: Checkpoints
+        body: Every 5s the JobManager starts a checkpoint; each window subtask uploads its state to S3.
+        check: { metric: gauge:checkpoints, target: jm, op: '>=', value: 1 }
+
+  - id: lifecycle
+    title: "One event, end to end"
+    minutes: 4
+    template: tech-flink-anatomy
+    steps:
+      - title: Appended to Kafka
+        body: An event with key k and its event time (when it happened) is appended to a partition at an offset.
+        check: { metric: eventMatch:appended to kafka partition, op: '>=', value: 1 }
+      - title: Source → map → keyBy
+        body: The source subtask polls that partition, runs map in the same thread, then routes the event by key.
+        check: { metric: eventMatch:read by source, op: '>=', value: 1 }
+      - title: Counted in a window
+        body: The window operator adds it to the 5s event-time window for its key. Nothing is emitted yet.
+        check: { metric: eventMatch:counted in window, op: '>=', value: 1 }
+      - title: Barrier passes
+        body: A checkpoint barrier flows behind the event. When a subtask has the barrier from all 4 inputs it snapshots its state.
+        watch: The log shows "aligned barrier".
+        check: { metric: eventMatch:aligned barrier, op: '>=', value: 1 }
+      - title: Watermark fires the window
+        body: Once the watermark passes the window end, the window fires and the count goes into the sink's open transaction.
+        check: { metric: eventMatch:written into open txn, op: '>=', value: 1 }
+      - title: Commit on checkpoint
+        body: When the next checkpoint completes, the sink commits that transaction and readers see the result.
+        check: { metric: eventMatch:committed in txn, op: '>=', value: 1 }
+
+  - id: taskmanager-lost
+    title: TaskManager lost → restore and replay
+    minutes: 4
+    template: tech-flink-anatomy
+    steps:
+      - title: Checkpoints are landing
+        body: Wait for a couple of completed checkpoints. Each one stores the Kafka offsets and every window's partial counts.
+        check: { metric: gauge:checkpoints, target: jm, op: '>=', value: 2 }
+      - title: Kill tm-2
+        body: Tap ⚡ Break → Kill on tm-2. Its heartbeats stop; after 4s the JobManager declares it lost.
+        action: { event: { kind: kill, target: tm2 } }
+        check: { metric: eventMatch:no heartbeat for, op: '>=', value: 1 }
+      - title: Restore from the last checkpoint
+        body: The whole job restarts on the 4 remaining slots. Every subtask reloads its state and the sources rewind to the saved offsets.
+        watch: Log "offsets rewound to [...] → replay"; Kafka lag spikes then drains.
+        check: { metric: eventMatch:offsets rewound, op: '>=', value: 1 }
+      - title: Exactly once
+        body: Results written after that checkpoint sat in an uncommitted transaction, which is aborted, so the replay writes each window once.
+        watch: The sink's aborted gauge; the anomaly counter stays 0.
+        check: { metric: gauge:lastCheckpoint, target: jm, op: '>=', value: 4 }
+
+  - id: at-least-once
+    title: At-least-once sink duplicates
+    minutes: 3
+    template: tech-flink-at-least-once
+    steps:
+      - title: Results written right away
+        body: This sink writes each window result as soon as it fires, with no transaction. Wait for results to appear.
+        check: { metric: gauge:visible, target: sink, op: '>=', value: 8 }
+      - title: Kill tm-2
+        body: Tap ⚡ Break → Kill on tm-2 after a window has fired.
+        action: { event: { kind: kill, target: tm2 } }
+        check: { metric: eventMatch:offsets rewound, op: '>=', value: 1 }
+      - title: Written twice
+        body: The replay re-fires windows that were already written after the last checkpoint. Use a transactional (two-phase commit) or idempotent sink.
+        check: { metric: anomaly:duplicate, op: '>=', value: 1 }
+
+  - id: backpressure
+    title: Backpressure stalls checkpoints
+    minutes: 4
+    template: tech-flink-backpressure
+    steps:
+      - title: A heavy operator
+        body: Each event costs 1ms in the window operator; four subtasks keep up with 800 events/s. Checkpoints finish in well under a second.
+        check: { metric: gauge:checkpoints, target: jm, op: '>=', value: 1 }
+      - title: Slow tm-2
+        body: Tap ⚡ Break → Slow ×10 on tm-2. Its window subtask falls behind and its input buffers fill.
+        action: { event: { kind: slow, target: tm2, params: { x: 10 }, durationSec: 60 } }
+        check: { metric: gauge:backlog, target: tm2, op: '>=', value: 500 }
+      - title: Barriers wait in line
+        body: A barrier cannot overtake the events queued ahead of it, so the slow subtask aligns late and the checkpoint takes seconds.
+        check: { metric: gauge:alignMs, target: jm, op: '>=', value: 2000 }
+      - title: Backpressure spreads
+        body: With no buffer credit left, every source stops polling, even those feeding healthy subtasks. Kafka lag grows.
+        check: { metric: gauge:backpressure, target: tm1, op: '>=', value: 50 }
+      - title: Checkpoint expires
+        body: The barrier doesn't arrive before the 10s timeout. Unaligned checkpoints let barriers overtake buffered data.
+        check: { metric: gauge:failedCheckpoints, target: jm, op: '>=', value: 1 }
+
+  - id: late-data
+    title: Watermarks and late events
+    minutes: 4
+    template: tech-flink-late-data
+    steps:
+      - title: Event-time windows
+        body: Windows are 5s of event time. The watermark trails the newest event by 1s; a window fires when the watermark passes its end.
+        check: { metric: gauge:windowsFired, target: tm1, op: '>=', value: 2 }
+      - title: Phones send old events
+        body: Phones buffer events offline and send them 4s late. Tap ⚡ Break → Clock skew on phones to reproduce it.
+        action: { event: { kind: clock-skew, target: phones, params: { ms: -4000 }, durationSec: 30 } }
+        check: { metric: gauge:lateDropped, target: tm1, op: '>=', value: 20 }
+      - title: Dropped
+        body: Their windows already fired, so the events are dropped. Raise allowed lateness to update the result, or send late events to a side output.
+        check: { metric: gauge:lateDropped, target: tm1, op: '>=', value: 100 }

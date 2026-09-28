@@ -1,0 +1,221 @@
+{
+  "schemaVersion": 1,
+  "id": "lesson-micro-monolith",
+  "name": "Monolith vs microservices",
+  "description": "Same three features, same load. Left: one monolith process with one DB. Right: a gateway routes to Orders, Catalog and Reviews, each with its own DB. Microservices add a hop per call but shrink the blast radius of a crash.",
+  "nodes": [
+    {
+      "id": "users-m",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 45,
+        "y": 60
+      }
+    },
+    {
+      "id": "mono",
+      "type": "monolith",
+      "name": "Shop monolith",
+      "pos": {
+        "x": 45,
+        "y": 220
+      },
+      "skin": "rails-monolith",
+      "config": {
+        "instances": 2,
+        "dbPool": 60,
+        "modules": "orders,catalog,reviews"
+      }
+    },
+    {
+      "id": "mdb",
+      "type": "relational-db",
+      "name": "Shop DB",
+      "pos": {
+        "x": 45,
+        "y": 380
+      },
+      "skin": "postgres"
+    },
+    {
+      "id": "users-s",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 255,
+        "y": 60
+      }
+    },
+    {
+      "id": "gw",
+      "type": "api-gateway",
+      "name": "API gateway",
+      "pos": {
+        "x": 255,
+        "y": 170
+      },
+      "config": {
+        "authCheck": false,
+        "instances": 2
+      }
+    },
+    {
+      "id": "orders",
+      "type": "service",
+      "name": "Orders",
+      "pos": {
+        "x": 165,
+        "y": 300
+      }
+    },
+    {
+      "id": "catalog",
+      "type": "service",
+      "name": "Catalog",
+      "pos": {
+        "x": 255,
+        "y": 300
+      }
+    },
+    {
+      "id": "reviews",
+      "type": "service",
+      "name": "Reviews",
+      "pos": {
+        "x": 345,
+        "y": 300
+      }
+    },
+    {
+      "id": "odb",
+      "type": "relational-db",
+      "name": "Orders DB",
+      "pos": {
+        "x": 165,
+        "y": 430
+      },
+      "skin": "postgres"
+    },
+    {
+      "id": "cdb",
+      "type": "document-db",
+      "name": "Catalog DB",
+      "pos": {
+        "x": 255,
+        "y": 430
+      },
+      "skin": "mongodb"
+    },
+    {
+      "id": "rdb",
+      "type": "kv-store",
+      "name": "Reviews DB",
+      "pos": {
+        "x": 345,
+        "y": 430
+      },
+      "skin": "dynamodb"
+    }
+  ],
+  "edges": [
+    {
+      "id": "users-m->mono",
+      "from": "users-m",
+      "to": "mono",
+      "config": {
+        "timeoutMs": 3000
+      }
+    },
+    {
+      "id": "mono->mdb",
+      "from": "mono",
+      "to": "mdb"
+    },
+    {
+      "id": "users-s->gw",
+      "from": "users-s",
+      "to": "gw",
+      "config": {
+        "timeoutMs": 3000
+      }
+    },
+    {
+      "id": "gw->orders",
+      "from": "gw",
+      "to": "orders",
+      "config": {
+        "timeoutMs": 500
+      }
+    },
+    {
+      "id": "gw->catalog",
+      "from": "gw",
+      "to": "catalog",
+      "config": {
+        "timeoutMs": 500
+      }
+    },
+    {
+      "id": "gw->reviews",
+      "from": "gw",
+      "to": "reviews",
+      "config": {
+        "timeoutMs": 500
+      }
+    },
+    {
+      "id": "orders->odb",
+      "from": "orders",
+      "to": "odb"
+    },
+    {
+      "id": "catalog->cdb",
+      "from": "catalog",
+      "to": "cdb"
+    },
+    {
+      "id": "reviews->rdb",
+      "from": "reviews",
+      "to": "rdb"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 120,
+    "sources": [
+      {
+        "id": "s1",
+        "node": "users-m",
+        "shape": {
+          "kind": "constant",
+          "rps": 200
+        }
+      },
+      {
+        "id": "s2",
+        "node": "users-s",
+        "shape": {
+          "kind": "constant",
+          "rps": 200
+        }
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "shop.example",
+    "read": {
+      "path": "/api/products/{key}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/orders",
+      "reqBody": "{\"product_id\": {key}, \"qty\": 1}",
+      "status": 201,
+      "body": "{\"order_id\": {key}, \"status\": \"placed\"}"
+    },
+    "table": "orders",
+    "valCol": "status"
+  }
+}

@@ -1,0 +1,142 @@
+{
+  "schemaVersion": 1,
+  "id": "lesson-paradigm-events",
+  "name": "Event-driven services",
+  "description": "Orders saves the order and publishes OrderPlaced; email, billing and analytics each subscribe. Orders never calls them, so a dead subscriber only builds a backlog — the checkout stays fast. The price: no single call stack to trace.",
+  "nodes": [
+    {
+      "id": "web",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 195,
+        "y": 20
+      },
+      "skin": "react-spa"
+    },
+    {
+      "id": "orders",
+      "type": "service",
+      "name": "Orders",
+      "pos": {
+        "x": 195,
+        "y": 130
+      },
+      "skin": "go-service"
+    },
+    {
+      "id": "db",
+      "type": "relational-db",
+      "name": "Orders DB",
+      "pos": {
+        "x": 60,
+        "y": 240
+      },
+      "skin": "postgres"
+    },
+    {
+      "id": "bus",
+      "type": "pub-sub",
+      "name": "OrderPlaced",
+      "pos": {
+        "x": 250,
+        "y": 240
+      },
+      "skin": "sns"
+    },
+    {
+      "id": "email",
+      "type": "worker",
+      "name": "Email",
+      "pos": {
+        "x": 60,
+        "y": 380
+      }
+    },
+    {
+      "id": "billing",
+      "type": "worker",
+      "name": "Billing",
+      "pos": {
+        "x": 195,
+        "y": 380
+      }
+    },
+    {
+      "id": "analytics",
+      "type": "worker",
+      "name": "Analytics",
+      "pos": {
+        "x": 330,
+        "y": 380
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "web->orders",
+      "from": "web",
+      "to": "orders"
+    },
+    {
+      "id": "orders->db",
+      "from": "orders",
+      "to": "db"
+    },
+    {
+      "id": "orders->bus",
+      "from": "orders",
+      "to": "bus",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "bus->email",
+      "from": "bus",
+      "to": "email"
+    },
+    {
+      "id": "bus->billing",
+      "from": "bus",
+      "to": "billing"
+    },
+    {
+      "id": "bus->analytics",
+      "from": "bus",
+      "to": "analytics"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 60,
+    "sources": [
+      {
+        "id": "s",
+        "node": "web",
+        "shape": {
+          "kind": "constant",
+          "rps": 150
+        },
+        "readRatio": 0
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "shop.example",
+    "read": {
+      "path": "/api/orders/{key}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/orders",
+      "reqBody": "{\"sku\": \"SKU-{key}\", \"qty\": 1}",
+      "status": 201,
+      "body": "{\"order_id\": {key}, \"status\": \"placed\"}"
+    },
+    "table": "orders",
+    "valCol": "status",
+    "topic": "order-placed"
+  }
+}

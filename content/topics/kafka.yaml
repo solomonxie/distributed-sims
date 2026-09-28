@@ -1,0 +1,227 @@
+id: kafka
+title: Kafka
+group: under-the-hood
+icon: scroll-text
+order: 1
+summary: A replicated, partitioned log — how a record gets from producer to consumer, and every place it can be lost or read twice.
+info: A topic is split into partitions; each partition is a log with one leader broker and followers that copy it. The in-sync replicas (ISR) decide when a record is committed (the high watermark). A KRaft controller quorum elects leaders; consumer groups split partitions between members and commit offsets.
+problems: [distributed-mq]
+lessons:
+  - id: anatomy
+    title: Anatomy of a Kafka cluster
+    minutes: 4
+    template: tech-kafka-anatomy
+    steps:
+      - title: The parts
+        body: A producer, three brokers, a KRaft controller and a consumer group of two. The topic has 6 partitions, each copied to all 3 brokers.
+        watch: Produce and Fetch messages (violet) flow producer → brokers → consumers.
+        check: { metric: time, op: '>=', value: 3 }
+      - title: Every partition has one leader
+        body: Leadership is spread so each broker leads 2 partitions and follows 4. The 👑 badge lists what a broker leads.
+        watch: broker-1 shows 👑 P0 P3.
+        check: { metric: badge:👑 P0, target: b1, op: '>=', value: 1 }
+      - title: The controller owns metadata
+        body: The active KRaft controller tracks brokers by heartbeat and decides who leads what.
+        check: { metric: badge:👑 active, target: ctrl, op: '>=', value: 1 }
+      - title: The group splits partitions
+        body: broker-2 is the group coordinator for "billing"; it gave consumer-1 P0,P2,P4 and consumer-2 the rest.
+        watch: consumer badges list their partitions; broker-2 shows "coord billing".
+        check: { metric: badge:coord billing, target: b2, op: '>=', value: 1 }
+      - title: Consumers keep up
+        body: Lag is how far a consumer's position trails the high watermark. Near zero means they keep up.
+        check: { metric: gauge:processed, target: c1, op: '>=', value: 2000 }
+
+  - id: lifecycle
+    title: "Lifecycle: one record, end to end"
+    minutes: 4
+    template: tech-kafka-anatomy
+    steps:
+      - title: Produce
+        body: The producer hashes the key to a partition, waits up to linger.ms to fill a batch, then sends it to that partition's leader.
+        check: { metric: rps, target: prod, op: '>=', value: 500 }
+      - title: Leader appends
+        body: The leader appends the batch to its log. With acks=all it holds the reply until the ISR has it.
+        check: { metric: rps, target: b1, op: '>=', value: 100 }
+      - title: Followers fetch
+        body: Followers long-poll the leader with Fetch requests and append the same bytes. Caught-up followers stay in the ISR.
+        watch: No ISR badge on any broker means every partition has all 3 replicas in sync.
+        check: { metric: gauge:isrMin, target: b1, op: '>=', value: 3 }
+      - title: High watermark
+        body: Once every ISR member has an offset, the leader advances the high watermark and acks the producer. Consumers only see records below it.
+        check: { metric: gauge:hw, target: b1, op: '>=', value: 2000 }
+      - title: Consumer fetch and commit
+        body: A consumer polls a batch up to the high watermark, processes it, then commits the next offset to the coordinator.
+        check: { metric: gauge:processed, target: c2, op: '>=', value: 3000 }
+
+  - id: batching
+    title: "Why fast: batching"
+    minutes: 3
+    template: tech-kafka-batching
+    steps:
+      - title: Same load, two producers
+        body: Both get 1,000 records/s. Producer A sends each record alone; producer B lingers 20ms and sends batches.
+        check: { metric: time, op: '>=', value: 4 }
+      - title: A floods the brokers
+        body: One request per record — every one pays a network round trip and a request-handler slot.
+        check: { metric: gauge:batchesPerSec, target: pa, op: '>=', value: 400 }
+      - title: B sends a few big batches
+        body: About 10× fewer requests for the same records. Sequential appends of big batches are what disks and networks do best.
+        check: { metric: gauge:batchAvg, target: pb, op: '>=', value: 5 }
+      - title: The price is latency
+        body: B's records wait up to 20ms for their batch. linger.ms trades a little latency for throughput.
+        check: { metric: p99, target: pb, op: '>', value: 15 }
+
+  - id: acks
+    title: "acks=1 vs acks=all"
+    minutes: 4
+    template: tech-kafka-acks
+    steps:
+      - title: acks=1 is faster
+        body: The acks=1 producer is answered as soon as the leader has written; acks=all also waits for followers.
+        check: { metric: p99, target: pall, op: '>', value: 3 }
+      - title: Slow down broker-2
+        body: Make broker-2 fetch only every 1.5s. It is still inside replica.lag.time.max (2s), so it stays in the ISR — but behind.
+        action: { event: { kind: replica-lag, target: b2, params: { ms: 1500 } } }
+        check: { metric: eventCount:chaos, op: '>=', value: 1 }
+      - title: And broker-3
+        body: Now both followers of P0 trail the leader by up to 1.5s.
+        action: { event: { kind: replica-lag, target: b3, params: { ms: 1500 } } }
+        check: { metric: eventCount:chaos, op: '>=', value: 2 }
+      - title: Kill the leader
+        body: Kill broker-1. The controller elects an in-sync follower — which never got the last records.
+        action: { event: { kind: kill, target: b1 } }
+        check: { metric: eventMatch:Elected leader P0, op: '>=', value: 1 }
+      - title: Acknowledged records are gone
+        body: acks=1 records the leader had acked but nobody had copied are lost. acks=all records were only acked once in every ISR member, so they survive.
+        check: { metric: anomaly:lost-write, op: '>=', value: 1 }
+
+  - id: failover
+    title: "Break it: leader dies — clean vs unclean election"
+    minutes: 5
+    template: tech-kafka-failover
+    steps:
+      - title: Kill a leader
+        body: Kill broker-1. It stops heartbeating; after 1.5s the controller fences it and picks a new leader from each partition's ISR.
+        action: { event: { kind: kill-leader, target: b1 } }
+        check: { metric: eventMatch:Elected leader P3, op: '>=', value: 1 }
+      - title: Clean election loses nothing
+        body: The new leader was in sync, so every acknowledged record is there. Producers retry and carry on.
+        check: { metric: availability, op: '>=', value: 99 }
+      - title: Bring broker-1 back
+        body: It truncates to the new leader's log, catches up, rejoins the ISR, and later takes back its preferred partitions.
+        action: { event: { kind: heal-all } }
+        check: { metric: eventMatch:preferred leader, op: '>=', value: 1 }
+      - title: Starve the followers
+        body: Slow both followers of P0 and P3 to one fetch every 8s. After 2s they fall out of the ISR; min.insync.replicas=1 lets the leader keep acking alone.
+        action: { event: { kind: replica-lag, target: b2, params: { ms: 8000 } } }
+        check: { metric: eventMatch:shrank, op: '>=', value: 1 }
+      - title: Slow broker-3 too
+        body: Now broker-1 is the only in-sync replica of P0.
+        action: { event: { kind: replica-lag, target: b3, params: { ms: 8000 } } }
+        check: { metric: "eventMatch:P0 shrank → {broker-1}", op: '>=', value: 1 }
+      - title: Kill the lonely leader
+        body: No in-sync replica is left. unclean.leader.election=true lets an out-of-sync follower lead — the partition stays writable, but acked records are gone.
+        action: { event: { kind: kill, target: b1 } }
+        check: { metric: eventMatch:UNCLEAN, op: '>=', value: 1 }
+      - title: Count the loss
+        body: With unclean election off the partition would stay offline instead. Availability or durability — pick one.
+        check: { metric: anomaly:lost-write, op: '>=', value: 1 }
+
+  - id: isr
+    title: "Break it: slow follower, min.insync.replicas"
+    minutes: 4
+    template: tech-kafka-isr
+    steps:
+      - title: A follower's disk gets slow
+        body: broker-3 now fetches only every 5s. acks=all writes wait on it until the leader gives up after 2s.
+        action: { event: { kind: replica-lag, target: b3, params: { ms: 5000 } } }
+        check: { metric: eventMatch:shrank, op: '>=', value: 2 }
+      - title: The ISR shrinks, writes resume
+        body: broker-3 is dropped from the ISR. 2 replicas ≥ min.insync.replicas 2, so acks=all works again.
+        check: { metric: availability, op: '>=', value: 99 }
+      - title: Lose another replica
+        body: Kill broker-2. Every partition is now down to one in-sync replica.
+        action: { event: { kind: kill, target: b2 } }
+        check: { metric: eventMatch:NOT_ENOUGH_REPLICAS, op: '>=', value: 1 }
+      - title: acks=all refuses to lie
+        body: With ISR 1 < min.insync.replicas 2 the brokers reject acks=all writes rather than accept data they could lose.
+        check: { metric: availability, op: '<', value: 50 }
+
+  - id: rebalance-storm
+    title: "Break it: slow consumer → rebalance storm"
+    minutes: 4
+    template: tech-kafka-rebalance
+    steps:
+      - title: Make consumer-2 10× slower
+        body: A batch of 500 records now takes longer than max.poll.interval.ms (3s here, 5 min by default).
+        action: { event: { kind: slow, target: c2, params: { x: 10 } } }
+        check: { metric: eventMatch:max.poll.interval, op: '>=', value: 1 }
+      - title: It leaves, the group stops
+        body: Leaving triggers a rebalance; with the eager protocol every member stops consuming until assignment is done.
+        check: { metric: gauge:rebalances, target: c1, op: '>=', value: 3 }
+      - title: Its commit bounces
+        body: When consumer-2 finally finishes, its generation is stale, so the commit fails and those records are read again.
+        check: { metric: anomaly:duplicate, op: '>=', value: 1 }
+      - title: Round and round
+        body: It rejoins, gets partitions, is too slow again, leaves again. Fix it with fewer records per poll or faster processing.
+        check: { metric: gauge:rebalances, target: c1, op: '>=', value: 5 }
+
+  - id: hot-partition
+    title: "Break it: hot key → hot partition"
+    minutes: 3
+    template: tech-kafka-hot-partition
+    steps:
+      - title: Even spread
+        body: 3,000 records/s hashed over 6 partitions; both consumers are nearly idle.
+        check: { metric: time, op: '>=', value: 4 }
+      - title: One key goes viral
+        body: 60% of records now carry the same key, so they all hash to P0.
+        action: { event: { kind: traffic, action: hot-key, params: { hot: 0.6 }, durationSec: 60 } }
+        check: { metric: eventCount:traffic, op: '>=', value: 1 }
+      - title: One consumer drowns
+        body: P0 has one leader and one consumer. consumer-1 falls behind while consumer-2 idles — more consumers won't help.
+        check: { metric: gauge:lag, target: c1, op: '>=', value: 1000 }
+
+  - id: commit
+    title: "Break it: commit before vs after processing"
+    minutes: 4
+    template: tech-kafka-commit
+    steps:
+      - title: Two groups, one topic
+        body: Group "before" commits the batch's offsets, then processes. Group "after" processes, then commits. Both are busy, so a crash lands mid-batch.
+        check: { metric: time, op: '>=', value: 5 }
+      - title: Crash a "before" consumer
+        body: Kill before-2 mid-batch. Its offsets were already committed, so whoever takes over starts after the batch.
+        action: { event: { kind: kill, target: cb2 } }
+        check: { metric: anomaly:lost-write, op: '>=', value: 1 }
+      - title: Crash an "after" consumer
+        body: Kill after-2. Records it processed since its last commit get read again by the new owner.
+        action: { event: { kind: kill, target: ca2 } }
+        check: { metric: anomaly:duplicate, op: '>=', value: 1 }
+      - title: Pick your failure
+        body: Commit-before = at-most-once (loss); commit-after = at-least-once (duplicates). Make processing idempotent and commit after.
+        check: { metric: eventMatch:session expired, op: '>=', value: 2 }
+
+  - id: controller
+    title: "Break it: controller loss"
+    minutes: 4
+    template: tech-kafka-controller
+    steps:
+      - title: Kill the active controller
+        body: Three controllers form a Raft quorum. Kill controller-1 and a survivor takes over.
+        action: { event: { kind: kill, target: ctrl1 } }
+        check: { metric: eventMatch:elected active controller, op: '>=', value: 1 }
+      - title: Kill another one
+        body: One of three alive is not a majority. No controller can be elected.
+        action: { event: { kind: kill, target: ctrl2 } }
+        check: { metric: eventMatch:No controller quorum, op: '>=', value: 1 }
+      - title: Nothing seems wrong
+        body: Brokers keep serving produce and fetch — the data plane doesn't need the controller.
+        check: { metric: availability, op: '>=', value: 99 }
+      - title: Now a broker dies
+        body: Kill broker-2. Nobody fences it, nobody elects new leaders, and the ISR can't shrink.
+        action: { event: { kind: kill, target: b2 } }
+        check: { metric: eventMatch:no active controller, op: '>=', value: 1 }
+      - title: Writes stall everywhere
+        body: acks=all waits on a dead replica in every ISR. Metadata is frozen until the quorum returns.
+        check: { metric: availability, op: '<', value: 50 }

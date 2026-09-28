@@ -1,0 +1,240 @@
+{
+  "schemaVersion": 1,
+  "id": "tech-kafka-controller",
+  "name": "Kafka: controller quorum",
+  "description": "Three KRaft controllers; one is active. Lose one → another takes over. Lose two → no quorum: the data plane keeps running until a broker dies and nobody can elect.",
+  "nodes": [
+    {
+      "id": "users",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 195,
+        "y": 40
+      }
+    },
+    {
+      "id": "prod",
+      "type": "kafka-producer",
+      "name": "producer",
+      "pos": {
+        "x": 195,
+        "y": 150
+      }
+    },
+    {
+      "id": "b1",
+      "type": "kafka-broker",
+      "name": "broker-1",
+      "pos": {
+        "x": 55,
+        "y": 280
+      }
+    },
+    {
+      "id": "b2",
+      "type": "kafka-broker",
+      "name": "broker-2",
+      "pos": {
+        "x": 195,
+        "y": 280
+      }
+    },
+    {
+      "id": "b3",
+      "type": "kafka-broker",
+      "name": "broker-3",
+      "pos": {
+        "x": 335,
+        "y": 280
+      }
+    },
+    {
+      "id": "ctrl1",
+      "type": "kraft-controller",
+      "name": "controller-1",
+      "pos": {
+        "x": 55,
+        "y": 400
+      }
+    },
+    {
+      "id": "ctrl2",
+      "type": "kraft-controller",
+      "name": "controller-2",
+      "pos": {
+        "x": 195,
+        "y": 400
+      }
+    },
+    {
+      "id": "ctrl3",
+      "type": "kraft-controller",
+      "name": "controller-3",
+      "pos": {
+        "x": 335,
+        "y": 400
+      }
+    },
+    {
+      "id": "c1",
+      "type": "kafka-consumer",
+      "name": "consumer-1",
+      "pos": {
+        "x": 110,
+        "y": 520
+      },
+      "config": {
+        "group": "billing"
+      }
+    },
+    {
+      "id": "c2",
+      "type": "kafka-consumer",
+      "name": "consumer-2",
+      "pos": {
+        "x": 280,
+        "y": 520
+      },
+      "config": {
+        "group": "billing"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "users-prod",
+      "from": "users",
+      "to": "prod"
+    },
+    {
+      "id": "prod-b1",
+      "from": "prod",
+      "to": "b1",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "prod-b2",
+      "from": "prod",
+      "to": "b2",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "prod-b3",
+      "from": "prod",
+      "to": "b3",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "ctrl1-b1",
+      "from": "ctrl1",
+      "to": "b1",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "ctrl1-b2",
+      "from": "ctrl1",
+      "to": "b2",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "ctrl1-b3",
+      "from": "ctrl1",
+      "to": "b3",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "b1-c1",
+      "from": "b1",
+      "to": "c1",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "b2-c1",
+      "from": "b2",
+      "to": "c1",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "b3-c1",
+      "from": "b3",
+      "to": "c1",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "b1-c2",
+      "from": "b1",
+      "to": "c2",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "b2-c2",
+      "from": "b2",
+      "to": "c2",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "b3-c2",
+      "from": "b3",
+      "to": "c2",
+      "config": {
+        "mode": "async"
+      }
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 300,
+    "sources": [
+      {
+        "id": "s1",
+        "node": "users",
+        "shape": {
+          "kind": "constant",
+          "rps": 1000
+        },
+        "readRatio": 0
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "accounts.example.com",
+    "read": {
+      "method": "GET",
+      "path": "/api/users/{key}",
+      "status": 200,
+      "body": "{\"id\": {key}, \"plan\": \"free\"}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/signups",
+      "reqBody": "{\"email\": \"u{key}@mail.com\", \"ref\": {value}}",
+      "status": 202,
+      "body": "{\"id\": {key}}"
+    },
+    "topic": "user-signups"
+  }
+}

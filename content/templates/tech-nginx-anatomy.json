@@ -1,0 +1,91 @@
+{
+  "schemaVersion": 1,
+  "id": "tech-nginx-anatomy",
+  "name": "nginx: anatomy",
+  "description": "4 worker processes, one per core, each an event loop. Half the requests are static files (sendfile), half are proxied to the app over keep-alive connections. 2,000 idle keep-alive clients stay connected.",
+  "nodes": [
+    {
+      "id": "users",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 195,
+        "y": 40
+      }
+    },
+    {
+      "id": "nginx",
+      "type": "nginx-server",
+      "name": "nginx",
+      "pos": {
+        "x": 195,
+        "y": 170
+      },
+      "skin": "nginx-internals",
+      "config": {
+        "workers": 4,
+        "staticRatio": 0.5,
+        "clients": 2000
+      }
+    },
+    {
+      "id": "app",
+      "type": "service",
+      "name": "app upstream",
+      "pos": {
+        "x": 195,
+        "y": 300
+      },
+      "config": {
+        "instances": 4,
+        "slots": 64,
+        "p50Ms": 5,
+        "p99Ms": 20
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "users-nginx",
+      "from": "users",
+      "to": "nginx",
+      "config": {
+        "timeoutMs": 3000
+      }
+    },
+    {
+      "id": "nginx-app",
+      "from": "nginx",
+      "to": "app"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 300,
+    "sources": [
+      {
+        "id": "s1",
+        "node": "users",
+        "shape": {
+          "kind": "constant",
+          "rps": 3000
+        }
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "news.dailyherald.com",
+    "read": {
+      "path": "/api/articles/{key}",
+      "body": "{\"id\": {key}, \"title\": \"City council passes budget\", \"views\": {value}}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/articles/{key}/comments",
+      "reqBody": "{\"text\": \"Great read\"}",
+      "status": 201,
+      "body": "{\"comment_id\": {key}}"
+    }
+  }
+}

@@ -1,0 +1,60 @@
+id: send-email
+title: Send email notification
+icon: mail
+category: classic
+order: 1
+summary: Send transactional email reliably through a third-party provider.
+requirements:
+  - Send receipts, password resets and alerts via SendGrid
+  - Never drop a send; never email a user twice
+  - Survive provider outages and quota limits
+  - 10M emails/day, bursts to 10× during campaigns
+  - API p99 < 200ms · 99.9% available
+estimates:
+  - Avg 115 sends/s · peak 1.2k/s
+  - Provider quota 600/s → a queue must absorb peaks
+  - ~2 KB metadata/email → 20 GB/day
+designs:
+  - { id: v1, title: "Naive: API calls SendGrid inline", template: problem-send-email-v1 }
+  - { id: v2, title: "Reference: queue, late ack, idempotent workers", template: problem-send-email-v2 }
+challenges:
+  - id: provider-outage
+    title: "SendGrid outage: 0 lost, ≤1 duplicate"
+    template: problem-send-email-v2
+    scenario:
+      durationSec: 60
+      sources: [{ id: sends, node: users, shape: { kind: constant, rps: 200 }, readRatio: 0 }]
+      events: [{ atSec: 30, event: { kind: external-outage, target: sendgrid, durationSec: 40 } }]
+    pass:
+      - { metric: availability, op: '>=', value: 99.9 }
+      - { metric: anomalies, op: '<=', value: 1 }
+      - { metric: p99, op: '<', value: 200 }
+  - id: campaign-blast
+    title: "Campaign blast: 10× for 30s"
+    template: problem-send-email-v2
+    scenario:
+      durationSec: 60
+      sources: [{ id: sends, node: users, shape: { kind: constant, rps: 200 }, readRatio: 0 }]
+      events: [{ atSec: 30, event: { kind: traffic, action: burst, params: { x: 10 }, durationSec: 30 } }]
+    pass:
+      - { metric: availability, op: '>=', value: 99.9 }
+      - { metric: p99, op: '<', value: 200 }
+      - { metric: anomalies, op: '<=', value: 1 }
+  - id: worker-crash
+    title: "Worker crash mid-send"
+    template: problem-send-email-v2
+    scenario:
+      durationSec: 60
+      sources: [{ id: sends, node: users, shape: { kind: constant, rps: 200 }, readRatio: 0 }]
+      events:
+        - { atSec: 30, event: { kind: kill, target: workers, durationSec: 10 } }
+        - { atSec: 45, event: { kind: slow, target: sendgrid, params: { x: 4 }, durationSec: 15 } }
+    pass:
+      - { metric: availability, op: '>=', value: 99.9 }
+      - { metric: anomalies, op: '<=', value: 1 }
+keyIdeas:
+  - { label: Queue absorbs provider outages, link: "lesson:message-queue/at-least-once" }
+  - { label: Ack late + idempotent consumer, link: "lesson:celery/crash-late-ack" }
+  - { label: Retries with backoff and a DLQ, link: "lesson:message-queue/dlq-poison" }
+  - { label: Per-recipient FIFO, link: "lesson:message-queue/ordering" }
+  - { label: Provider quota = rate limit, link: "algo:token-bucket" }

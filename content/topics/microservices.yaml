@@ -1,0 +1,125 @@
+id: microservices
+title: Microservices
+group: topics
+icon: boxes
+order: 7
+summary: Many small services instead of one big process, and the failure modes that come with the network in between.
+info: Splitting a monolith gives independent deploys and a smaller blast radius, but every call now crosses the network. Slow dependencies back up into their callers, retries multiply load, and one hung pool can take unrelated features down. Timeouts, circuit breakers, bulkheads and health checks keep a failure local.
+lessons:
+  - id: monolith-vs-microservices
+    title: Monolith → microservices
+    minutes: 4
+    template: lesson-micro-monolith
+    steps:
+      - title: Same features, two shapes
+        body: Left, one monolith serves orders, catalog and reviews. Right, a gateway routes each request to one of three services with their own databases.
+        watch: The right side pays one extra hop per request, only a few ms.
+        check: { metric: time, op: '>=', value: 5 }
+      - title: Crash one microservice
+        body: Kill Reviews for 15s. Only requests that need reviews fail.
+        action: { event: { kind: kill, target: reviews, durationSec: 15 } }
+        watch: Right availability drops by about a third, never to zero.
+        check: { metric: availability, target: users-s, op: '<', value: 90 }
+      - title: Crash the monolith
+        body: A memory leak in the reviews module takes down the whole process. Kill the monolith for 10s.
+        action: { event: { kind: kill, target: mono, durationSec: 10 } }
+        watch: Left availability falls to 0 because every feature shares one process.
+        check: { metric: availability, target: users-m, op: '<', value: 10 }
+
+  - id: cascading-failure
+    title: Cascading failure
+    minutes: 4
+    template: lesson-micro-cascade
+    steps:
+      - title: Pools that wait
+        body: The BFF has 40 workers and Orders has 10, and a worker stays busy until its downstream call returns. Half the requests go to Orders, half to Profile.
+        check: { metric: time, op: '>=', value: 5 }
+      - title: Inventory slows down
+        body: Slow Inventory 100× for 30s. Each Orders worker now holds on for ~500ms.
+        action: { event: { kind: slow, target: inventory, params: { x: 100 }, durationSec: 30 } }
+        watch: The Orders pool badge hits 10/10 and requests start waiting for a worker.
+        check: { metric: 'gauge:poolWaiting', target: orders, op: '>=', value: 1 }
+      - title: The BFF fills up
+        body: BFF workers are stuck waiting on Orders, so the BFF pool fills too.
+        watch: The BFF badge reads pool 40/40.
+        check: { metric: 'gauge:poolWaiting', target: bff, op: '>=', value: 1 }
+      - title: Healthy features fail too
+        body: Profile is fine, but its requests can't get a BFF worker. One slow leaf service has taken the whole page down.
+        watch: Users availability falls far below the 50% that touches Inventory.
+        check: { metric: availability, target: users, op: '<', value: 40 }
+
+  - id: circuit-breaker
+    title: Circuit breaker
+    minutes: 4
+    template: lesson-micro-breaker
+    steps:
+      - title: Two callers, one dependency
+        body: Both checkouts call Payments with a 1s timeout. Only the left edge has a circuit breaker.
+        check: { metric: time, op: '>=', value: 5 }
+      - title: Payments goes down
+        body: Kill Payments for 15s. After ~10 failed calls, half of the recent ones, the left breaker opens.
+        action: { event: { kind: kill, target: pay, durationSec: 15 } }
+        watch: The left edge turns open and fails fast, while the right one keeps waiting 1s per call.
+        check: { metric: 'eventMatch:Circuit breaker opened', op: '>=', value: 1 }
+      - title: Half-open, then closed
+        body: Every 5s the breaker lets a probe through (half-open). When Payments is back, a probe succeeds and the breaker closes.
+        watch: Left availability returns to 100% a few seconds after Payments restarts.
+        check: { metric: availability, target: users-cb, op: '>=', value: 99.5 }
+
+  - id: retry-storm
+    title: Retries + timeouts
+    minutes: 5
+    template: lesson-micro-retries
+    steps:
+      - title: Three hops, two retry policies
+        body: Left, every hop retries twice with a 300ms timeout. Right, only the gateway retries, and timeouts shrink from 900ms to 300ms going inward.
+        watch: Both Stock services see ~50 req/s.
+        check: { metric: time, op: '>=', value: 5 }
+      - title: The DB slows down
+        body: Slow the Stock DB 500× for 20s so calls pass 300ms. Each failed hop retries, and so does its caller.
+        action: { event: { kind: slow, target: db, params: { x: 500 }, durationSec: 20 } }
+        watch: Left Stock rps jumps several times over, which is up to 3 × 3 = 9× for Stock and 27× at the DB.
+        check: { metric: rps, target: c-r, op: '>=', value: 200 }
+      - title: Retry at one layer only
+        body: On the right, only the gateway retries, so Stock sees at most 3× its normal traffic. Retry at one layer with a budget, and use jittered backoff.
+        watch: Right Stock rps stays near 150 or less while the left side storms.
+        check: { metric: rps, target: c-e, op: '<=', value: 160 }
+
+  - id: bulkheads
+    title: Bulkheads
+    minutes: 4
+    template: lesson-micro-bulkheads
+    steps:
+      - title: One pool vs two
+        body: Left, one pool of 20 workers serves Recommendations and Catalog. Right, each dependency gets its own pool of 10.
+        check: { metric: time, op: '>=', value: 5 }
+      - title: Recommendations hangs
+        body: Slow Recommendations 400× (~2s per call) for 30s. Recs calls hold on to their workers.
+        action: { event: { kind: slow, target: recs, params: { x: 400 }, durationSec: 30 } }
+        watch: The shared pool fills with recs calls, and Catalog requests time out waiting for a worker.
+        check: { metric: availability, target: users-a, op: '<', value: 30 }
+      - title: The bulkhead holds
+        body: On the right, only the recs pool is full. Catalog still has its own 10 workers.
+        watch: Right availability sits around 50% and never hits 0, since only recs calls fail.
+        check: { metric: availability, target: users-b, op: '<=', value: 60 }
+
+  - id: discovery-health
+    title: Service discovery & health checks
+    minutes: 3
+    template: lesson-micro-discovery
+    steps:
+      - title: Three healthy instances
+        body: The load balancer probes each Orders instance every 2s and spreads traffic across the healthy ones.
+        watch: The LB badge reads 3/3 healthy.
+        check: { metric: time, op: '>=', value: 5 }
+      - title: Kill an instance
+        body: Kill orders-2 for 20s. Its requests time out until 2 probes in a row fail (~4s).
+        action: { event: { kind: kill, target: orders-2, durationSec: 20 } }
+        watch: The log shows orders-2 marked unhealthy, and the badge drops to 2/3.
+        check: { metric: 'eventMatch:orders-2 marked unhealthy', op: '>=', value: 1 }
+      - title: Traffic drains
+        body: The two remaining instances take all the traffic, and errors stop.
+        check: { metric: availability, target: users, op: '>=', value: 99.5 }
+      - title: It comes back
+        body: When orders-2 restarts, it needs 5 good probes in a row before it gets traffic again.
+        check: { metric: 'eventMatch:orders-2 healthy', op: '>=', value: 1 }

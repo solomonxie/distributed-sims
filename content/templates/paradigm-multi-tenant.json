@@ -1,0 +1,195 @@
+{
+  "schemaVersion": 1,
+  "id": "paradigm-multi-tenant",
+  "name": "Multi-tenant: pool vs silo",
+  "description": "Small tenants share one pooled API and DB; BigCo has its own silo. At 20 s the noisy tenant bursts 10x: pooled tenants queue behind it (noisy neighbour) while BigCo is untouched. Set the pool API per-tenant quota to shed the noisy tenant instead.",
+  "nodes": [
+    {
+      "id": "web",
+      "type": "web-client",
+      "name": "Tenant apps",
+      "pos": {
+        "x": 55,
+        "y": 20
+      }
+    },
+    {
+      "id": "web2",
+      "type": "web-client",
+      "name": "BigCo app",
+      "pos": {
+        "x": 335,
+        "y": 20
+      }
+    },
+    {
+      "id": "api",
+      "type": "service",
+      "name": "Shared API",
+      "pos": {
+        "x": 55,
+        "y": 180
+      },
+      "parent": "pool",
+      "config": {
+        "instances": 2,
+        "slots": 8,
+        "p50Ms": 15,
+        "p99Ms": 40,
+        "queueLimit": 2000
+      }
+    },
+    {
+      "id": "db",
+      "type": "relational-db",
+      "name": "Shared DB",
+      "pos": {
+        "x": 55,
+        "y": 320
+      },
+      "skin": "postgres",
+      "parent": "pool"
+    },
+    {
+      "id": "api2",
+      "type": "service",
+      "name": "BigCo API",
+      "pos": {
+        "x": 335,
+        "y": 180
+      },
+      "parent": "silo",
+      "config": {
+        "instances": 2,
+        "slots": 8,
+        "p50Ms": 15,
+        "p99Ms": 40
+      }
+    },
+    {
+      "id": "db2",
+      "type": "relational-db",
+      "name": "BigCo DB",
+      "pos": {
+        "x": 335,
+        "y": 320
+      },
+      "skin": "postgres",
+      "parent": "silo"
+    }
+  ],
+  "edges": [
+    {
+      "id": "web->api",
+      "from": "web",
+      "to": "api",
+      "config": {
+        "timeoutMs": 3000
+      }
+    },
+    {
+      "id": "api->db",
+      "from": "api",
+      "to": "db"
+    },
+    {
+      "id": "web2->api2",
+      "from": "web2",
+      "to": "api2",
+      "config": {
+        "timeoutMs": 3000
+      }
+    },
+    {
+      "id": "api2->db2",
+      "from": "api2",
+      "to": "db2"
+    }
+  ],
+  "containers": [
+    {
+      "id": "pool",
+      "kind": "tenant",
+      "name": "Pooled tenants",
+      "config": {
+        "isolation": "pool"
+      }
+    },
+    {
+      "id": "silo",
+      "kind": "tenant",
+      "name": "BigCo (silo)",
+      "config": {
+        "isolation": "silo"
+      }
+    }
+  ],
+  "scenario": {
+    "durationSec": 90,
+    "sources": [
+      {
+        "id": "small",
+        "node": "web",
+        "shape": {
+          "kind": "constant",
+          "rps": 200
+        },
+        "tenants": {
+          "acme": 1,
+          "globex": 1,
+          "initech": 1
+        }
+      },
+      {
+        "id": "noisy",
+        "node": "web",
+        "shape": {
+          "kind": "constant",
+          "rps": 100
+        },
+        "tenants": {
+          "noisy-co": 1
+        }
+      },
+      {
+        "id": "big",
+        "node": "web2",
+        "shape": {
+          "kind": "constant",
+          "rps": 300
+        }
+      }
+    ],
+    "events": [
+      {
+        "atSec": 20,
+        "event": {
+          "kind": "traffic",
+          "source": "noisy",
+          "action": "burst",
+          "params": {
+            "x": 10
+          },
+          "durationSec": 30
+        }
+      }
+    ]
+  },
+  "wire": {
+    "host": "app.saas.io",
+    "read": {
+      "method": "GET",
+      "path": "/api/invoices/{key}",
+      "body": "{\"id\": {key}, \"amount\": {value}}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/invoices",
+      "reqBody": "{\"customer\": {key}, \"amount\": {value}}",
+      "status": 201,
+      "body": "{\"id\": {key}}"
+    },
+    "table": "invoices",
+    "valCol": "amount"
+  }
+}

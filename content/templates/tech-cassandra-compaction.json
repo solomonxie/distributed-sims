@@ -1,0 +1,204 @@
+{
+  "schemaVersion": 1,
+  "id": "tech-cassandra-compaction",
+  "name": "Cassandra: compaction storm",
+  "description": "Reads plus a steady bulk loader. Size-tiered compaction keeps SSTable count low until the loader bursts.",
+  "nodes": [
+    {
+      "id": "users",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 110,
+        "y": 40
+      },
+      "config": {}
+    },
+    {
+      "id": "loader",
+      "type": "web-client",
+      "name": "Bulk loader",
+      "pos": {
+        "x": 280,
+        "y": 40
+      },
+      "config": {}
+    },
+    {
+      "id": "driver",
+      "type": "cassandra-driver",
+      "name": "driver",
+      "pos": {
+        "x": 195,
+        "y": 140
+      },
+      "config": {
+        "writeCL": "ONE",
+        "readCL": "ONE"
+      }
+    },
+    {
+      "id": "n1",
+      "type": "cassandra-node",
+      "name": "n1",
+      "pos": {
+        "x": 195,
+        "y": 240
+      },
+      "config": {
+        "sstableReadMs": 1,
+        "compactionMbps": 4
+      }
+    },
+    {
+      "id": "n2",
+      "type": "cassandra-node",
+      "name": "n2",
+      "pos": {
+        "x": 316,
+        "y": 310
+      },
+      "config": {
+        "sstableReadMs": 1,
+        "compactionMbps": 4
+      }
+    },
+    {
+      "id": "n3",
+      "type": "cassandra-node",
+      "name": "n3",
+      "pos": {
+        "x": 316,
+        "y": 450
+      },
+      "config": {
+        "sstableReadMs": 1,
+        "compactionMbps": 4
+      }
+    },
+    {
+      "id": "n4",
+      "type": "cassandra-node",
+      "name": "n4",
+      "pos": {
+        "x": 195,
+        "y": 520
+      },
+      "config": {
+        "sstableReadMs": 1,
+        "compactionMbps": 4
+      }
+    },
+    {
+      "id": "n5",
+      "type": "cassandra-node",
+      "name": "n5",
+      "pos": {
+        "x": 74,
+        "y": 450
+      },
+      "config": {
+        "sstableReadMs": 1,
+        "compactionMbps": 4
+      }
+    },
+    {
+      "id": "n6",
+      "type": "cassandra-node",
+      "name": "n6",
+      "pos": {
+        "x": 74,
+        "y": 310
+      },
+      "config": {
+        "sstableReadMs": 1,
+        "compactionMbps": 4
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-users-driver",
+      "from": "users",
+      "to": "driver"
+    },
+    {
+      "id": "e-loader-driver",
+      "from": "loader",
+      "to": "driver"
+    },
+    {
+      "id": "e-driver-n1",
+      "from": "driver",
+      "to": "n1"
+    },
+    {
+      "id": "e-driver-n2",
+      "from": "driver",
+      "to": "n2"
+    },
+    {
+      "id": "e-driver-n3",
+      "from": "driver",
+      "to": "n3"
+    },
+    {
+      "id": "e-driver-n4",
+      "from": "driver",
+      "to": "n4"
+    },
+    {
+      "id": "e-driver-n5",
+      "from": "driver",
+      "to": "n5"
+    },
+    {
+      "id": "e-driver-n6",
+      "from": "driver",
+      "to": "n6"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 120,
+    "sources": [
+      {
+        "id": "s-users",
+        "node": "users",
+        "shape": {
+          "kind": "constant",
+          "rps": 1000
+        },
+        "readRatio": 1.0
+      },
+      {
+        "id": "loader",
+        "node": "loader",
+        "shape": {
+          "kind": "constant",
+          "rps": 200
+        },
+        "readRatio": 0.0
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "api.streamly.tv",
+    "read": {
+      "method": "GET",
+      "path": "/api/users/{key}/watch-history",
+      "status": 200,
+      "body": "{\"user_id\": {key}, \"items\": [{value}]}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/users/{key}/watch-history",
+      "reqBody": "{\"title_id\": {value}, \"position_s\": 1260}",
+      "status": 201,
+      "body": "{\"user_id\": {key}, \"saved\": true}"
+    },
+    "table": "watch_history",
+    "valCol": "title_id"
+  }
+}

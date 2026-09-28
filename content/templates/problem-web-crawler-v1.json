@@ -1,0 +1,112 @@
+{
+  "schemaVersion": 1,
+  "id": "problem-web-crawler-v1",
+  "name": "Web crawler — naive",
+  "description": "Each discovered URL is fetched inline: resolve DNS, download, parse — no frontier, no dedupe, no per-host limits.",
+  "nodes": [
+    {
+      "id": "users",
+      "type": "bot",
+      "skin": "crawler",
+      "name": "Discovered URLs",
+      "pos": {
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "id": "crawler",
+      "type": "service",
+      "skin": "go-service",
+      "name": "Crawler (fetch + parse)",
+      "pos": {
+        "x": 0,
+        "y": 110
+      },
+      "config": {
+        "instances": 4,
+        "slots": 128
+      }
+    },
+    {
+      "id": "resolver",
+      "type": "external-api",
+      "name": "DNS resolvers",
+      "pos": {
+        "x": -90,
+        "y": 220
+      },
+      "config": {
+        "p50Ms": 20,
+        "p99Ms": 120,
+        "quotaRps": 5000,
+        "slots": 2000
+      }
+    },
+    {
+      "id": "web",
+      "type": "external-api",
+      "name": "The web",
+      "pos": {
+        "x": 90,
+        "y": 220
+      },
+      "config": {
+        "p50Ms": 80,
+        "p99Ms": 400,
+        "quotaRps": 2500,
+        "slots": 5000,
+        "availabilityPct": 99.9
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "users->crawler",
+      "from": "users",
+      "to": "crawler"
+    },
+    {
+      "id": "crawler->resolver",
+      "from": "crawler",
+      "to": "resolver"
+    },
+    {
+      "id": "crawler->web",
+      "from": "crawler",
+      "to": "web"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 60,
+    "sources": [
+      {
+        "id": "seeds",
+        "node": "users",
+        "shape": {
+          "kind": "constant",
+          "rps": 1500
+        },
+        "readRatio": 1
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "frontier.internal",
+    "read": {
+      "method": "GET",
+      "path": "/v1/urls/{key}",
+      "status": 200,
+      "body": "{\"url\": \"https://site{key}.example/\", \"status\": \"fetched\", \"http\": 200}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/v1/urls",
+      "reqBody": "{\"url\": \"https://site{key}.example/page\"}",
+      "status": 202,
+      "body": "{\"queued\": true}"
+    }
+  }
+}

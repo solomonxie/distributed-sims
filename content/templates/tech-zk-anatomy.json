@@ -1,0 +1,126 @@
+{
+  "schemaVersion": 1,
+  "id": "tech-zk-anatomy",
+  "name": "ZooKeeper: anatomy and leader election",
+  "description": "A 3-server ensemble elects a leader. Three app instances open sessions, create ephemeral sequential znodes under /election, and the lowest one leads.",
+  "nodes": [
+    {
+      "id": "zk-1",
+      "type": "zk-server",
+      "skin": "zookeeper-node",
+      "name": "zk-1",
+      "pos": {
+        "x": 90,
+        "y": 360
+      },
+      "config": {},
+      "parent": "ensemble"
+    },
+    {
+      "id": "zk-2",
+      "type": "zk-server",
+      "skin": "zookeeper-node",
+      "name": "zk-2",
+      "pos": {
+        "x": 195,
+        "y": 360
+      },
+      "config": {},
+      "parent": "ensemble"
+    },
+    {
+      "id": "zk-3",
+      "type": "zk-server",
+      "skin": "zookeeper-node",
+      "name": "zk-3",
+      "pos": {
+        "x": 300,
+        "y": 360
+      },
+      "config": {},
+      "parent": "ensemble"
+    },
+    {
+      "id": "app-1",
+      "type": "zk-app",
+      "skin": "election-app",
+      "name": "app-1",
+      "pos": {
+        "x": 90,
+        "y": 150
+      },
+      "config": {
+        "startDelayMs": 1500
+      }
+    },
+    {
+      "id": "app-2",
+      "type": "zk-app",
+      "skin": "election-app",
+      "name": "app-2",
+      "pos": {
+        "x": 195,
+        "y": 150
+      },
+      "config": {
+        "startDelayMs": 1900
+      }
+    },
+    {
+      "id": "app-3",
+      "type": "zk-app",
+      "skin": "election-app",
+      "name": "app-3",
+      "pos": {
+        "x": 300,
+        "y": 150
+      },
+      "config": {
+        "startDelayMs": 2300
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-app-1-zk-1",
+      "from": "app-1",
+      "to": "zk-1"
+    },
+    {
+      "id": "e-app-2-zk-2",
+      "from": "app-2",
+      "to": "zk-2"
+    },
+    {
+      "id": "e-app-3-zk-3",
+      "from": "app-3",
+      "to": "zk-3"
+    }
+  ],
+  "containers": [
+    {
+      "id": "ensemble",
+      "kind": "vpc",
+      "name": "Ensemble"
+    }
+  ],
+  "scenario": {
+    "durationSec": 180,
+    "sources": [],
+    "events": []
+  },
+  "wire": {
+    "host": "scheduler.internal",
+    "read": {
+      "path": "/leader",
+      "body": "{\"leader\": \"app-1\", \"znode\": \"/election/n_000000{key}\"}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/election/join",
+      "reqBody": "{\"instance\": \"app-{key}\"}",
+      "status": 201,
+      "body": "{\"znode\": \"/election/n_000000{key}\"}"
+    }
+  }
+}

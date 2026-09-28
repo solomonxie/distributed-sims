@@ -1,0 +1,158 @@
+{
+  "schemaVersion": 1,
+  "id": "geo-nearby",
+  "name": "Proximity: nearby drivers + routing",
+  "description": "Drivers push locations; riders search nearby (geohash precision 6, 2km) and ask for a route. At 20s a stadium lets out: half the searches hit one dense cell, its shard saturates. At 50s a map update forces the routing engine to rebuild its contraction hierarchy; routes fall back to Dijkstra.",
+  "nodes": [
+    {
+      "id": "drivers",
+      "type": "iot-device",
+      "name": "Drivers",
+      "pos": {
+        "x": 55,
+        "y": 60
+      }
+    },
+    {
+      "id": "loc",
+      "type": "service",
+      "name": "Location svc",
+      "pos": {
+        "x": 195,
+        "y": 60
+      }
+    },
+    {
+      "id": "geo",
+      "type": "geo-index",
+      "skin": "redis-geo",
+      "name": "Geo index",
+      "pos": {
+        "x": 335,
+        "y": 130
+      },
+      "config": {
+        "shards": 8
+      }
+    },
+    {
+      "id": "riders",
+      "type": "mobile-client",
+      "name": "Riders",
+      "pos": {
+        "x": 55,
+        "y": 200
+      }
+    },
+    {
+      "id": "match",
+      "type": "service",
+      "name": "Matching",
+      "pos": {
+        "x": 195,
+        "y": 200
+      }
+    },
+    {
+      "id": "route",
+      "type": "routing-engine",
+      "skin": "osrm",
+      "name": "OSRM",
+      "pos": {
+        "x": 335,
+        "y": 270
+      },
+      "config": {
+        "graphNodes": 2000000,
+        "prepSecPerMillion": 10
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "drivers-loc",
+      "from": "drivers",
+      "to": "loc"
+    },
+    {
+      "id": "loc-geo",
+      "from": "loc",
+      "to": "geo"
+    },
+    {
+      "id": "riders-match",
+      "from": "riders",
+      "to": "match"
+    },
+    {
+      "id": "match-geo",
+      "from": "match",
+      "to": "geo"
+    },
+    {
+      "id": "match-route",
+      "from": "match",
+      "to": "route"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 90,
+    "sources": [
+      {
+        "id": "d",
+        "node": "drivers",
+        "shape": {
+          "kind": "constant",
+          "rps": 800
+        },
+        "readRatio": 0
+      },
+      {
+        "id": "r",
+        "node": "riders",
+        "shape": {
+          "kind": "constant",
+          "rps": 150
+        },
+        "readRatio": 1
+      }
+    ],
+    "events": [
+      {
+        "atSec": 20,
+        "event": {
+          "kind": "hot-key",
+          "target": "geo",
+          "params": {
+            "hot": 50,
+            "x": 20
+          },
+          "durationSec": 20
+        }
+      },
+      {
+        "atSec": 50,
+        "event": {
+          "kind": "map-update",
+          "target": "route"
+        }
+      }
+    ]
+  },
+  "wire": {
+    "host": "api.ride.io",
+    "read": {
+      "method": "GET",
+      "path": "/v1/drivers/nearby?cell={key}&radius=2000",
+      "body": "{\"cell\": {key}, \"drivers\": [{\"id\": 8812, \"eta_s\": 180}]}"
+    },
+    "write": {
+      "method": "PUT",
+      "path": "/v1/drivers/{key}/location",
+      "reqBody": "{\"lat\": 40.7502, \"lng\": -73.9934, \"ts\": {value}}",
+      "status": 204,
+      "body": ""
+    }
+  }
+}

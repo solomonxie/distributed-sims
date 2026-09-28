@@ -1,0 +1,172 @@
+group: { id: analytics, label: Analytics, order: 6 }
+# Analytical stores (behaviors/analytics.ts). Queries are scans: cost ∝ bytes read.
+types:
+  - type: columnar-db
+    label: Columnar DB
+    description: OLAP cluster; reads only the columns a query selects, prunes by time, merges insert parts
+    icon: columns-3
+    costPerInstanceMonth: 400
+    knobs:
+      - { key: shards, label: Shards, kind: int, default: 2, min: 1, max: 64, help: Each shard scans its slice in parallel }
+      - { key: replicas, label: Replicas, kind: int, default: 1, min: 1, max: 5, help: More replicas = more concurrent queries }
+      - { key: cores, label: Cores / server, kind: int, default: 16, min: 1, max: 256 }
+      - { key: maxThreads, label: Threads / query, kind: int, default: 16, min: 1, max: 256, help: max_threads; a query uses this many cores per shard }
+      - { key: layout, label: Storage layout, kind: enum, default: column, options: [column, row], help: Row stores read every column of every row }
+      - { key: rowsM, label: Table rows, kind: number, default: 100, min: 0.001, max: 1000000, unit: M }
+      - { key: columnsTotal, label: Columns in table, kind: int, default: 100, min: 1, max: 5000 }
+      - { key: avgColumnsSelected, label: Columns per query, kind: int, default: 5, min: 1, max: 5000 }
+      - { key: compression, label: Compression, kind: number, default: 8, min: 1, max: 50, unit: "×", help: Columns of one type compress well (LZ4/ZSTD + codecs) }
+      - { key: timeFilter, label: Time filter, kind: bool, default: false, help: WHERE ts in a range → partition + sparse primary index pruning }
+      - { key: timeRangePct, label: Range scanned, kind: percent, default: 3, min: 0.01, max: 100, help: Share of the table inside the time range (1 day of 30 ≈ 3%) }
+      - { key: vectorized, label: Vectorized execution, kind: bool, default: true, help: Processes column blocks with SIMD instead of row by row }
+      - { key: mbPerSecPerCore, label: Scan rate / core, kind: number, default: 1000, min: 1, max: 10000, unit: MB/s, advanced: true, help: Uncompressed bytes processed per core }
+      - { key: rowAtATimeX, label: Row-at-a-time speed, kind: number, default: 0.15, min: 0.01, max: 1, unit: "×", advanced: true }
+      - { key: diskMBps, label: Disk read / server, kind: number, default: 2000, min: 10, max: 20000, unit: MB/s, advanced: true }
+      - { key: bytesPerValue, label: Bytes / value, kind: number, default: 8, min: 1, max: 1000, advanced: true }
+      - { key: batchInserts, label: Batch inserts, kind: bool, default: true, help: Async insert buffer flushed as one part; off = every insert makes a part }
+      - { key: flushMs, label: Insert flush interval, kind: ms, default: 1000, min: 50, max: 60000, advanced: true }
+      - { key: mergePartsPerSec, label: Merge rate, kind: number, default: 20, min: 0.1, max: 10000, unit: parts/s, advanced: true }
+      - { key: mergeCoreShare, label: Merge CPU share, kind: number, default: 0.25, min: 0, max: 1, advanced: true }
+      - { key: partsToDelayInsert, label: Parts → delay inserts, kind: int, default: 150, min: 1, max: 100000, advanced: true }
+      - { key: partsToThrowInsert, label: Parts → reject inserts, kind: int, default: 300, min: 1, max: 100000, advanced: true, help: '"Too many parts" error' }
+      - { key: perPartMs, label: Cost per part, kind: ms, default: 0.05, min: 0, max: 100, advanced: true }
+      - { key: insertP50Ms, label: Insert p50, kind: ms, default: 5, min: 0.1, max: 5000, advanced: true }
+      - { key: insertP99Ms, label: Insert p99, kind: ms, default: 30, min: 0.1, max: 30000, advanced: true }
+      - { key: p50Ms, label: Query overhead p50, kind: ms, default: 5, min: 0.1, max: 5000, advanced: true }
+      - { key: p99Ms, label: Query overhead p99, kind: ms, default: 20, min: 0.1, max: 30000, advanced: true }
+      - { key: queueLimit, label: Queue limit, kind: int, default: 2000, min: 0, max: 1000000, advanced: true, help: In core-units }
+      - { key: costMonth, label: Cost / server / month, kind: number, default: 400, min: 0, max: 100000, unit: $ }
+  - type: data-warehouse
+    label: Data warehouse
+    description: Separate storage + compute; sized warehouses, queueing, multi-cluster, auto-suspend, result cache
+    icon: warehouse
+    costPerInstanceMonth: 2920
+    knobs:
+      - { key: size, label: Warehouse size, kind: enum, default: M, options: [XS, S, M, L, XL, 2XL, 3XL, 4XL], help: Credits/hour 1,2,4…128; each size doubles speed and cost }
+      - { key: concurrency, label: Slots / cluster, kind: int, default: 8, min: 1, max: 2000, help: MAX_CONCURRENCY_LEVEL; beyond → queued }
+      - { key: minClusters, label: Min clusters, kind: int, default: 1, min: 1, max: 10 }
+      - { key: maxClusters, label: Max clusters, kind: int, default: 1, min: 1, max: 10, help: ">1 = multi-cluster: adds clusters while queries queue" }
+      - { key: autoSuspendSec, label: Auto-suspend after, kind: number, default: 60, min: 0, max: 86400, unit: s, help: Idle this long → suspended, no credits. 0 = never }
+      - { key: resumeMs, label: Resume / cluster start, kind: ms, default: 1500, min: 0, max: 600000 }
+      - { key: coldCacheX, label: Cold cache slowdown, kind: number, default: 3, min: 1, max: 20, unit: "×", advanced: true, help: First queries after resume read from remote storage }
+      - { key: warmPerQuery, label: Cache warm-up / query, kind: number, default: 0.05, min: 0.001, max: 1, advanced: true }
+      - { key: resultCache, label: Result cache, kind: bool, default: true, help: Identical query + unchanged data → answer without compute }
+      - { key: resultCacheHours, label: Result cache TTL, kind: number, default: 24, min: 0, max: 744, unit: h, advanced: true }
+      - { key: scanGB, label: Table scanned / query, kind: number, default: 20, min: 0.001, max: 100000, unit: GB, help: Before micro-partition pruning }
+      - { key: clusteringKey, label: Clustered on filter, kind: bool, default: true, help: Micro-partition min/max lets the filter skip partitions }
+      - { key: filterSelectivityPct, label: Partitions kept, kind: percent, default: 5, min: 0.01, max: 100 }
+      - { key: adhocScanGB, label: Ad-hoc scan, kind: number, default: 40, min: 0.001, max: 100000, unit: GB, help: Queries from tenant "adhoc" are unpruned, uncached scans }
+      - { key: writeGB, label: Write cost, kind: number, default: 0.5, min: 0, max: 10000, unit: GB, advanced: true }
+      - { key: gbPerSecPerCredit, label: Scan rate / credit, kind: number, default: 1, min: 0.001, max: 100, unit: GB/s, advanced: true }
+      - { key: gbPerSlot, label: GB per slot, kind: number, default: 2.5, min: 0.01, max: 10000, advanced: true, help: Bigger queries take more of the warehouse }
+      - { key: scaleDownSec, label: Scale-down after, kind: number, default: 10, min: 1, max: 3600, unit: s, advanced: true }
+      - { key: startSuspended, label: Start suspended, kind: bool, default: false, advanced: true }
+      - { key: pricing, label: Pricing, kind: enum, default: credits, options: [credits, bytes, fixed], help: credits × uptime · bytes scanned · fixed nodes }
+      - { key: creditPrice, label: $ / credit, kind: number, default: 3, min: 0, max: 100, unit: $ }
+      - { key: pricePerTiB, label: $ / TiB scanned, kind: number, default: 6.25, min: 0, max: 100, unit: $, advanced: true }
+      - { key: nodes, label: Nodes (fixed), kind: int, default: 2, min: 1, max: 128, advanced: true }
+      - { key: p50Ms, label: Compile p50, kind: ms, default: 80, min: 0.1, max: 60000, advanced: true }
+      - { key: p99Ms, label: Compile p99, kind: ms, default: 400, min: 0.1, max: 60000, advanced: true }
+      - { key: queueLimit, label: Queue limit, kind: int, default: 1000, min: 0, max: 100000, advanced: true }
+      - { key: costMonth, label: Cost / month (fixed), kind: number, default: 1600, min: 0, max: 1000000, unit: $, help: Used when pricing = fixed }
+  - type: lakehouse
+    label: Lakehouse
+    description: Delta tables on object storage + autoscaling Spark cluster; small files, OPTIMIZE, Photon, streaming
+    icon: waves
+    costPerInstanceMonth: 3000
+    knobs:
+      - { key: clusterMode, label: Cluster type, kind: enum, default: all-purpose, options: [all-purpose, job], help: Job clusters are cheaper per DBU but start per run }
+      - { key: minWorkers, label: Min workers, kind: int, default: 2, min: 1, max: 1000 }
+      - { key: maxWorkers, label: Max workers, kind: int, default: 8, min: 1, max: 1000, help: Autoscale on backlog, half the gap per step }
+      - { key: coresPerWorker, label: Cores / worker, kind: int, default: 8, min: 1, max: 128 }
+      - { key: workerStartSec, label: Worker start, kind: number, default: 15, min: 0, max: 900, unit: s, help: Real VMs take 3–5 min; scaled down }
+      - { key: autoTerminateSec, label: Auto-terminate after, kind: number, default: 120, min: 0, max: 86400, unit: s, help: Idle cluster shuts down; next query waits for a cold start. 0 = never }
+      - { key: scaleDownSec, label: Scale-down after, kind: number, default: 10, min: 1, max: 3600, unit: s, advanced: true }
+      - { key: photon, label: Photon, kind: bool, default: true, help: Vectorized C++ engine; faster scans, higher DBU rate }
+      - { key: photonX, label: Photon speed-up, kind: number, default: 2.5, min: 1, max: 20, unit: "×", advanced: true }
+      - { key: photonDbuX, label: Photon DBU ×, kind: number, default: 2, min: 1, max: 5, advanced: true }
+      - { key: tableGB, label: Table size, kind: number, default: 100, min: 0.001, max: 1000000, unit: GB }
+      - { key: scanPct, label: Scanned / query, kind: percent, default: 10, min: 0.1, max: 100, help: After partition pruning + data skipping }
+      - { key: targetFileMb, label: Compacted file size, kind: number, default: 1024, min: 1, max: 16384, unit: MB, advanced: true }
+      - { key: fileOpenMs, label: Cost per file, kind: ms, default: 20, min: 0, max: 5000, help: GET + Parquet footer; dominates with many tiny files }
+      - { key: mbPerSecPerCore, label: Scan rate / core, kind: number, default: 150, min: 1, max: 5000, unit: MB/s, advanced: true }
+      - { key: optimizeEverySec, label: OPTIMIZE every, kind: number, default: 0, min: 0, max: 86400, unit: s, help: Compacts small files into big ones. 0 = never }
+      - { key: streamIngest, label: Streaming ingest, kind: bool, default: false, help: Auto Loader micro-batches append small files }
+      - { key: microBatchSec, label: Micro-batch interval, kind: number, default: 5, min: 0, max: 3600, unit: s }
+      - { key: filesPerBatch, label: Files / commit, kind: int, default: 8, min: 1, max: 10000, advanced: true, help: One file per writing task }
+      - { key: checkpointInterval, label: Log checkpoint every, kind: int, default: 10, min: 1, max: 1000, unit: commits, advanced: true }
+      - { key: timeTravelPct, label: Time-travel reads, kind: percent, default: 0, min: 0, max: 100, help: Share of queries reading VERSION AS OF an older snapshot }
+      - { key: timeTravelVersions, label: Versions back, kind: int, default: 20, min: 1, max: 10000, advanced: true }
+      - { key: logReplayMs, label: Log replay / commit, kind: ms, default: 50, min: 0, max: 5000, advanced: true }
+      - { key: jobEverySec, label: Batch job every, kind: number, default: 0, min: 0, max: 86400, unit: s, help: Scheduled ETL job on the same cluster. 0 = none }
+      - { key: jobGB, label: Job input, kind: number, default: 50, min: 0.001, max: 1000000, unit: GB }
+      - { key: dbuPerNodeHour, label: DBU / node-hour, kind: number, default: 2, min: 0, max: 100, advanced: true }
+      - { key: dbuPrice, label: $ / DBU, kind: number, default: 0.55, min: 0, max: 10, unit: $, help: All-purpose ≈ $0.55, jobs ≈ $0.15 }
+      - { key: vmHourly, label: VM $ / hour, kind: number, default: 0.5, min: 0, max: 100, unit: $, advanced: true }
+      - { key: p50Ms, label: Planning p50, kind: ms, default: 300, min: 0.1, max: 60000, advanced: true }
+      - { key: p99Ms, label: Planning p99, kind: ms, default: 1200, min: 0.1, max: 60000, advanced: true }
+      - { key: queueLimit, label: Queue limit, kind: int, default: 2000, min: 0, max: 1000000, advanced: true }
+skins:
+  - name: clickhouse
+    type: columnar-db
+    label: ClickHouse
+    description: Column-oriented OLAP DB; MergeTree parts merged in the background
+    icon: brand:clickhouse
+    tags: [olap, columnar, self-hosted]
+    defaults: { shards: 2, replicas: 1, cores: 16, maxThreads: 16, compression: 8, partsToDelayInsert: 150, partsToThrowInsert: 300, costMonth: 400 }   # source: MergeTree parts_to_delay_insert 150 / parts_to_throw_insert 300 (pre-23.x defaults)
+  - name: druid
+    type: columnar-db
+    label: Apache Druid
+    description: Real-time OLAP; time-partitioned segments, roll-up at ingest
+    icon: columns-3
+    tags: [olap, columnar, realtime, self-hosted]
+    defaults: { shards: 4, cores: 8, maxThreads: 8, compression: 6, timeFilter: true, timeRangePct: 5, costMonth: 350 }
+  - name: apache-pinot
+    type: columnar-db
+    label: Apache Pinot
+    description: User-facing real-time analytics; low-latency segment scans with indexes
+    icon: columns-3
+    tags: [olap, columnar, realtime, self-hosted]
+    defaults: { shards: 4, cores: 8, maxThreads: 8, compression: 6, timeFilter: true, timeRangePct: 2, costMonth: 350 }
+  - name: postgres-rowstore
+    type: columnar-db
+    label: Postgres (row store)
+    description: OLTP heap tables on an analytical query; reads whole rows, few parallel workers
+    icon: brand:postgres
+    tags: [sql, row-store, self-hosted]
+    defaults: { layout: row, shards: 1, replicas: 1, cores: 8, maxThreads: 3, compression: 1, vectorized: false, diskMBps: 1000, costMonth: 400 }   # source: max_parallel_workers_per_gather default 2 (+ leader)
+  - name: snowflake
+    type: data-warehouse
+    label: Snowflake
+    description: Virtual warehouses billed per credit-second; multi-cluster, auto-suspend, result cache
+    icon: brand:snowflake
+    tags: [warehouse, managed]
+    defaults: { size: M, concurrency: 8, autoSuspendSec: 60, pricing: credits, creditPrice: 3 }   # source: MAX_CONCURRENCY_LEVEL 8; ~$3/credit Enterprise; auto-suspend real default 600s
+  - name: bigquery
+    type: data-warehouse
+    label: BigQuery
+    description: Serverless; on-demand slots, billed per TiB scanned, no warehouse to suspend
+    icon: brand:bigquery
+    tags: [warehouse, gcp, managed, serverless]
+    defaults: { size: 2XL, concurrency: 100, autoSuspendSec: 0, resumeMs: 0, coldCacheX: 1, maxClusters: 1, pricing: bytes, pricePerTiB: 6.25 }   # source: on-demand $6.25/TiB, ~2000 slots, 100 concurrent interactive queries
+  - name: redshift
+    type: data-warehouse
+    label: Redshift
+    description: Provisioned nodes; fixed cost, WLM queues, no instant scale
+    icon: brand:aws
+    tags: [warehouse, aws, managed]
+    defaults: { size: L, concurrency: 5, autoSuspendSec: 0, maxClusters: 1, coldCacheX: 1, pricing: fixed, nodes: 2, costMonth: 1586 }   # source: ra3.xlplus $1.086/h × 2 nodes; WLM default 5 slots
+  - name: databricks
+    type: lakehouse
+    label: Databricks
+    description: Managed Spark + Delta Lake + Photon on your object storage
+    icon: brand:databricks
+    tags: [lakehouse, managed, spark]
+    defaults: { photon: true, dbuPrice: 0.55 }   # source: Premium all-purpose compute ≈ $0.55/DBU
+  - name: delta-lake-on-s3
+    type: lakehouse
+    label: Delta Lake on S3
+    description: Open-source Delta tables on S3 read by self-managed Spark; no DBU, no Photon
+    icon: brand:spark
+    tags: [lakehouse, open-source, spark]
+    defaults: { photon: false, dbuPrice: 0 }

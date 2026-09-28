@@ -1,0 +1,308 @@
+{
+  "schemaVersion": 1,
+  "id": "tech-cassandra-cl",
+  "name": "Cassandra: node down vs consistency level",
+  "description": "Three apps on one RF 3 ring: CL ONE, QUORUM and ALL. max_hint_window is scaled down to 5s.",
+  "nodes": [
+    {
+      "id": "users-one",
+      "type": "web-client",
+      "name": "Users (ONE)",
+      "pos": {
+        "x": 70,
+        "y": 40
+      },
+      "config": {}
+    },
+    {
+      "id": "users-q",
+      "type": "web-client",
+      "name": "Users (QUORUM)",
+      "pos": {
+        "x": 195,
+        "y": 40
+      },
+      "config": {}
+    },
+    {
+      "id": "users-all",
+      "type": "web-client",
+      "name": "Users (ALL)",
+      "pos": {
+        "x": 320,
+        "y": 40
+      },
+      "config": {}
+    },
+    {
+      "id": "app-one",
+      "type": "cassandra-driver",
+      "name": "app CL ONE",
+      "pos": {
+        "x": 70,
+        "y": 140
+      },
+      "config": {
+        "writeCL": "ONE",
+        "readCL": "ONE"
+      }
+    },
+    {
+      "id": "app-quorum",
+      "type": "cassandra-driver",
+      "name": "app CL QUORUM",
+      "pos": {
+        "x": 195,
+        "y": 140
+      },
+      "config": {
+        "writeCL": "QUORUM",
+        "readCL": "QUORUM"
+      }
+    },
+    {
+      "id": "app-all",
+      "type": "cassandra-driver",
+      "name": "app CL ALL",
+      "pos": {
+        "x": 320,
+        "y": 140
+      },
+      "config": {
+        "writeCL": "ALL",
+        "readCL": "ALL"
+      }
+    },
+    {
+      "id": "n1",
+      "type": "cassandra-node",
+      "name": "n1",
+      "pos": {
+        "x": 195,
+        "y": 260
+      },
+      "config": {
+        "hintWindowSec": 5
+      }
+    },
+    {
+      "id": "n2",
+      "type": "cassandra-node",
+      "name": "n2",
+      "pos": {
+        "x": 316,
+        "y": 330
+      },
+      "config": {
+        "hintWindowSec": 5
+      }
+    },
+    {
+      "id": "n3",
+      "type": "cassandra-node",
+      "name": "n3",
+      "pos": {
+        "x": 316,
+        "y": 470
+      },
+      "config": {
+        "hintWindowSec": 5
+      }
+    },
+    {
+      "id": "n4",
+      "type": "cassandra-node",
+      "name": "n4",
+      "pos": {
+        "x": 195,
+        "y": 540
+      },
+      "config": {
+        "hintWindowSec": 5
+      }
+    },
+    {
+      "id": "n5",
+      "type": "cassandra-node",
+      "name": "n5",
+      "pos": {
+        "x": 74,
+        "y": 470
+      },
+      "config": {
+        "hintWindowSec": 5
+      }
+    },
+    {
+      "id": "n6",
+      "type": "cassandra-node",
+      "name": "n6",
+      "pos": {
+        "x": 74,
+        "y": 330
+      },
+      "config": {
+        "hintWindowSec": 5
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-users-one-app-one",
+      "from": "users-one",
+      "to": "app-one"
+    },
+    {
+      "id": "e-users-q-app-quorum",
+      "from": "users-q",
+      "to": "app-quorum"
+    },
+    {
+      "id": "e-users-all-app-all",
+      "from": "users-all",
+      "to": "app-all"
+    },
+    {
+      "id": "e-app-one-n1",
+      "from": "app-one",
+      "to": "n1"
+    },
+    {
+      "id": "e-app-one-n2",
+      "from": "app-one",
+      "to": "n2"
+    },
+    {
+      "id": "e-app-one-n3",
+      "from": "app-one",
+      "to": "n3"
+    },
+    {
+      "id": "e-app-one-n4",
+      "from": "app-one",
+      "to": "n4"
+    },
+    {
+      "id": "e-app-one-n5",
+      "from": "app-one",
+      "to": "n5"
+    },
+    {
+      "id": "e-app-one-n6",
+      "from": "app-one",
+      "to": "n6"
+    },
+    {
+      "id": "e-app-quorum-n1",
+      "from": "app-quorum",
+      "to": "n1"
+    },
+    {
+      "id": "e-app-quorum-n2",
+      "from": "app-quorum",
+      "to": "n2"
+    },
+    {
+      "id": "e-app-quorum-n3",
+      "from": "app-quorum",
+      "to": "n3"
+    },
+    {
+      "id": "e-app-quorum-n4",
+      "from": "app-quorum",
+      "to": "n4"
+    },
+    {
+      "id": "e-app-quorum-n5",
+      "from": "app-quorum",
+      "to": "n5"
+    },
+    {
+      "id": "e-app-quorum-n6",
+      "from": "app-quorum",
+      "to": "n6"
+    },
+    {
+      "id": "e-app-all-n1",
+      "from": "app-all",
+      "to": "n1"
+    },
+    {
+      "id": "e-app-all-n2",
+      "from": "app-all",
+      "to": "n2"
+    },
+    {
+      "id": "e-app-all-n3",
+      "from": "app-all",
+      "to": "n3"
+    },
+    {
+      "id": "e-app-all-n4",
+      "from": "app-all",
+      "to": "n4"
+    },
+    {
+      "id": "e-app-all-n5",
+      "from": "app-all",
+      "to": "n5"
+    },
+    {
+      "id": "e-app-all-n6",
+      "from": "app-all",
+      "to": "n6"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 120,
+    "sources": [
+      {
+        "id": "s-one",
+        "node": "users-one",
+        "shape": {
+          "kind": "constant",
+          "rps": 300
+        },
+        "readRatio": 0.8
+      },
+      {
+        "id": "s-q",
+        "node": "users-q",
+        "shape": {
+          "kind": "constant",
+          "rps": 300
+        },
+        "readRatio": 0.8
+      },
+      {
+        "id": "s-all",
+        "node": "users-all",
+        "shape": {
+          "kind": "constant",
+          "rps": 300
+        },
+        "readRatio": 0.8
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "iot.example.com",
+    "read": {
+      "method": "GET",
+      "path": "/api/sensors/{key}/latest",
+      "status": 200,
+      "body": "{\"sensor_id\": {key}, \"temp_c\": {value}}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/sensors/{key}/readings",
+      "reqBody": "{\"temp_c\": {value}}",
+      "status": 201,
+      "body": "{\"sensor_id\": {key}, \"accepted\": true}"
+    },
+    "table": "sensor_readings",
+    "valCol": "temp_c"
+  }
+}

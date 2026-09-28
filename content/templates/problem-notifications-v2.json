@@ -1,0 +1,264 @@
+{
+  "schemaVersion": 1,
+  "id": "problem-notifications-v2",
+  "name": "Notification system — reference",
+  "description": "The API dedupes, then enqueues to one FIFO queue + worker pool per channel, so a slow provider only backs up its own queue.",
+  "nodes": [
+    {
+      "id": "users",
+      "type": "web-client",
+      "name": "Product services",
+      "pos": {
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "id": "api",
+      "type": "service",
+      "skin": "go-service",
+      "name": "Notification API",
+      "pos": {
+        "x": 0,
+        "y": 110
+      },
+      "config": {
+        "instances": 2
+      }
+    },
+    {
+      "id": "dedupe",
+      "type": "cache",
+      "skin": "redis",
+      "name": "Dedupe keys",
+      "pos": {
+        "x": 120,
+        "y": 110
+      },
+      "config": {
+        "capacityKeys": 1024,
+        "ttlSec": 86400
+      }
+    },
+    {
+      "id": "q-push",
+      "type": "queue",
+      "skin": "sqs",
+      "name": "Push queue",
+      "pos": {
+        "x": -120,
+        "y": 220
+      },
+      "config": {
+        "ordering": "fifo"
+      }
+    },
+    {
+      "id": "q-sms",
+      "type": "queue",
+      "skin": "sqs",
+      "name": "SMS queue",
+      "pos": {
+        "x": 0,
+        "y": 220
+      },
+      "config": {
+        "ordering": "fifo"
+      }
+    },
+    {
+      "id": "q-email",
+      "type": "queue",
+      "skin": "sqs",
+      "name": "Email queue",
+      "pos": {
+        "x": 120,
+        "y": 220
+      },
+      "config": {
+        "ordering": "fifo"
+      }
+    },
+    {
+      "id": "w-push",
+      "type": "worker",
+      "name": "Push workers",
+      "pos": {
+        "x": -120,
+        "y": 330
+      },
+      "config": {
+        "instances": 4,
+        "slots": 64,
+        "p50Ms": 2,
+        "p99Ms": 10,
+        "idempotent": true
+      }
+    },
+    {
+      "id": "w-sms",
+      "type": "worker",
+      "name": "SMS workers",
+      "pos": {
+        "x": 0,
+        "y": 330
+      },
+      "config": {
+        "instances": 4,
+        "slots": 64,
+        "p50Ms": 2,
+        "p99Ms": 10,
+        "idempotent": true
+      }
+    },
+    {
+      "id": "w-email",
+      "type": "worker",
+      "name": "Email workers",
+      "pos": {
+        "x": 120,
+        "y": 330
+      },
+      "config": {
+        "instances": 4,
+        "slots": 64,
+        "p50Ms": 2,
+        "p99Ms": 10,
+        "idempotent": true
+      }
+    },
+    {
+      "id": "apns",
+      "type": "external-api",
+      "skin": "apns",
+      "name": "APNs",
+      "pos": {
+        "x": -120,
+        "y": 440
+      }
+    },
+    {
+      "id": "twilio",
+      "type": "external-api",
+      "skin": "twilio",
+      "name": "Twilio SMS",
+      "pos": {
+        "x": 0,
+        "y": 440
+      }
+    },
+    {
+      "id": "sendgrid",
+      "type": "external-api",
+      "skin": "sendgrid",
+      "name": "SendGrid",
+      "pos": {
+        "x": 120,
+        "y": 440
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "users->api",
+      "from": "users",
+      "to": "api"
+    },
+    {
+      "id": "api->dedupe",
+      "from": "api",
+      "to": "dedupe"
+    },
+    {
+      "id": "api->q-push",
+      "from": "api",
+      "to": "q-push",
+      "config": {
+        "mode": "async",
+        "ratio": 0.7
+      }
+    },
+    {
+      "id": "api->q-sms",
+      "from": "api",
+      "to": "q-sms",
+      "config": {
+        "mode": "async",
+        "ratio": 0.1
+      }
+    },
+    {
+      "id": "api->q-email",
+      "from": "api",
+      "to": "q-email",
+      "config": {
+        "mode": "async",
+        "ratio": 0.4
+      }
+    },
+    {
+      "id": "q-push->w-push",
+      "from": "q-push",
+      "to": "w-push"
+    },
+    {
+      "id": "q-sms->w-sms",
+      "from": "q-sms",
+      "to": "w-sms"
+    },
+    {
+      "id": "q-email->w-email",
+      "from": "q-email",
+      "to": "w-email"
+    },
+    {
+      "id": "w-push->apns",
+      "from": "w-push",
+      "to": "apns"
+    },
+    {
+      "id": "w-sms->twilio",
+      "from": "w-sms",
+      "to": "twilio"
+    },
+    {
+      "id": "w-email->sendgrid",
+      "from": "w-email",
+      "to": "sendgrid"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 60,
+    "sources": [
+      {
+        "id": "events",
+        "node": "users",
+        "shape": {
+          "kind": "constant",
+          "rps": 500
+        },
+        "readRatio": 0
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "notify.internal",
+    "read": {
+      "method": "GET",
+      "path": "/v1/notifications/{key}",
+      "status": 200,
+      "body": "{\"id\": {key}, \"channel\": \"push\", \"status\": \"delivered\"}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/v1/notifications",
+      "reqBody": "{\"user_id\": {key}, \"channel\": \"push\", \"template\": \"order_shipped\"}",
+      "status": 202,
+      "body": "{\"id\": {key}, \"status\": \"queued\"}"
+    },
+    "cachePrefix": "dedupe:",
+    "topic": "notify-push"
+  }
+}

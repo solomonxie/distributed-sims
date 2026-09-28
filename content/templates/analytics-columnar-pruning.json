@@ -1,0 +1,150 @@
+{
+  "schemaVersion": 1,
+  "id": "analytics-columnar-pruning",
+  "name": "ClickHouse: pruning, parts and merges",
+  "description": "Two ClickHouse clusters over 1B rows. Left: dashboards scan the whole table, inserts are batched. Right: dashboards filter to the last day (3% of partitions), but every insert is a single row, so each one becomes a part that merges must fold.",
+  "nodes": [
+    {
+      "id": "dash-all",
+      "type": "web-client",
+      "name": "Dashboards \u00b7 all time",
+      "pos": {
+        "x": 55,
+        "y": 60
+      }
+    },
+    {
+      "id": "ingest",
+      "type": "iot-device",
+      "name": "Event ingest",
+      "pos": {
+        "x": 195,
+        "y": 60
+      }
+    },
+    {
+      "id": "dash-day",
+      "type": "web-client",
+      "name": "Dashboards \u00b7 last day",
+      "pos": {
+        "x": 335,
+        "y": 60
+      }
+    },
+    {
+      "id": "ch-all",
+      "type": "columnar-db",
+      "name": "CH \u00b7 no filter, batched",
+      "pos": {
+        "x": 55,
+        "y": 220
+      },
+      "skin": "clickhouse",
+      "config": {
+        "rowsM": 1000,
+        "batchInserts": true
+      }
+    },
+    {
+      "id": "ch-day",
+      "type": "columnar-db",
+      "name": "CH \u00b7 time filter, row inserts",
+      "pos": {
+        "x": 335,
+        "y": 220
+      },
+      "skin": "clickhouse",
+      "config": {
+        "rowsM": 1000,
+        "timeFilter": true,
+        "timeRangePct": 3,
+        "batchInserts": false
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "dash-all-ch-all",
+      "from": "dash-all",
+      "to": "ch-all",
+      "config": {
+        "timeoutMs": 30000
+      }
+    },
+    {
+      "id": "dash-day-ch-day",
+      "from": "dash-day",
+      "to": "ch-day",
+      "config": {
+        "timeoutMs": 30000
+      }
+    },
+    {
+      "id": "ingest-ch-all",
+      "from": "ingest",
+      "to": "ch-all",
+      "config": {
+        "timeoutMs": 5000
+      }
+    },
+    {
+      "id": "ingest-ch-day",
+      "from": "ingest",
+      "to": "ch-day",
+      "config": {
+        "timeoutMs": 5000
+      }
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 120,
+    "sources": [
+      {
+        "id": "q-all",
+        "node": "dash-all",
+        "shape": {
+          "kind": "constant",
+          "rps": 0.5
+        },
+        "readRatio": 1
+      },
+      {
+        "id": "q-day",
+        "node": "dash-day",
+        "shape": {
+          "kind": "constant",
+          "rps": 0.5
+        },
+        "readRatio": 1
+      },
+      {
+        "id": "ingest",
+        "node": "ingest",
+        "shape": {
+          "kind": "constant",
+          "rps": 20
+        },
+        "readRatio": 0
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "metrics.acme.io",
+    "read": {
+      "method": "GET",
+      "path": "/api/dashboards/sensors/{key}?range=1d",
+      "body": "{\"sensor_id\": {key}, \"rows\": 1440, \"avg_temp\": 21.4}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/v1/events",
+      "reqBody": "{\"sensor_id\": {key}, \"temp\": {value}}",
+      "status": 202,
+      "body": "{\"accepted\": 1}"
+    },
+    "table": "sensor_events",
+    "valCol": "temp"
+  }
+}

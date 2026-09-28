@@ -1,0 +1,99 @@
+{
+  "schemaVersion": 1,
+  "id": "lesson-obs-alerts",
+  "name": "Alert design: noisy vs SLO burn",
+  "description": "Two alerts on one API. \"p99 > 30 ms\" fires on normal tail jitter and flaps all day. \"Error budget burn\" (error rate > 2% for 10 s) stays quiet until users are actually hurt.",
+  "nodes": [
+    {
+      "id": "web",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 195,
+        "y": 20
+      },
+      "skin": "react-spa"
+    },
+    {
+      "id": "api",
+      "type": "service",
+      "name": "API",
+      "pos": {
+        "x": 195,
+        "y": 150
+      },
+      "skin": "java-service"
+    },
+    {
+      "id": "db",
+      "type": "relational-db",
+      "name": "Postgres",
+      "pos": {
+        "x": 195,
+        "y": 290
+      },
+      "skin": "postgres"
+    }
+  ],
+  "edges": [
+    {
+      "id": "web->api",
+      "from": "web",
+      "to": "api"
+    },
+    {
+      "id": "api->db",
+      "from": "api",
+      "to": "db"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 90,
+    "sources": [
+      {
+        "id": "s",
+        "node": "web",
+        "shape": {
+          "kind": "constant",
+          "rps": 300
+        },
+        "readRatio": 0.8
+      }
+    ],
+    "events": []
+  },
+  "alerts": [
+    {
+      "id": "noisy",
+      "target": "api",
+      "metric": "p99",
+      "op": ">",
+      "threshold": 30,
+      "forSec": 0
+    },
+    {
+      "id": "burn",
+      "target": "system",
+      "metric": "errRate",
+      "op": ">",
+      "threshold": 2,
+      "forSec": 10
+    }
+  ],
+  "wire": {
+    "host": "api.example.com",
+    "read": {
+      "path": "/v1/invoices/{key}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/v1/invoices",
+      "reqBody": "{\"customer\": {key}, \"total_cents\": {value}}",
+      "status": 201,
+      "body": "{\"id\": {key}, \"status\": \"draft\"}"
+    },
+    "table": "invoices",
+    "valCol": "total_cents"
+  }
+}

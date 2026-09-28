@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "id": "data-sharding",
+  "name": "Range vs hash sharding",
+  "description": "Vitess routes auto-increment inserts by key range: every new row lands on the last range, one shard runs hot. Switch the shard map to hash to spread them; fire a rebalance to watch keys move with a dual-read window.",
+  "nodes": [
+    { "id": "web", "type": "web-client", "name": "Users", "pos": { "x": 195, "y": 60 } },
+    { "id": "api", "type": "service", "name": "API", "pos": { "x": 195, "y": 180 } },
+    { "id": "router", "type": "shard-router", "skin": "vitess", "name": "vtgate", "pos": { "x": 195, "y": 300 }, "config": { "shardBy": "range", "keyPattern": "sequential" } },
+    { "id": "s1", "type": "relational-db", "skin": "mysql", "name": "Shard 1", "pos": { "x": 35, "y": 440 }, "config": { "replicas": 0, "slots": 4 } },
+    { "id": "s2", "type": "relational-db", "skin": "mysql", "name": "Shard 2", "pos": { "x": 142, "y": 440 }, "config": { "replicas": 0, "slots": 4 } },
+    { "id": "s3", "type": "relational-db", "skin": "mysql", "name": "Shard 3", "pos": { "x": 248, "y": 440 }, "config": { "replicas": 0, "slots": 4 } },
+    { "id": "s4", "type": "relational-db", "skin": "mysql", "name": "Shard 4", "pos": { "x": 355, "y": 440 }, "config": { "replicas": 0, "slots": 4 } }
+  ],
+  "edges": [
+    { "id": "e1", "from": "web", "to": "api" },
+    { "id": "e2", "from": "api", "to": "router" },
+    { "id": "e3", "from": "router", "to": "s1" },
+    { "id": "e4", "from": "router", "to": "s2" },
+    { "id": "e5", "from": "router", "to": "s3" },
+    { "id": "e6", "from": "router", "to": "s4" }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 90,
+    "sources": [{ "id": "s1", "node": "web", "shape": { "kind": "constant", "rps": 1500 }, "readRatio": 0.3, "keys": { "kind": "uniform" } }],
+    "events": [{ "atSec": 45, "event": { "kind": "rebalance", "target": "router", "params": { "sec": 10 } } }]
+  },
+  "wire": {
+    "host": "api.shop.io",
+    "read": {
+      "method": "GET",
+      "path": "/api/orders/{key}",
+      "body": "{\"id\": {key}, \"total\": {value}}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/orders",
+      "reqBody": "{\"customer_id\": {key}, \"total\": {value}}",
+      "status": 201,
+      "body": "{\"id\": {key}}"
+    },
+    "table": "orders",
+    "valCol": "total"
+  }
+}

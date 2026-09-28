@@ -1,0 +1,49 @@
+id: kv-store
+title: KV store (distributed)
+icon: key-round
+category: classic
+order: 5
+summary: A Dynamo-style key-value store that never loses an acknowledged write.
+requirements:
+  - get(key) / put(key, value) on a cluster of commodity nodes
+  - Survive node loss and network partitions
+  - Never lose an acknowledged write; no stale reads
+  - 10k ops/s per node · 70% reads · 10 TB
+  - p99 < 100ms end to end · 99.9% available
+estimates:
+  - 5 members × RF 3 → each key on 3 nodes
+  - 10 TB × 3 replicas = 30 TB raw
+  - Quorum 2 of 3 tolerates 1 replica down per key
+designs:
+  - { id: v1, title: "Naive: N=3, R=1, W=1", template: problem-kv-store-v1 }
+  - { id: v2, title: "Reference: R=2 W=2, hinted handoff, read repair", template: problem-kv-store-v2 }
+challenges:
+  - id: partition-node-loss
+    title: "Partition + node loss: 0 lost acks"
+    template: problem-kv-store-v2
+    scenario:
+      durationSec: 60
+      sources: [{ id: ops, node: users, shape: { kind: constant, rps: 10000 }, readRatio: 0.7, keys: { kind: zipf, s: 0.9 } }]
+      events:
+        - { atSec: 10, event: { kind: partition-members, target: kv, params: { minority: 2 }, durationSec: 20 } }
+        - { atSec: 35, event: { kind: kill-member, target: kv, params: { member: 0 }, durationSec: 15 } }
+    pass:
+      - { metric: anomalies, op: '=', value: 0 }
+      - { metric: availability, op: '>=', value: 99.9 }
+  - id: member-crash
+    title: "Member crash under 20k ops/s"
+    template: problem-kv-store-v2
+    scenario:
+      durationSec: 60
+      sources: [{ id: ops, node: users, shape: { kind: constant, rps: 20000 }, readRatio: 0.7, keys: { kind: zipf, s: 0.9 } }]
+      events: [{ atSec: 20, event: { kind: kill-member, target: kv, params: { member: 2 }, durationSec: 40 } }]
+    pass:
+      - { metric: anomalies, op: '=', value: 0 }
+      - { metric: availability, op: '>=', value: 99.9 }
+      - { metric: p99, op: '<', value: 100 }
+keyIdeas:
+  - { label: Consistent hashing ring, link: "algo:consistent-hashing" }
+  - { label: "N/R/W quorum: R+W>N", link: "lesson:consistency/quorum" }
+  - { label: Partitions force a CAP choice, link: "lesson:consistency/cap" }
+  - { label: Merkle-tree anti-entropy, link: "algo:merkle-tree" }
+  - { label: Gossip membership, link: "algo:gossip" }

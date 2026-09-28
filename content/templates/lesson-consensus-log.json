@@ -1,0 +1,125 @@
+{
+  "schemaVersion": 1,
+  "id": "lesson-consensus-log",
+  "name": "Lesson: Raft log replication",
+  "description": "Clients write through etcd-1; followers forward to the \ud83d\udc51 leader, which appends each write to its log and commits it once a majority of the 5 members stored it.",
+  "nodes": [
+    {
+      "id": "web",
+      "type": "web-client",
+      "name": "Clients",
+      "pos": {
+        "x": 195,
+        "y": 40
+      }
+    },
+    {
+      "id": "api",
+      "type": "service",
+      "name": "Config API",
+      "pos": {
+        "x": 195,
+        "y": 170
+      },
+      "config": {}
+    },
+    {
+      "id": "etcd-1",
+      "type": "consensus-member",
+      "skin": "etcd",
+      "name": "etcd-1",
+      "pos": {
+        "x": 55,
+        "y": 320
+      }
+    },
+    {
+      "id": "etcd-2",
+      "type": "consensus-member",
+      "skin": "etcd",
+      "name": "etcd-2",
+      "pos": {
+        "x": 195,
+        "y": 320
+      }
+    },
+    {
+      "id": "etcd-3",
+      "type": "consensus-member",
+      "skin": "etcd",
+      "name": "etcd-3",
+      "pos": {
+        "x": 335,
+        "y": 320
+      }
+    },
+    {
+      "id": "etcd-4",
+      "type": "consensus-member",
+      "skin": "etcd",
+      "name": "etcd-4",
+      "pos": {
+        "x": 125,
+        "y": 480
+      }
+    },
+    {
+      "id": "etcd-5",
+      "type": "consensus-member",
+      "skin": "etcd",
+      "name": "etcd-5",
+      "pos": {
+        "x": 265,
+        "y": 480
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e0",
+      "from": "web",
+      "to": "api",
+      "config": {
+        "timeoutMs": 5000
+      }
+    },
+    {
+      "id": "e1",
+      "from": "api",
+      "to": "etcd-1",
+      "config": {
+        "timeoutMs": 3000
+      }
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 300,
+    "sources": [
+      {
+        "id": "s1",
+        "node": "web",
+        "shape": {
+          "kind": "constant",
+          "rps": 100
+        },
+        "readRatio": 0.3
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "config.internal",
+    "read": {
+      "path": "/v3/kv/{key}",
+      "body": "{\"key\": {key}, \"value\": {value}, \"revision\": 7}"
+    },
+    "write": {
+      "method": "PUT",
+      "path": "/v3/kv/{key}",
+      "reqBody": "{\"value\": \"{value}\"}",
+      "status": 200,
+      "body": "{\"key\": {key}, \"revision\": 1}"
+    }
+  }
+}

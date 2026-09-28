@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "id": "consensus-split-vote",
+  "name": "Raft: split votes",
+  "description": "4 members with equal 150ms election timeouts time out together, all vote for themselves, and no one wins: term after term, writes fail. Fix: set Election timeout max to 300ms (randomized).",
+  "nodes": [
+    { "id": "web", "type": "web-client", "name": "Clients", "pos": { "x": 195, "y": 40 } },
+    { "id": "api", "type": "service", "name": "API", "pos": { "x": 195, "y": 170 }, "config": { "fanout": "one" } },
+    { "id": "m1", "type": "consensus-member", "name": "node-1", "pos": { "x": 55, "y": 320 }, "config": { "electionMinMs": 150, "electionMaxMs": 150 } },
+    { "id": "m2", "type": "consensus-member", "name": "node-2", "pos": { "x": 150, "y": 320 }, "config": { "electionMinMs": 150, "electionMaxMs": 150 } },
+    { "id": "m3", "type": "consensus-member", "name": "node-3", "pos": { "x": 245, "y": 320 }, "config": { "electionMinMs": 150, "electionMaxMs": 150 } },
+    { "id": "m4", "type": "consensus-member", "name": "node-4", "pos": { "x": 340, "y": 320 }, "config": { "electionMinMs": 150, "electionMaxMs": 150 } }
+  ],
+  "edges": [
+    { "id": "e0", "from": "web", "to": "api" },
+    { "id": "e1", "from": "api", "to": "m1" },
+    { "id": "e2", "from": "api", "to": "m2" },
+    { "id": "e3", "from": "api", "to": "m3" },
+    { "id": "e4", "from": "api", "to": "m4" }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 30,
+    "sources": [{ "id": "s1", "node": "web", "shape": { "kind": "constant", "rps": 20 }, "readRatio": 0.5 }],
+    "events": []
+  },
+  "wire": {
+    "host": "config.internal",
+    "read": {
+      "method": "GET",
+      "path": "/v1/kv/services/{key}",
+      "body": "{\"key\": \"services/{key}\", \"value\": {value}}"
+    },
+    "write": {
+      "method": "PUT",
+      "path": "/v1/kv/services/{key}",
+      "reqBody": "{\"value\": {value}}",
+      "status": 200,
+      "body": "{\"revision\": 57}"
+    }
+  }
+}

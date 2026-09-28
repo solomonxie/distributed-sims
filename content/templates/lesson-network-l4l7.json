@@ -1,0 +1,245 @@
+{
+  "schemaVersion": 1,
+  "id": "lesson-network-l4l7",
+  "name": "L4 vs L7 load balancing",
+  "description": "Three long-lived client connections (like gRPC or HTTP/2), and one of them carries 3× the traffic. The L4 balancer places whole connections, so the busy connection pins one backend and a small one pins another. The L7 balancer spreads individual requests evenly.",
+  "nodes": [
+    {
+      "id": "users-l4",
+      "type": "web-client",
+      "name": "Clients (3 conns)",
+      "pos": {
+        "x": 75,
+        "y": 40
+      }
+    },
+    {
+      "id": "lb4",
+      "type": "load-balancer",
+      "name": "L4 balancer",
+      "pos": {
+        "x": 75,
+        "y": 170
+      },
+      "skin": "aws-nlb",
+      "config": {
+        "layer": "L4",
+        "sticky": true,
+        "algorithm": "round-robin"
+      }
+    },
+    {
+      "id": "a1",
+      "type": "service",
+      "name": "api-1",
+      "pos": {
+        "x": 25,
+        "y": 310
+      },
+      "config": {
+        "instances": 1,
+        "slots": 4,
+        "p50Ms": 20,
+        "p99Ms": 50,
+        "queueLimit": 100
+      }
+    },
+    {
+      "id": "a2",
+      "type": "service",
+      "name": "api-2",
+      "pos": {
+        "x": 75,
+        "y": 400
+      },
+      "config": {
+        "instances": 1,
+        "slots": 4,
+        "p50Ms": 20,
+        "p99Ms": 50,
+        "queueLimit": 100
+      }
+    },
+    {
+      "id": "a3",
+      "type": "service",
+      "name": "api-3",
+      "pos": {
+        "x": 125,
+        "y": 310
+      },
+      "config": {
+        "instances": 1,
+        "slots": 4,
+        "p50Ms": 20,
+        "p99Ms": 50,
+        "queueLimit": 100
+      }
+    },
+    {
+      "id": "users-l7",
+      "type": "web-client",
+      "name": "Clients (3 conns)",
+      "pos": {
+        "x": 315,
+        "y": 40
+      }
+    },
+    {
+      "id": "lb7",
+      "type": "load-balancer",
+      "name": "L7 balancer",
+      "pos": {
+        "x": 315,
+        "y": 170
+      },
+      "skin": "envoy-lb",
+      "config": {
+        "layer": "L7",
+        "algorithm": "round-robin"
+      }
+    },
+    {
+      "id": "b1",
+      "type": "service",
+      "name": "api-1",
+      "pos": {
+        "x": 265,
+        "y": 310
+      },
+      "config": {
+        "instances": 1,
+        "slots": 4,
+        "p50Ms": 20,
+        "p99Ms": 50,
+        "queueLimit": 100
+      }
+    },
+    {
+      "id": "b2",
+      "type": "service",
+      "name": "api-2",
+      "pos": {
+        "x": 315,
+        "y": 400
+      },
+      "config": {
+        "instances": 1,
+        "slots": 4,
+        "p50Ms": 20,
+        "p99Ms": 50,
+        "queueLimit": 100
+      }
+    },
+    {
+      "id": "b3",
+      "type": "service",
+      "name": "api-3",
+      "pos": {
+        "x": 365,
+        "y": 310
+      },
+      "config": {
+        "instances": 1,
+        "slots": 4,
+        "p50Ms": 20,
+        "p99Ms": 50,
+        "queueLimit": 100
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "users-l4->lb4",
+      "from": "users-l4",
+      "to": "lb4",
+      "config": {
+        "timeoutMs": 3000
+      }
+    },
+    {
+      "id": "lb4->a1",
+      "from": "lb4",
+      "to": "a1"
+    },
+    {
+      "id": "lb4->a2",
+      "from": "lb4",
+      "to": "a2"
+    },
+    {
+      "id": "lb4->a3",
+      "from": "lb4",
+      "to": "a3"
+    },
+    {
+      "id": "users-l7->lb7",
+      "from": "users-l7",
+      "to": "lb7",
+      "config": {
+        "timeoutMs": 3000
+      }
+    },
+    {
+      "id": "lb7->b1",
+      "from": "lb7",
+      "to": "b1"
+    },
+    {
+      "id": "lb7->b2",
+      "from": "lb7",
+      "to": "b2"
+    },
+    {
+      "id": "lb7->b3",
+      "from": "lb7",
+      "to": "b3"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 120,
+    "sources": [
+      {
+        "id": "s1",
+        "node": "users-l4",
+        "shape": {
+          "kind": "constant",
+          "rps": 330
+        },
+        "tenants": {
+          "conn-a": 4,
+          "conn-b": 1,
+          "conn-c": 1
+        }
+      },
+      {
+        "id": "s2",
+        "node": "users-l7",
+        "shape": {
+          "kind": "constant",
+          "rps": 330
+        },
+        "tenants": {
+          "conn-a": 4,
+          "conn-b": 1,
+          "conn-c": 1
+        }
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "api.chat.example",
+    "read": {
+      "path": "/chat.v1.Messages/Get?id={key}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/chat.v1.Messages/Send",
+      "reqBody": "{\"room\": {key}, \"text\": \"hi\"}",
+      "status": 200,
+      "body": "{\"message_id\": {key}}"
+    }
+  }
+}

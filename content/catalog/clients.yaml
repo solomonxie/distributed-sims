@@ -1,0 +1,70 @@
+group: { id: clients, label: Clients, order: 1 }
+types:
+  - type: web-client
+    label: Web client
+    description: People using the product in a browser
+    icon: monitor
+    client: true
+    knobs:
+      - { key: thinkTimeMs, label: Think time, kind: ms, default: 2000, min: 0, max: 60000, help: Pause between a user's requests }
+      - { key: region, label: Region, kind: enum, default: us-east-1, options: [us-east-1, us-west-2, eu-west-1, ap-southeast-1] }
+  - type: mobile-client
+    label: Mobile client
+    description: Phone app users; flaky networks, retries on reconnect
+    icon: smartphone
+    client: true
+    knobs:
+      - { key: thinkTimeMs, label: Think time, kind: ms, default: 3000, min: 0, max: 60000 }
+      - { key: region, label: Region, kind: enum, default: us-east-1, options: [us-east-1, us-west-2, eu-west-1, ap-southeast-1] }
+  - type: iot-device
+    label: IoT device
+    description: Fleet of devices sending periodic telemetry writes
+    icon: radio
+    client: true
+    knobs:
+      - { key: thinkTimeMs, label: Report interval, kind: ms, default: 10000, min: 100, max: 3600000 }
+      - { key: region, label: Region, kind: enum, default: us-east-1, options: [us-east-1, us-west-2, eu-west-1, ap-southeast-1] }
+  - type: bot
+    label: Bot
+    description: Automated client (crawler, scraper, abuser); no think time
+    icon: bot
+    client: true
+    knobs:
+      - { key: thinkTimeMs, label: Think time, kind: ms, default: 0, min: 0, max: 60000 }
+      - { key: region, label: Region, kind: enum, default: us-east-1, options: [us-east-1, us-west-2, eu-west-1, ap-southeast-1] }
+skins:
+  - name: react-spa
+    type: web-client
+    label: React SPA
+    description: Single-page web app client
+    icon: brand:react
+    tags: [frontend, spa]
+    defaults: { thinkTimeMs: 2000 }
+  - name: ios-app
+    type: mobile-client
+    label: iOS app
+    description: Native iPhone app
+    icon: apple
+    tags: [mobile, ios]
+    defaults: { thinkTimeMs: 3000 }
+  - name: android-app
+    type: mobile-client
+    label: Android app
+    description: Native Android app
+    icon: tablet-smartphone
+    tags: [mobile, android]
+    defaults: { thinkTimeMs: 3000 }
+  - name: sensor
+    type: iot-device
+    label: Sensor
+    description: Telemetry sensor reporting on a fixed interval
+    icon: thermometer
+    tags: [iot, telemetry]
+    defaults: { thinkTimeMs: 10000 }
+  - name: crawler
+    type: bot
+    label: Crawler
+    description: Search-engine or scraper bot hammering read endpoints
+    icon: bug
+    tags: [bot, scraper]
+    defaults: { thinkTimeMs: 0 }

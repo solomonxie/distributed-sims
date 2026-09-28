@@ -1,0 +1,236 @@
+{
+  "schemaVersion": 1,
+  "id": "tech-temporal-saga",
+  "name": "Temporal: saga compensation",
+  "description": "charge → reserve → ship call three services. If ship fails after its retries, the workflow code undoes reserve then charge, in reverse.",
+  "nodes": [
+    {
+      "id": "app",
+      "type": "web-client",
+      "name": "Checkout app",
+      "pos": {
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "id": "frontend",
+      "type": "temporal-frontend",
+      "name": "Frontend",
+      "pos": {
+        "x": 0,
+        "y": 120
+      }
+    },
+    {
+      "id": "history",
+      "type": "temporal-history",
+      "name": "History",
+      "pos": {
+        "x": -100,
+        "y": 240
+      }
+    },
+    {
+      "id": "matching",
+      "type": "temporal-matching",
+      "name": "Matching",
+      "pos": {
+        "x": 100,
+        "y": 240
+      }
+    },
+    {
+      "id": "db",
+      "type": "temporal-persistence",
+      "skin": "temporal-cassandra",
+      "name": "Persistence",
+      "pos": {
+        "x": -100,
+        "y": 360
+      }
+    },
+    {
+      "id": "worker-1",
+      "type": "temporal-worker",
+      "name": "Worker 1",
+      "pos": {
+        "x": 40,
+        "y": 360
+      },
+      "config": {
+        "saga": true,
+        "maxAttempts": 2,
+        "actP50Ms": 300,
+        "actP99Ms": 900
+      }
+    },
+    {
+      "id": "worker-2",
+      "type": "temporal-worker",
+      "name": "Worker 2",
+      "pos": {
+        "x": 150,
+        "y": 360
+      },
+      "config": {
+        "saga": true,
+        "maxAttempts": 2,
+        "actP50Ms": 300,
+        "actP99Ms": 900
+      }
+    },
+    {
+      "id": "payments",
+      "type": "service",
+      "name": "Payments",
+      "pos": {
+        "x": -120,
+        "y": 480
+      }
+    },
+    {
+      "id": "inventory",
+      "type": "service",
+      "name": "Inventory",
+      "pos": {
+        "x": 0,
+        "y": 480
+      }
+    },
+    {
+      "id": "shipping",
+      "type": "external-api",
+      "skin": "stripe",
+      "name": "Shipping API",
+      "pos": {
+        "x": 120,
+        "y": 480
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-app",
+      "from": "app",
+      "to": "frontend"
+    },
+    {
+      "id": "e-fh",
+      "from": "frontend",
+      "to": "history"
+    },
+    {
+      "id": "e-fm",
+      "from": "frontend",
+      "to": "matching"
+    },
+    {
+      "id": "e-hdb",
+      "from": "history",
+      "to": "db"
+    },
+    {
+      "id": "e-hm",
+      "from": "history",
+      "to": "matching",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "e-w1",
+      "from": "worker-1",
+      "to": "frontend"
+    },
+    {
+      "id": "e-w2",
+      "from": "worker-2",
+      "to": "frontend"
+    },
+    {
+      "id": "e-w1-pay",
+      "from": "worker-1",
+      "to": "payments",
+      "config": {
+        "route": "charge",
+        "timeoutMs": 1000
+      }
+    },
+    {
+      "id": "e-w1-inv",
+      "from": "worker-1",
+      "to": "inventory",
+      "config": {
+        "route": "reserve",
+        "timeoutMs": 1000
+      }
+    },
+    {
+      "id": "e-w1-ship",
+      "from": "worker-1",
+      "to": "shipping",
+      "config": {
+        "route": "ship",
+        "timeoutMs": 1000
+      }
+    },
+    {
+      "id": "e-w2-pay",
+      "from": "worker-2",
+      "to": "payments",
+      "config": {
+        "route": "charge",
+        "timeoutMs": 1000
+      }
+    },
+    {
+      "id": "e-w2-inv",
+      "from": "worker-2",
+      "to": "inventory",
+      "config": {
+        "route": "reserve",
+        "timeoutMs": 1000
+      }
+    },
+    {
+      "id": "e-w2-ship",
+      "from": "worker-2",
+      "to": "shipping",
+      "config": {
+        "route": "ship",
+        "timeoutMs": 1000
+      }
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 180,
+    "sources": [
+      {
+        "id": "starts",
+        "node": "app",
+        "shape": {
+          "kind": "constant",
+          "rps": 0.5
+        },
+        "readRatio": 1
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "api.gearshop.com",
+    "read": {
+      "path": "/v1/orders/{key}",
+      "body": "{\"workflow_id\": \"order-{key}\", \"status\": \"COMPENSATED\"}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/v1/orders",
+      "reqBody": "{\"sku\": \"TENT-2P\", \"amount_cents\": {value}}",
+      "status": 202,
+      "body": "{\"workflow_id\": \"order-{key}\"}"
+    }
+  }
+}

@@ -1,0 +1,189 @@
+{
+  "schemaVersion": 1,
+  "id": "tech-es-refresh",
+  "name": "Elasticsearch: refresh_interval 1s vs 30s",
+  "description": "Two identical one-node clusters ingest the same bulk load. Left refreshes every 1s (default), right every 30s.",
+  "nodes": [
+    {
+      "id": "loader-a",
+      "type": "web-client",
+      "name": "Bulk loader",
+      "pos": {
+        "x": 100,
+        "y": 20
+      },
+      "config": {}
+    },
+    {
+      "id": "app-a",
+      "type": "es-app",
+      "name": "ingest (1s)",
+      "pos": {
+        "x": 100,
+        "y": 110
+      },
+      "config": {
+        "cluster": "refresh-1s"
+      }
+    },
+    {
+      "id": "coord-a",
+      "type": "es-coord",
+      "name": "coordinating",
+      "pos": {
+        "x": 100,
+        "y": 210
+      },
+      "config": {
+        "cluster": "refresh-1s"
+      }
+    },
+    {
+      "id": "data-a",
+      "type": "es-data",
+      "name": "data (refresh 1s)",
+      "pos": {
+        "x": 100,
+        "y": 320
+      },
+      "config": {
+        "cluster": "refresh-1s",
+        "refreshMs": 1000,
+        "shards": 4,
+        "replicas": 0,
+        "slots": 4,
+        "queueLimit": 100
+      }
+    },
+    {
+      "id": "loader-b",
+      "type": "web-client",
+      "name": "Bulk loader",
+      "pos": {
+        "x": 290,
+        "y": 20
+      },
+      "config": {}
+    },
+    {
+      "id": "app-b",
+      "type": "es-app",
+      "name": "ingest (30s)",
+      "pos": {
+        "x": 290,
+        "y": 110
+      },
+      "config": {
+        "cluster": "refresh-30s"
+      }
+    },
+    {
+      "id": "coord-b",
+      "type": "es-coord",
+      "name": "coordinating",
+      "pos": {
+        "x": 290,
+        "y": 210
+      },
+      "config": {
+        "cluster": "refresh-30s"
+      }
+    },
+    {
+      "id": "data-b",
+      "type": "es-data",
+      "name": "data (refresh 30s)",
+      "pos": {
+        "x": 290,
+        "y": 320
+      },
+      "config": {
+        "cluster": "refresh-30s",
+        "refreshMs": 30000,
+        "shards": 4,
+        "replicas": 0,
+        "slots": 4,
+        "queueLimit": 100
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-loader-a-app-a",
+      "from": "loader-a",
+      "to": "app-a"
+    },
+    {
+      "id": "e-app-a-coord-a",
+      "from": "app-a",
+      "to": "coord-a"
+    },
+    {
+      "id": "e-coord-a-data-a",
+      "from": "coord-a",
+      "to": "data-a",
+      "config": {
+        "timeoutMs": 1000
+      }
+    },
+    {
+      "id": "e-loader-b-app-b",
+      "from": "loader-b",
+      "to": "app-b"
+    },
+    {
+      "id": "e-app-b-coord-b",
+      "from": "app-b",
+      "to": "coord-b"
+    },
+    {
+      "id": "e-coord-b-data-b",
+      "from": "coord-b",
+      "to": "data-b",
+      "config": {
+        "timeoutMs": 1000
+      }
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 120,
+    "sources": [
+      {
+        "id": "s-a",
+        "node": "loader-a",
+        "shape": {
+          "kind": "constant",
+          "rps": 1600
+        },
+        "readRatio": 0.0
+      },
+      {
+        "id": "s-b",
+        "node": "loader-b",
+        "shape": {
+          "kind": "constant",
+          "rps": 1600
+        },
+        "readRatio": 0.0
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "ingest.internal",
+    "read": {
+      "method": "GET",
+      "path": "/api/listings/{key}",
+      "status": 200,
+      "body": "{\"id\": {key}, \"price\": {value}}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/listings/_bulk",
+      "reqBody": "{\"id\": {key}, \"price\": {value}}",
+      "status": 200,
+      "body": "{\"took\": 31, \"errors\": false}"
+    }
+  }
+}

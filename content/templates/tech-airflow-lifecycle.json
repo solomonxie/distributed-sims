@@ -1,0 +1,102 @@
+{
+  "schemaVersion": 1,
+  "id": "tech-airflow-lifecycle",
+  "name": "Airflow: task instance lifecycle",
+  "description": "One DagRun at a time. The first run narrates every task-instance state change.",
+  "nodes": [
+    {
+      "id": "scheduler",
+      "type": "airflow-scheduler",
+      "skin": "airflow-scheduler-std",
+      "name": "Scheduler",
+      "pos": {
+        "x": 110,
+        "y": 60
+      },
+      "config": {
+        "scheduleSec": 30
+      }
+    },
+    {
+      "id": "meta-db",
+      "type": "airflow-metadata-db",
+      "skin": "airflow-postgres-db",
+      "name": "Metadata DB",
+      "pos": {
+        "x": 290,
+        "y": 60
+      },
+      "config": {}
+    },
+    {
+      "id": "executor",
+      "type": "airflow-executor",
+      "skin": "airflow-celery-executor",
+      "name": "CeleryExecutor",
+      "pos": {
+        "x": 110,
+        "y": 200
+      },
+      "config": {}
+    },
+    {
+      "id": "worker-1",
+      "type": "airflow-worker",
+      "skin": "airflow-worker-std",
+      "name": "Worker 1",
+      "pos": {
+        "x": 195,
+        "y": 340
+      },
+      "config": {
+        "slots": 4
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "scheduler-db",
+      "from": "scheduler",
+      "to": "meta-db"
+    },
+    {
+      "id": "scheduler-ex",
+      "from": "scheduler",
+      "to": "executor"
+    },
+    {
+      "id": "ex-worker-1",
+      "from": "executor",
+      "to": "worker-1"
+    },
+    {
+      "id": "worker-1-db",
+      "from": "worker-1",
+      "to": "meta-db"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 120,
+    "sources": [],
+    "events": []
+  },
+  "wire": {
+    "host": "airflow.acme.io",
+    "read": {
+      "method": "GET",
+      "path": "/api/v1/dags/signup_report/dagRuns/run_{key}",
+      "status": 200,
+      "body": "{\"dag_run_id\": \"run_{key}\", \"state\": \"running\"}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/v1/dags/signup_report/dagRuns",
+      "reqBody": "{\"dag_run_id\": \"run_{key}\", \"conf\": {\"batch\": {value}}}",
+      "status": 200,
+      "body": "{\"dag_run_id\": \"run_{key}\", \"state\": \"queued\"}"
+    },
+    "table": "task_instance",
+    "valCol": "state"
+  }
+}

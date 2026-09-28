@@ -1,0 +1,143 @@
+{
+  "schemaVersion": 1,
+  "id": "lesson-sharding-resharding",
+  "name": "Lesson: online resharding",
+  "description": "A directory router (lookup table: key \u2192 shard) over 3 MySQL shards. Rebalance moves half of the busiest shard's keys to the idlest one in chunks; each moved key is read and written on both shards for 4s so no request misses its row.",
+  "nodes": [
+    {
+      "id": "web",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 195,
+        "y": 60
+      }
+    },
+    {
+      "id": "api",
+      "type": "service",
+      "name": "API",
+      "pos": {
+        "x": 195,
+        "y": 170
+      }
+    },
+    {
+      "id": "router",
+      "type": "shard-router",
+      "skin": "vitess",
+      "name": "Directory router",
+      "pos": {
+        "x": 195,
+        "y": 280
+      },
+      "config": {
+        "shardBy": "directory",
+        "dualReadMs": 4000
+      }
+    },
+    {
+      "id": "s1",
+      "type": "relational-db",
+      "skin": "mysql",
+      "name": "Shard 1",
+      "pos": {
+        "x": 55,
+        "y": 410
+      },
+      "config": {
+        "replicas": 0,
+        "slots": 8
+      }
+    },
+    {
+      "id": "s2",
+      "type": "relational-db",
+      "skin": "mysql",
+      "name": "Shard 2",
+      "pos": {
+        "x": 195,
+        "y": 410
+      },
+      "config": {
+        "replicas": 0,
+        "slots": 8
+      }
+    },
+    {
+      "id": "s3",
+      "type": "relational-db",
+      "skin": "mysql",
+      "name": "Shard 3",
+      "pos": {
+        "x": 335,
+        "y": 410
+      },
+      "config": {
+        "replicas": 0,
+        "slots": 8
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "web",
+      "to": "api"
+    },
+    {
+      "id": "e2",
+      "from": "api",
+      "to": "router"
+    },
+    {
+      "id": "e3",
+      "from": "router",
+      "to": "s1"
+    },
+    {
+      "id": "e4",
+      "from": "router",
+      "to": "s2"
+    },
+    {
+      "id": "e5",
+      "from": "router",
+      "to": "s3"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 300,
+    "sources": [
+      {
+        "id": "s1",
+        "node": "web",
+        "shape": {
+          "kind": "constant",
+          "rps": 900
+        },
+        "readRatio": 0.8,
+        "keys": {
+          "kind": "uniform"
+        }
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "app.example.com",
+    "read": {
+      "path": "/api/tenants/{key}/settings"
+    },
+    "write": {
+      "method": "PUT",
+      "path": "/api/tenants/{key}/settings",
+      "reqBody": "{\"plan\": \"pro\"}",
+      "status": 200,
+      "body": "{\"tenant\": {key}, \"updated\": true}"
+    },
+    "table": "tenant_settings",
+    "valCol": "plan"
+  }
+}

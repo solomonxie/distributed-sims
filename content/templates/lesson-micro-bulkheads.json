@@ -1,0 +1,203 @@
+{
+  "schemaVersion": 1,
+  "id": "lesson-micro-bulkheads",
+  "name": "Bulkheads",
+  "description": "Half of the calls go to Recommendations, half to Catalog. Left: one pool of 20 workers serves both. Right: a separate pool of 10 per dependency (a bulkhead). When Recommendations hangs, the shared pool fills up and Catalog fails too; with bulkheads, only the Recommendations calls fail.",
+  "nodes": [
+    {
+      "id": "users-a",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 75,
+        "y": 40
+      }
+    },
+    {
+      "id": "api",
+      "type": "monolith",
+      "name": "API · one pool (20)",
+      "pos": {
+        "x": 75,
+        "y": 170
+      },
+      "skin": "spring-monolith",
+      "config": {
+        "dbPool": 20,
+        "poolTimeoutMs": 1000,
+        "fanout": "one",
+        "gcPauses": false
+      }
+    },
+    {
+      "id": "users-b",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 315,
+        "y": 40
+      }
+    },
+    {
+      "id": "gw-b",
+      "type": "api-gateway",
+      "name": "API router",
+      "pos": {
+        "x": 315,
+        "y": 150
+      },
+      "config": {
+        "authCheck": false
+      }
+    },
+    {
+      "id": "pool-recs",
+      "type": "monolith",
+      "name": "API · recs pool (10)",
+      "pos": {
+        "x": 255,
+        "y": 270
+      },
+      "skin": "spring-monolith",
+      "config": {
+        "dbPool": 10,
+        "poolTimeoutMs": 1000,
+        "gcPauses": false
+      }
+    },
+    {
+      "id": "pool-cat",
+      "type": "monolith",
+      "name": "API · catalog pool (10)",
+      "pos": {
+        "x": 365,
+        "y": 270
+      },
+      "skin": "spring-monolith",
+      "config": {
+        "dbPool": 10,
+        "poolTimeoutMs": 1000,
+        "gcPauses": false
+      }
+    },
+    {
+      "id": "recs",
+      "type": "service",
+      "name": "Recommendations",
+      "pos": {
+        "x": 135,
+        "y": 410
+      }
+    },
+    {
+      "id": "catalog",
+      "type": "service",
+      "name": "Catalog",
+      "pos": {
+        "x": 285,
+        "y": 410
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "users-a->api",
+      "from": "users-a",
+      "to": "api",
+      "config": {
+        "timeoutMs": 5000
+      }
+    },
+    {
+      "id": "api->recs",
+      "from": "api",
+      "to": "recs",
+      "config": {
+        "ratio": 0.5,
+        "timeoutMs": 3000
+      }
+    },
+    {
+      "id": "api->catalog",
+      "from": "api",
+      "to": "catalog",
+      "config": {
+        "ratio": 0.5
+      }
+    },
+    {
+      "id": "users-b->gw-b",
+      "from": "users-b",
+      "to": "gw-b",
+      "config": {
+        "timeoutMs": 5000
+      }
+    },
+    {
+      "id": "gw-b->pool-recs",
+      "from": "gw-b",
+      "to": "pool-recs",
+      "config": {
+        "ratio": 0.5,
+        "timeoutMs": 4000
+      }
+    },
+    {
+      "id": "gw-b->pool-cat",
+      "from": "gw-b",
+      "to": "pool-cat",
+      "config": {
+        "ratio": 0.5
+      }
+    },
+    {
+      "id": "pool-recs->recs",
+      "from": "pool-recs",
+      "to": "recs",
+      "config": {
+        "timeoutMs": 3000
+      }
+    },
+    {
+      "id": "pool-cat->catalog",
+      "from": "pool-cat",
+      "to": "catalog"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 120,
+    "sources": [
+      {
+        "id": "s1",
+        "node": "users-a",
+        "shape": {
+          "kind": "constant",
+          "rps": 150
+        }
+      },
+      {
+        "id": "s2",
+        "node": "users-b",
+        "shape": {
+          "kind": "constant",
+          "rps": 150
+        }
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "shop.example",
+    "read": {
+      "path": "/api/products/{key}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/products/{key}/views",
+      "reqBody": "{\"session\": \"s{value}\"}",
+      "status": 202,
+      "body": "{\"ok\": true}"
+    }
+  }
+}

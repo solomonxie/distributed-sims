@@ -1,0 +1,97 @@
+group: { id: tech, label: Under the hood, order: 14 }
+# DynamoDB internals (technologies.md v1.1). Composite skin: dynamodb-table. DAX = cache skin. Protocol kinds: dynamo.*
+types:
+  - type: dynamodb-router
+    label: DynamoDB request router
+    description: Front door — authenticates, looks up the partition map, meters capacity per partition and table, throttles (429), coordinates transactions
+    icon: route
+    costPerInstanceMonth: 0
+    knobs:
+      - { key: mode, label: Capacity mode, kind: enum, default: provisioned, options: [provisioned, on-demand] }
+      - { key: rcu, label: Provisioned RCU, kind: int, default: 3000, min: 1, max: 1000000, help: "Reads/s of ≤4 KB (strong 1 RCU, eventual 0.5)" }
+      - { key: wcu, label: Provisioned WCU, kind: int, default: 3000, min: 1, max: 1000000, help: Writes/s of ≤1 KB }
+      - { key: peakRcu, label: On-demand previous peak RCU, kind: int, default: 3000, min: 1, max: 1000000, help: On-demand serves up to 2× the previous peak instantly }
+      - { key: peakWcu, label: On-demand previous peak WCU, kind: int, default: 1000, min: 1, max: 1000000 }
+      - { key: rampSec, label: On-demand ramp, kind: number, default: 10, min: 1, max: 3600, unit: s, help: The previous peak can at most double this often (sim-scaled; real ~30 min) }
+      - { key: adaptiveCapacity, label: Adaptive capacity, kind: bool, default: true, help: A hot partition may use unused table throughput, up to the per-partition limit }
+      - { key: burstCapacity, label: Burst capacity, kind: bool, default: true, help: Up to 300s of unused provisioned throughput can be spent in bursts }
+      - { key: partitionMaxRcu, label: Partition max RCU, kind: int, default: 3000, min: 1, max: 1000000, advanced: true }
+      - { key: partitionMaxWcu, label: Partition max WCU, kind: int, default: 1000, min: 1, max: 1000000, advanced: true }
+      - { key: splitSec, label: Split-for-heat delay, kind: number, default: 10, min: 1, max: 3600, unit: s, advanced: true, help: Sustained heat before a partition splits (sim-scaled) }
+      - { key: minPartitions, label: Min partitions, kind: int, default: 1, min: 1, max: 1000, advanced: true }
+      - { key: sizeGb, label: Table size, kind: number, default: 10, min: 0, max: 1000000, unit: GB, advanced: true, help: One partition per 10 GB }
+      - { key: itemKb, label: Item size, kind: number, default: 1, min: 0.1, max: 400, unit: KB }
+      - { key: strongReadPct, label: Strongly consistent reads, kind: percent, default: 0, min: 0, max: 100 }
+      - { key: gsiReadPct, label: Reads via GSI, kind: percent, default: 0, min: 0, max: 100, help: Share of reads that Query the global secondary index }
+      - { key: gsiBacklogLimit, label: GSI back-pressure at, kind: int, default: 2000, min: 1, max: 10000000, advanced: true, help: Pending index updates before base-table writes are throttled }
+      - { key: txnPct, label: TransactWriteItems, kind: percent, default: 0, min: 0, max: 100, help: Share of writes that are 2-item transactions (2× WCU) }
+      - { key: slots, label: Slots, kind: int, default: 4000, min: 1, max: 100000, advanced: true }
+      - { key: p50Ms, label: Router p50, kind: ms, default: 1, min: 0.01, max: 1000, advanced: true }
+      - { key: p99Ms, label: Router p99, kind: ms, default: 4, min: 0.01, max: 5000, advanced: true }
+      - { key: cluster, label: Table, kind: string, default: main, advanced: true }
+      - { key: queueLimit, label: Queue limit, kind: int, default: 100000, min: 0, max: 10000000, advanced: true }
+      - { key: costMonth, label: Cost / month, kind: number, default: 0, min: 0, max: 100000, unit: $, advanced: true }
+  - type: dynamodb-storage
+    label: DynamoDB storage node
+    description: Hosts partition leaders; each write is logged by the leader and acked once 2 of 3 AZ copies have it
+    icon: hard-drive
+    costPerInstanceMonth: 150
+    knobs:
+      - { key: slots, label: Slots, kind: int, default: 2000, min: 1, max: 100000, advanced: true }
+      - { key: p50Ms, label: Read p50, kind: ms, default: 1.5, min: 0.01, max: 1000 }
+      - { key: p99Ms, label: Read p99, kind: ms, default: 6, min: 0.01, max: 5000 }
+      - { key: writeP50Ms, label: Write p50, kind: ms, default: 3, min: 0.01, max: 1000 }
+      - { key: writeP99Ms, label: Write p99, kind: ms, default: 10, min: 0.01, max: 5000 }
+      - { key: replicaLagMs, label: AZ replica lag p50, kind: ms, default: 2, min: 0, max: 60000, advanced: true }
+      - { key: replicaLagP99Ms, label: AZ replica lag p99, kind: ms, default: 20, min: 0, max: 60000, advanced: true }
+      - { key: cluster, label: Table, kind: string, default: main, advanced: true }
+      - { key: queueLimit, label: Queue limit, kind: int, default: 100000, min: 0, max: 10000000, advanced: true }
+      - { key: costMonth, label: Cost / month, kind: number, default: 150, min: 0, max: 100000, unit: $ }
+  - type: dynamodb-gsi
+    label: DynamoDB global secondary index
+    description: A separate index table fed asynchronously from the base table; own capacity, always eventually consistent
+    icon: list-tree
+    costPerInstanceMonth: 80
+    knobs:
+      - { key: mode, label: Capacity mode, kind: enum, default: provisioned, options: [provisioned, on-demand] }
+      - { key: wcu, label: GSI WCU, kind: int, default: 1000, min: 1, max: 1000000, help: If index updates arrive faster than this, they queue and eventually throttle the base table }
+      - { key: slots, label: Slots, kind: int, default: 2000, min: 1, max: 100000, advanced: true }
+      - { key: p50Ms, label: Query p50, kind: ms, default: 2, min: 0.01, max: 1000 }
+      - { key: p99Ms, label: Query p99, kind: ms, default: 8, min: 0.01, max: 5000 }
+      - { key: cluster, label: Table, kind: string, default: main, advanced: true }
+      - { key: queueLimit, label: Queue limit, kind: int, default: 100000, min: 0, max: 10000000, advanced: true }
+      - { key: costMonth, label: Cost / month, kind: number, default: 80, min: 0, max: 100000, unit: $ }
+skins:
+  - name: dynamodb-dax
+    type: cache
+    label: DAX
+    description: DynamoDB Accelerator — write-through item cache in front of a table
+    icon: brand:aws
+    tags: [cache, aws, managed]
+    # item cache TTL 5 min default; microsecond reads
+    defaults: { strategy: write-through, ttlSec: 300, capacityKeys: 512, slots: 200, p50Ms: 0.2, p99Ms: 1, costMonth: 200 }
+  - name: dynamodb-table
+    type: kv-store
+    label: DynamoDB (internals)
+    description: A DynamoDB table inside one node — request router, partitions on storage nodes, a GSI; tap ⤢ to drill in
+    icon: brand:aws
+    tags: [nosql, aws, managed, serverless, composite]
+    tech: dynamodb
+    defaults: { costMonth: 400 }
+    ports: { in: router }
+    internals:
+      schemaVersion: 1
+      id: dynamodb-table
+      name: DynamoDB table
+      nodes:
+        - { id: router, type: dynamodb-router, name: request router, pos: { x: 195, y: 60 }, config: { mode: on-demand, gsiReadPct: 10 } }
+        - { id: sa, type: dynamodb-storage, name: storage (az-a), pos: { x: 70, y: 200 } }
+        - { id: sb, type: dynamodb-storage, name: storage (az-b), pos: { x: 195, y: 200 } }
+        - { id: sc, type: dynamodb-storage, name: storage (az-c), pos: { x: 320, y: 200 } }
+        - { id: gsi, type: dynamodb-gsi, name: GSI by-status, pos: { x: 195, y: 330 }, config: { mode: on-demand } }
+      edges:
+        - { id: r-sa, from: router, to: sa }
+        - { id: r-sb, from: router, to: sb }
+        - { id: r-sc, from: router, to: sc }
+        - { id: r-gsi, from: router, to: gsi }
+      containers: []

@@ -1,0 +1,162 @@
+{
+  "schemaVersion": 1,
+  "id": "tech-rabbitmq-memory",
+  "name": "RabbitMQ: memory alarm blocks publishers",
+  "description": "Large (128 KB) messages into a quorum queue. If the consumer stops, every node holding a replica fills up; above the high watermark RabbitMQ blocks all publishers.",
+  "nodes": [
+    {
+      "id": "users",
+      "type": "web-client",
+      "skin": "react-spa",
+      "name": "Users",
+      "pos": {
+        "x": 40,
+        "y": 30
+      },
+      "config": {}
+    },
+    {
+      "id": "pub",
+      "type": "rabbitmq-publisher",
+      "skin": "rabbitmq-app-publisher",
+      "name": "uploads (publisher)",
+      "pos": {
+        "x": 40,
+        "y": 140
+      },
+      "config": {
+        "routingKeys": "image.uploaded"
+      }
+    },
+    {
+      "id": "ex",
+      "type": "rabbitmq-exchange",
+      "skin": "rabbitmq-direct-exchange",
+      "name": "images (direct)",
+      "pos": {
+        "x": 195,
+        "y": 140
+      },
+      "config": {}
+    },
+    {
+      "id": "rmq1",
+      "type": "rabbitmq-node",
+      "skin": "rabbitmq-broker-node",
+      "name": "rmq-1",
+      "pos": {
+        "x": 195,
+        "y": 30
+      },
+      "config": {}
+    },
+    {
+      "id": "rmq2",
+      "type": "rabbitmq-node",
+      "skin": "rabbitmq-broker-node",
+      "name": "rmq-2",
+      "pos": {
+        "x": 275,
+        "y": 30
+      },
+      "config": {}
+    },
+    {
+      "id": "rmq3",
+      "type": "rabbitmq-node",
+      "skin": "rabbitmq-broker-node",
+      "name": "rmq-3",
+      "pos": {
+        "x": 355,
+        "y": 30
+      },
+      "config": {}
+    },
+    {
+      "id": "q",
+      "type": "rabbitmq-queue",
+      "skin": "rabbitmq-quorum-queue",
+      "name": "thumbnails",
+      "pos": {
+        "x": 195,
+        "y": 260
+      },
+      "config": {
+        "bindingKey": "image.uploaded",
+        "leader": "rmq1",
+        "msgKb": 128
+      }
+    },
+    {
+      "id": "c",
+      "type": "rabbitmq-consumer",
+      "skin": "rabbitmq-worker",
+      "name": "thumbnailer",
+      "pos": {
+        "x": 195,
+        "y": 380
+      },
+      "config": {
+        "slots": 8,
+        "p50Ms": 5,
+        "p99Ms": 20
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-users-pub",
+      "from": "users",
+      "to": "pub"
+    },
+    {
+      "id": "e-pub-ex",
+      "from": "pub",
+      "to": "ex"
+    },
+    {
+      "id": "e-ex-q",
+      "from": "ex",
+      "to": "q"
+    },
+    {
+      "id": "e-q-c",
+      "from": "q",
+      "to": "c",
+      "config": {
+        "mode": "async"
+      }
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 120,
+    "sources": [
+      {
+        "id": "s-users",
+        "node": "users",
+        "shape": {
+          "kind": "constant",
+          "rps": 200
+        },
+        "readRatio": 0
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "api.docrender.io",
+    "read": {
+      "path": "/v1/renders/{key}",
+      "body": "{\"render_id\": {key}, \"state\": \"rendering\"}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/v1/renders",
+      "reqBody": "{\"template\": \"invoice\", \"pages\": {value}}",
+      "status": 202,
+      "body": "{\"render_id\": {key}, \"state\": \"queued\"}"
+    },
+    "topic": "renders"
+  }
+}

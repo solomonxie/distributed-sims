@@ -1,0 +1,138 @@
+id: cassandra
+title: Cassandra
+group: under-the-hood
+icon: circle-dot
+order: 11
+summary: A masterless ring — every node coordinates, consistency is a per-query dial, and writes are appends.
+info: Keys hash to tokens on a ring; each node owns many small ranges (vnodes) and the next RF nodes clockwise hold the replicas. Any node coordinates a query and waits for as many replicas as the consistency level asks. Nodes find failures by gossip, repair missed writes with hints and read repair, and store data in an LSM tree that compaction keeps tidy.
+problems: [kv-store]
+lessons:
+  - id: anatomy
+    title: Anatomy of a Cassandra ring
+    minutes: 3
+    template: tech-cassandra-anatomy
+    steps:
+      - title: A ring of equals
+        body: Six nodes, no leader. Each owns 16 small token ranges (vnodes) and every key lives on 3 of them (RF 3).
+        watch: Traffic spreads evenly across all six nodes.
+        check: { metric: time, op: '>=', value: 3 }
+      - title: Any node coordinates
+        body: The token-aware driver sends each query to a replica of its key; that node coordinates the replica calls.
+        watch: The log shows which node coordinates and which replicas it asks.
+        check: { metric: eventMatch:coordinates write, op: '>=', value: 1 }
+      - title: Gossip
+        body: Every second each node gossips heartbeats to two peers, so everyone learns everyone's health in a few rounds.
+        watch: Violet cassandra.gossip messages between nodes.
+        check: { metric: time, op: '>=', value: 8 }
+      - title: Tunable consistency
+        body: Writes here wait for QUORUM (2 of 3), reads for ONE. R + W = 3 is not more than RF, so a read can miss the newest write.
+        watch: The anomaly counter shows occasional stale reads.
+        check: { metric: anomaly:stale-read, op: '>=', value: 1 }
+
+  - id: lifecycle
+    title: "Lifecycle: one write, one read"
+    minutes: 4
+    template: tech-cassandra-anatomy
+    steps:
+      - title: Coordinator fans out
+        body: The coordinator sends the mutation to all 3 replicas at once and answers the client when the consistency level is met.
+        check: { metric: 'eventMatch:CL QUORUM met', op: '>=', value: 1 }
+      - title: Commitlog, then memtable
+        body: Each replica appends the write to the commitlog on disk and inserts it into the in-memory memtable. No read before write.
+        check: { metric: eventMatch:commitlog append, op: '>=', value: 1 }
+      - title: Flush to an SSTable
+        body: When the memtable fills, it is written out as an immutable SSTable and the commitlog segment is recycled.
+        watch: SST badge on each node counts SSTables.
+        check: { metric: eventMatch:memtable flushed, op: '>=', value: 1 }
+      - title: Compaction
+        body: Four similar-size SSTables get merged into one (size-tiered compaction), dropping overwritten cells.
+        check: { metric: eventMatch:compacting, op: '>=', value: 1 }
+      - title: A read
+        body: A read at CL ONE asks one replica, which checks the memtable and every SSTable that may hold the key.
+        check: { metric: eventMatch:coordinates read, op: '>=', value: 1 }
+
+  - id: node-down
+    title: "Node down: ONE vs QUORUM vs ALL"
+    minutes: 5
+    template: tech-cassandra-cl
+    steps:
+      - title: Three consistency levels
+        body: Three apps share one RF 3 ring, at CL ONE, QUORUM and ALL.
+        check: { metric: time, op: '>=', value: 5 }
+      - title: Kill n1
+        body: Tap ⚡ Break → Kill on n1 for 20s. Queries at ALL need all 3 replicas, so any key n1 holds fails.
+        action: { event: { kind: kill, target: n1, durationSec: 20 } }
+        check: { metric: availability, target: app-all, op: '<', value: 90 }
+      - title: Gossip notices
+        body: After ~5s without heartbeats the others mark n1 DOWN. ALL now fails fast with Unavailable; QUORUM and ONE keep serving.
+        check: { metric: eventMatch:marks n1 DOWN, op: '>=', value: 1 }
+      - title: Hints, but only for a while
+        body: Coordinators store hints for n1's missed writes. The hint window is scaled to 5s here, so after that they stop.
+        check: { metric: eventMatch:max_hint_window, op: '>=', value: 1 }
+      - title: n1 comes back
+        body: Gossip sees n1 UP and coordinators replay their hints to it.
+        check: { metric: eventMatch:replays, op: '>=', value: 1 }
+      - title: Read repair fixes the rest
+        body: Writes after the hint window are missing on n1. CL ONE reads served by n1 return stale data; QUORUM reads compare replicas and repair n1.
+        watch: Stale reads on the anomaly counter; "read repair … n1" in the log.
+        check: { metric: 'eventMatch:read repair: n1', op: '>=', value: 1 }
+
+  - id: compaction-storm
+    title: Compaction storm
+    minutes: 4
+    template: tech-cassandra-compaction
+    steps:
+      - title: Steady state
+        body: Reads touch a handful of SSTables and compaction keeps up with a small bulk loader.
+        watch: SST badges stay low; driver p99 is a few ms.
+        check: { metric: time, op: '>=', value: 10 }
+      - title: The loader bursts
+        body: The bulk loader writes 40× faster for 40s. Memtables flush every second, faster than one compactor can merge.
+        action: { event: { kind: traffic, action: burst, source: loader, params: { x: 40 }, durationSec: 40 } }
+        check: { metric: gauge:pendingCompactionMb, target: n1, op: '>=', value: 30 }
+      - title: Reads pay for it
+        body: Every read now checks many SSTables while compaction hogs the disk, so read p99 climbs.
+        watch: Driver p99 and the SST badges.
+        check: { metric: p99, target: driver, op: '>=', value: 15 }
+      - title: Catching up
+        body: When the burst ends compaction merges the backlog and p99 falls. Fixes are throttled loads, more compaction throughput or LCS for read-heavy tables.
+        check: { metric: p99, target: driver, op: '<', value: 13 }
+
+  - id: tombstones
+    title: Tombstones (queue anti-pattern)
+    minutes: 3
+    template: tech-cassandra-tombstones
+    steps:
+      - title: Deletes are writes
+        body: Workers insert, read and delete jobs in one hot partition. A DELETE writes a tombstone; nothing is removed yet.
+        watch: The 🪦 badge on the three replicas of the hot key.
+        check: { metric: gauge:tombstones, target: n1, op: '>=', value: 1000 }
+      - title: Reads scan the dead
+        body: A read of the partition must skip every tombstone, so read latency grows with each delete.
+        check: { metric: eventMatch:tombstones (warn, op: '>=', value: 1 }
+      - title: Slower and slower
+        body: Tombstones only go away at compaction after gc_grace_seconds (10 days), so the scan keeps growing.
+        check: { metric: p99, target: driver, op: '>=', value: 25 }
+      - title: TombstoneOverwhelmingException
+        body: Past tombstone_failure_threshold the replica aborts the read. Model queues with a queue, or partition by time bucket.
+        check: { metric: availability, target: driver, op: '<', value: 90 }
+
+  - id: multi-dc
+    title: Two datacenters, LOCAL_QUORUM
+    minutes: 4
+    template: tech-cassandra-multidc
+    steps:
+      - title: Local vs global quorum
+        body: RF 3 in each DC. LOCAL_QUORUM waits for 2 local replicas; QUORUM needs 4 of all 6, so it always crosses the ocean.
+        watch: p99 of app QUORUM vs app LOCAL_QUORUM.
+        check: { metric: p99, target: app-q, op: '>=', value: 100 }
+      - title: Cut the link
+        body: Tap ⚡ Break → Partition between us-east-1 and eu-west-1 for 20s.
+        action: { event: { kind: partition, target: us, target2: eu, durationSec: 20 } }
+        check: { metric: availability, target: app-q, op: '<', value: 50 }
+      - title: Gossip splits the view
+        body: Each DC marks the other DOWN. QUORUM fails with Unavailable; LOCAL_QUORUM does not notice.
+        check: { metric: 'eventMatch:(dc2) DOWN', op: '>=', value: 1 }
+      - title: Link heals, hints flow
+        body: Each DC replays the hints it kept for the other, so both converge.
+        check: { metric: eventMatch:replays, op: '>=', value: 1 }

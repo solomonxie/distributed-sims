@@ -1,0 +1,141 @@
+{
+  "schemaVersion": 1,
+  "id": "lesson-migration-strangler",
+  "name": "Strangler fig",
+  "description": "The edge router sends 10% of requests to the new Orders service and 90% to the legacy monolith. Move traffic over by changing the edge ratios; a bug in the new service only hits the share you routed to it.",
+  "nodes": [
+    {
+      "id": "users",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 195,
+        "y": 40
+      }
+    },
+    {
+      "id": "gw",
+      "type": "api-gateway",
+      "name": "Edge router",
+      "pos": {
+        "x": 195,
+        "y": 170
+      },
+      "config": {
+        "authCheck": false,
+        "instances": 2
+      }
+    },
+    {
+      "id": "mono",
+      "type": "monolith",
+      "name": "Legacy monolith",
+      "pos": {
+        "x": 85,
+        "y": 310
+      },
+      "skin": "rails-monolith",
+      "config": {
+        "instances": 2,
+        "dbPool": 60
+      }
+    },
+    {
+      "id": "orders-new",
+      "type": "service",
+      "name": "Orders (new)",
+      "pos": {
+        "x": 305,
+        "y": 310
+      }
+    },
+    {
+      "id": "mdb",
+      "type": "relational-db",
+      "name": "Legacy DB",
+      "pos": {
+        "x": 85,
+        "y": 450
+      },
+      "skin": "mysql"
+    },
+    {
+      "id": "odb",
+      "type": "relational-db",
+      "name": "Orders DB",
+      "pos": {
+        "x": 305,
+        "y": 450
+      },
+      "skin": "postgres"
+    }
+  ],
+  "edges": [
+    {
+      "id": "users->gw",
+      "from": "users",
+      "to": "gw",
+      "config": {
+        "timeoutMs": 3000
+      }
+    },
+    {
+      "id": "gw->mono",
+      "from": "gw",
+      "to": "mono",
+      "config": {
+        "ratio": 0.9,
+        "timeoutMs": 1000
+      }
+    },
+    {
+      "id": "gw->orders-new",
+      "from": "gw",
+      "to": "orders-new",
+      "config": {
+        "ratio": 0.1,
+        "timeoutMs": 1000
+      }
+    },
+    {
+      "id": "mono->mdb",
+      "from": "mono",
+      "to": "mdb"
+    },
+    {
+      "id": "orders-new->odb",
+      "from": "orders-new",
+      "to": "odb"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 120,
+    "sources": [
+      {
+        "id": "s1",
+        "node": "users",
+        "shape": {
+          "kind": "constant",
+          "rps": 200
+        }
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "shop.example",
+    "read": {
+      "path": "/api/orders/{key}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/orders",
+      "reqBody": "{\"sku\": \"SKU-{key}\", \"qty\": 1}",
+      "status": 201,
+      "body": "{\"order_id\": {key}, \"status\": \"placed\"}"
+    },
+    "table": "orders",
+    "valCol": "status"
+  }
+}

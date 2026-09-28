@@ -1,0 +1,60 @@
+group: { id: geo, label: Geo, order: 11 }
+types:
+  - type: geo-index
+    label: Geo index
+    description: Nearby search over geohash / quadtree / S2 cells; dense cities make hot shards
+    icon: map-pin
+    costPerInstanceMonth: 150
+    knobs:
+      - { key: mode, label: Index, kind: enum, default: geohash, options: [geohash, quadtree, s2] }
+      - { key: precision, label: Geohash precision, kind: int, default: 6, min: 1, max: 9, help: "6 ≈ 1.2km cells; higher = more cells touched, fewer items scanned" }
+      - { key: radiusKm, label: Search radius, kind: number, default: 2, min: 0.05, max: 500, unit: km }
+      - { key: densityPerKm2, label: Density, kind: number, default: 50, min: 0.01, max: 100000, unit: /km², help: Drivers / places per km² }
+      - { key: shards, label: Shards, kind: int, default: 4, min: 1, max: 256, help: Cells split across shards; a dense city lands on one }
+      - { key: msPerCell, label: Cost per cell, kind: ms, default: 0.05, min: 0.001, max: 100, advanced: true }
+      - { key: usPerItem, label: Cost per item, kind: number, default: 2, min: 0.01, max: 1000, unit: µs, advanced: true }
+      - { key: writeP50Ms, label: Location update p50, kind: ms, default: 0.2, min: 0.01, max: 1000, advanced: true }
+      - { key: writeP99Ms, label: Location update p99, kind: ms, default: 1, min: 0.01, max: 5000, advanced: true }
+      - { key: instances, label: Instances, kind: int, default: 2, min: 1, max: 64 }
+      - { key: slots, label: Slots, kind: int, default: 32, min: 1, max: 4096, advanced: true }
+      - { key: p50Ms, label: Base p50, kind: ms, default: 0.5, min: 0.01, max: 1000 }
+      - { key: queueLimit, label: Queue limit, kind: int, default: 1000, min: 0, max: 100000, advanced: true }
+      - { key: costMonth, label: Cost / month, kind: number, default: 150, min: 0, max: 100000, unit: $ }
+  - type: routing-engine
+    label: Routing engine
+    description: Shortest-path queries over a road graph; cost by algorithm × graph size
+    icon: route
+    costPerInstanceMonth: 400
+    knobs:
+      - { key: algo, label: Algorithm, kind: enum, default: contraction-hierarchies, options: [dijkstra, a-star, contraction-hierarchies] }
+      - { key: graphNodes, label: Graph nodes, kind: int, default: 1000000, min: 1000, max: 1000000000, help: Road intersections (Europe ≈ 50M) }
+      - { key: usPerNode, label: Cost per settled node, kind: number, default: 0.2, min: 0.01, max: 100, unit: µs, advanced: true }
+      - { key: prepSecPerMillion, label: CH prep / 1M nodes, kind: number, default: 30, min: 0, max: 3600, unit: s, advanced: true, help: Rebuild after a map update; queries fall back to Dijkstra meanwhile }
+      - { key: instances, label: Instances, kind: int, default: 2, min: 1, max: 64 }
+      - { key: slots, label: Slots, kind: int, default: 16, min: 1, max: 4096, advanced: true }
+      - { key: p50Ms, label: Base p50, kind: ms, default: 1, min: 0.01, max: 1000 }
+      - { key: p99Ms, label: Base p99, kind: ms, default: 5, min: 0.01, max: 5000 }
+      - { key: queueLimit, label: Queue limit, kind: int, default: 1000, min: 0, max: 100000, advanced: true }
+      - { key: costMonth, label: Cost / month, kind: number, default: 400, min: 0, max: 100000, unit: $ }
+skins:
+  - name: postgis
+    type: geo-index
+    label: PostGIS
+    description: Postgres spatial extension (R-tree / GiST)
+    icon: brand:postgres
+    tags: [sql, self-hosted]
+    defaults: { mode: quadtree, p50Ms: 1, costMonth: 180 }
+  - name: redis-geo
+    type: geo-index
+    label: Redis GEO
+    description: Sorted-set geohash (52-bit) with GEOSEARCH
+    icon: brand:redis
+    tags: [in-memory]
+    defaults: { mode: geohash, precision: 6, p50Ms: 0.2, costMonth: 120 }
+  - name: osrm
+    type: routing-engine
+    label: OSRM
+    description: Open Source Routing Machine (contraction hierarchies / MLD)
+    icon: route
+    tags: [self-hosted, openstreetmap]
+    defaults: { algo: contraction-hierarchies, costMonth: 400 }

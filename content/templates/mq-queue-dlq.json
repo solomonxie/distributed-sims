@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "id": "mq-queue-dlq",
+  "name": "Queue, retries & DLQ",
+  "description": "Orders go through SQS to workers. Poison messages fail every receive and land in the DLQ after 3 tries; a worker crash before ack causes redeliveries and duplicate side effects.",
+  "nodes": [
+    { "id": "web", "type": "web-client", "name": "Shoppers", "pos": { "x": 195, "y": 60 } },
+    { "id": "api", "type": "service", "name": "Orders API", "pos": { "x": 195, "y": 200 } },
+    { "id": "q", "type": "queue", "skin": "sqs", "name": "orders queue", "pos": { "x": 195, "y": 340 }, "config": { "visibilityMs": 5000, "maxReceives": 3 } },
+    { "id": "w", "type": "worker", "skin": "celery-worker", "name": "Fulfilment workers", "pos": { "x": 110, "y": 480 }, "config": { "ackMode": "late", "instances": 2, "slots": 4, "p50Ms": 30, "p99Ms": 150, "batch": 5 } },
+    { "id": "dlq", "type": "queue", "skin": "sqs", "name": "orders DLQ", "pos": { "x": 300, "y": 480 } },
+    { "id": "ship", "type": "service", "name": "Shipping API", "pos": { "x": 110, "y": 620 } }
+  ],
+  "edges": [
+    { "id": "e1", "from": "web", "to": "api" },
+    { "id": "e2", "from": "api", "to": "q" },
+    { "id": "e3", "from": "q", "to": "w" },
+    { "id": "e4", "from": "q", "to": "dlq", "config": { "route": "dlq" } },
+    { "id": "e5", "from": "w", "to": "ship" }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 60,
+    "sources": [{ "id": "s1", "node": "web", "shape": { "kind": "constant", "rps": 100 }, "readRatio": 0 }],
+    "events": [
+      { "atSec": 10, "event": { "kind": "poison-message", "target": "q", "params": { "pct": 0.02 }, "durationSec": 15 } },
+      { "atSec": 35, "event": { "kind": "kill", "target": "w", "durationSec": 5 } }
+    ]
+  },
+  "wire": {
+    "host": "shop.acme.io",
+    "read": {
+      "method": "GET",
+      "path": "/api/orders/{key}/fulfilment",
+      "body": "{\"id\": {key}, \"state\": \"shipped\"}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/orders",
+      "reqBody": "{\"sku\": \"SKU-{key}\", \"qty\": 1}",
+      "status": 202,
+      "body": "{\"id\": {key}, \"state\": \"queued\"}"
+    },
+    "topic": "orders-queue"
+  }
+}

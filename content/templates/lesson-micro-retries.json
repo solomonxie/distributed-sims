@@ -1,0 +1,205 @@
+{
+  "schemaVersion": 1,
+  "id": "lesson-micro-retries",
+  "name": "Retries, timeouts & retry storms",
+  "description": "Two copies of a 3-hop call chain share one database. Left: every hop retries twice (3 attempts), so one slow DB call can turn into 3 × 3 × 3 = 27. Right: only the edge retries, and inner timeouts are shorter than outer ones.",
+  "nodes": [
+    {
+      "id": "users-r",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 75,
+        "y": 40
+      }
+    },
+    {
+      "id": "a-r",
+      "type": "service",
+      "name": "Gateway",
+      "pos": {
+        "x": 75,
+        "y": 150
+      }
+    },
+    {
+      "id": "b-r",
+      "type": "service",
+      "name": "Orders",
+      "pos": {
+        "x": 75,
+        "y": 260
+      }
+    },
+    {
+      "id": "c-r",
+      "type": "service",
+      "name": "Stock",
+      "pos": {
+        "x": 75,
+        "y": 370
+      }
+    },
+    {
+      "id": "users-e",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 315,
+        "y": 40
+      }
+    },
+    {
+      "id": "a-e",
+      "type": "service",
+      "name": "Gateway",
+      "pos": {
+        "x": 315,
+        "y": 150
+      }
+    },
+    {
+      "id": "b-e",
+      "type": "service",
+      "name": "Orders",
+      "pos": {
+        "x": 315,
+        "y": 260
+      }
+    },
+    {
+      "id": "c-e",
+      "type": "service",
+      "name": "Stock",
+      "pos": {
+        "x": 315,
+        "y": 370
+      }
+    },
+    {
+      "id": "db",
+      "type": "relational-db",
+      "name": "Stock DB",
+      "pos": {
+        "x": 195,
+        "y": 490
+      },
+      "skin": "postgres",
+      "config": {
+        "slots": 64
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "users-r->a-r",
+      "from": "users-r",
+      "to": "a-r",
+      "config": {
+        "timeoutMs": 5000
+      }
+    },
+    {
+      "id": "a-r->b-r",
+      "from": "a-r",
+      "to": "b-r",
+      "config": {
+        "timeoutMs": 300,
+        "retries": 2,
+        "backoffMs": 20
+      }
+    },
+    {
+      "id": "b-r->c-r",
+      "from": "b-r",
+      "to": "c-r",
+      "config": {
+        "timeoutMs": 300,
+        "retries": 2,
+        "backoffMs": 20
+      }
+    },
+    {
+      "id": "c-r->db",
+      "from": "c-r",
+      "to": "db",
+      "config": {
+        "timeoutMs": 300,
+        "retries": 2,
+        "backoffMs": 20
+      }
+    },
+    {
+      "id": "users-e->a-e",
+      "from": "users-e",
+      "to": "a-e",
+      "config": {
+        "timeoutMs": 5000
+      }
+    },
+    {
+      "id": "a-e->b-e",
+      "from": "a-e",
+      "to": "b-e",
+      "config": {
+        "timeoutMs": 900,
+        "retries": 2,
+        "backoffMs": 100
+      }
+    },
+    {
+      "id": "b-e->c-e",
+      "from": "b-e",
+      "to": "c-e",
+      "config": {
+        "timeoutMs": 600
+      }
+    },
+    {
+      "id": "c-e->db",
+      "from": "c-e",
+      "to": "db",
+      "config": {
+        "timeoutMs": 300
+      }
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 120,
+    "sources": [
+      {
+        "id": "s1",
+        "node": "users-r",
+        "shape": {
+          "kind": "constant",
+          "rps": 50
+        }
+      },
+      {
+        "id": "s2",
+        "node": "users-e",
+        "shape": {
+          "kind": "constant",
+          "rps": 50
+        }
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "shop.example",
+    "read": {
+      "path": "/api/orders/{key}/stock"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/orders",
+      "reqBody": "{\"sku\": \"SKU-{key}\", \"qty\": 1}",
+      "status": 201,
+      "body": "{\"order_id\": {key}, \"status\": \"placed\"}"
+    },
+    "table": "stock",
+    "valCol": "on_hand"
+  }
+}

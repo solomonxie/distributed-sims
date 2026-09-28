@@ -1,0 +1,140 @@
+{
+  "schemaVersion": 1,
+  "id": "lesson-network-keepalive",
+  "name": "Keep-alive vs new connections",
+  "description": "Two apps call the same backend over HTTPS. Left keeps connections open and reuses them. Right opens a new connection per call: a TCP handshake (1 round trip) and a TLS 1.3 handshake (1 more) before the request can go out. Each round trip costs whatever the distance costs.",
+  "nodes": [
+    {
+      "id": "users-k",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 75,
+        "y": 60
+      }
+    },
+    {
+      "id": "app-k",
+      "type": "service",
+      "name": "App · keep-alive",
+      "pos": {
+        "x": 75,
+        "y": 200
+      },
+      "config": {
+        "p50Ms": 2,
+        "p99Ms": 6
+      }
+    },
+    {
+      "id": "users-h",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 315,
+        "y": 60
+      }
+    },
+    {
+      "id": "app-h",
+      "type": "service",
+      "name": "App · new conn",
+      "pos": {
+        "x": 315,
+        "y": 200
+      },
+      "config": {
+        "p50Ms": 2,
+        "p99Ms": 6
+      }
+    },
+    {
+      "id": "api",
+      "type": "service",
+      "name": "Backend",
+      "pos": {
+        "x": 195,
+        "y": 340
+      },
+      "config": {
+        "instances": 3,
+        "p50Ms": 2,
+        "p99Ms": 6
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "users-k->app-k",
+      "from": "users-k",
+      "to": "app-k",
+      "config": {
+        "timeoutMs": 5000
+      }
+    },
+    {
+      "id": "app-k->api",
+      "from": "app-k",
+      "to": "api",
+      "config": {
+        "timeoutMs": 3000,
+        "latencyMs": 10
+      }
+    },
+    {
+      "id": "users-h->app-h",
+      "from": "users-h",
+      "to": "app-h",
+      "config": {
+        "timeoutMs": 5000
+      }
+    },
+    {
+      "id": "app-h->api",
+      "from": "app-h",
+      "to": "api",
+      "config": {
+        "timeoutMs": 3000,
+        "latencyMs": 10,
+        "keepAlive": false,
+        "handshakeRtts": 2
+      }
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 120,
+    "sources": [
+      {
+        "id": "s1",
+        "node": "users-k",
+        "shape": {
+          "kind": "constant",
+          "rps": 200
+        }
+      },
+      {
+        "id": "s2",
+        "node": "users-h",
+        "shape": {
+          "kind": "constant",
+          "rps": 200
+        }
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "app.example",
+    "read": {
+      "path": "/api/profile/{key}"
+    },
+    "write": {
+      "method": "PUT",
+      "path": "/api/profile/{key}",
+      "reqBody": "{\"display_name\": \"user{value}\"}",
+      "status": 200,
+      "body": "{\"id\": {key}, \"updated\": true}"
+    }
+  }
+}

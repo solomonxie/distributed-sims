@@ -1,0 +1,47 @@
+id: web-crawler
+title: Web crawler
+icon: bug
+category: infra
+order: 15
+summary: Fetch billions of pages politely, never twice, without falling into traps.
+requirements:
+  - Take seed URLs, fetch, parse, extract links, dedupe, schedule re-crawls
+  - 1B pages/month · per-host politeness (≤ 1 req/s per small site)
+  - Frontier stays bounded · a trap site can't starve the rest
+estimates:
+  - ~400 fetches/s average, ~2k/s peak · 100 KB/page → ~100 TB/month raw
+  - Seen-set of 10B URLs ≈ 12 GB as a 1%-FP Bloom filter
+designs:
+  - { id: v1, title: "Naive: fetch inline, no frontier, no dedupe", template: problem-web-crawler-v1 }
+  - { id: v2, title: "Reference: Bloom seen-set, Kafka frontier by host, politeness", template: problem-web-crawler-v2 }
+challenges:
+  - id: trap-site
+    title: "Spider trap: infinite calendar pages"
+    template: problem-web-crawler-v2
+    scenario:
+      durationSec: 60
+      sources: [{ id: seeds, node: users, shape: { kind: constant, rps: 1500 }, readRatio: 1 }]
+      events:
+        - { atSec: 15, event: { kind: traffic, action: hot-key, params: { hot: 0.8 }, durationSec: 45 } }
+        - { atSec: 15, event: { kind: traffic, action: bots, params: { rps: 3000 }, durationSec: 45 } }
+    pass:
+      - { metric: p99, op: '<', value: 200 }
+      - { metric: availability, op: '>=', value: 99.5 }
+      - { metric: anomalies, op: '=', value: 0 }
+      - { metric: costMonth, op: '<=', value: 3000 }
+  - id: dns-slow
+    title: "DNS resolvers slow down 10×"
+    template: problem-web-crawler-v2
+    scenario:
+      durationSec: 60
+      sources: [{ id: seeds, node: users, shape: { kind: constant, rps: 1500 }, readRatio: 1 }]
+      events:
+        - { atSec: 15, event: { kind: slow, target: resolver, params: { x: 10 }, durationSec: 45 } }
+    pass:
+      - { metric: p99, op: '<', value: 200 }
+      - { metric: availability, op: '>=', value: 99.5 }
+keyIdeas:
+  - { label: Bloom filter seen-set, link: "algo:bloom-filter" }
+  - { label: BFS over the link graph, link: "algo:bfs" }
+  - { label: Per-host politeness limits, link: "lesson:rate-limit/per-tenant" }
+  - { label: Frontier as a partitioned log, link: "lesson:message-queue/ordering" }

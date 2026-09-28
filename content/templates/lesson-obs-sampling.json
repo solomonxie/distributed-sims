@@ -1,0 +1,172 @@
+{
+  "schemaVersion": 1,
+  "id": "lesson-obs-sampling",
+  "name": "Head vs tail sampling",
+  "description": "Every span goes to two collectors. The left one decides at the start of a trace (head, keep 10%); the right one waits for the trace to finish and keeps every error plus 10% of the rest (tail). When Payments starts failing, only tail sampling keeps the traces you need.",
+  "nodes": [
+    {
+      "id": "web",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 195,
+        "y": 20
+      },
+      "skin": "react-spa"
+    },
+    {
+      "id": "gw",
+      "type": "service",
+      "name": "Gateway",
+      "pos": {
+        "x": 195,
+        "y": 110
+      },
+      "skin": "go-service"
+    },
+    {
+      "id": "orders",
+      "type": "service",
+      "name": "Orders",
+      "pos": {
+        "x": 195,
+        "y": 200
+      },
+      "skin": "java-service",
+      "config": {
+        "gcPauses": false
+      }
+    },
+    {
+      "id": "pay",
+      "type": "service",
+      "name": "Payments",
+      "pos": {
+        "x": 195,
+        "y": 290
+      },
+      "skin": "go-service"
+    },
+    {
+      "id": "head",
+      "type": "trace-collector",
+      "name": "Head 10%",
+      "pos": {
+        "x": 60,
+        "y": 400
+      },
+      "skin": "otel-collector",
+      "config": {
+        "sampling": "head",
+        "sampleRate": 0.1
+      }
+    },
+    {
+      "id": "tail",
+      "type": "trace-collector",
+      "name": "Tail 10%",
+      "pos": {
+        "x": 330,
+        "y": 400
+      },
+      "skin": "otel-collector",
+      "config": {
+        "sampling": "tail",
+        "sampleRate": 0.1
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "web->gw",
+      "from": "web",
+      "to": "gw"
+    },
+    {
+      "id": "gw->orders",
+      "from": "gw",
+      "to": "orders"
+    },
+    {
+      "id": "orders->pay",
+      "from": "orders",
+      "to": "pay"
+    },
+    {
+      "id": "gw->head",
+      "from": "gw",
+      "to": "head",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "orders->head",
+      "from": "orders",
+      "to": "head",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "pay->head",
+      "from": "pay",
+      "to": "head",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "gw->tail",
+      "from": "gw",
+      "to": "tail",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "orders->tail",
+      "from": "orders",
+      "to": "tail",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "pay->tail",
+      "from": "pay",
+      "to": "tail",
+      "config": {
+        "mode": "async"
+      }
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 60,
+    "sources": [
+      {
+        "id": "s",
+        "node": "web",
+        "shape": {
+          "kind": "constant",
+          "rps": 200
+        }
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "shop.example",
+    "read": {
+      "path": "/api/orders/{key}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/orders",
+      "reqBody": "{\"sku\": \"SKU-{key}\", \"card\": \"tok_visa\"}",
+      "status": 201,
+      "body": "{\"order_id\": {key}, \"status\": \"placed\"}"
+    }
+  }
+}

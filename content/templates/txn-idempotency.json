@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "id": "txn-idempotency",
+  "name": "Idempotency keys",
+  "description": "Payments slow down past the caller's timeout; retries charge twice on the plain payment API (duplicate anomalies) but are deduped by Stripe-style idempotency keys.",
+  "nodes": [
+    { "id": "web", "type": "web-client", "name": "Checkout", "pos": { "x": 195, "y": 60 } },
+    { "id": "api", "type": "service", "name": "Orders API", "pos": { "x": 195, "y": 200 } },
+    { "id": "legacy", "type": "payment", "name": "Legacy payments", "pos": { "x": 85, "y": 340 }, "config": { "p50Ms": 60, "p99Ms": 250 } },
+    { "id": "stripe", "type": "idempotent-service", "skin": "stripe-payments", "name": "Stripe", "pos": { "x": 305, "y": 340 }, "config": { "p50Ms": 60, "p99Ms": 250 } }
+  ],
+  "edges": [
+    { "id": "e1", "from": "web", "to": "api", "config": { "timeoutMs": 5000 } },
+    { "id": "e2", "from": "api", "to": "legacy", "config": { "timeoutMs": 200, "retries": 3, "backoffMs": 50, "ratio": 0.5 } },
+    { "id": "e3", "from": "api", "to": "stripe", "config": { "timeoutMs": 200, "retries": 3, "backoffMs": 50, "ratio": 0.5 } }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 60,
+    "sources": [{ "id": "s1", "node": "web", "shape": { "kind": "constant", "rps": 100 }, "readRatio": 0 }],
+    "events": [
+      { "atSec": 15, "event": { "kind": "slow", "target": "legacy", "params": { "x": 4 }, "durationSec": 20 } },
+      { "atSec": 15, "event": { "kind": "slow", "target": "stripe", "params": { "x": 4 }, "durationSec": 20 } }
+    ]
+  },
+  "wire": {
+    "host": "shop.acme.io",
+    "read": {
+      "method": "GET",
+      "path": "/api/orders/{key}/payment",
+      "body": "{\"order_id\": {key}, \"charge\": \"ch_{code}\"}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/v1/charges",
+      "reqBody": "{\"amount\": {value}, \"currency\": \"usd\", \"idempotency_key\": \"{code}\"}",
+      "status": 200,
+      "body": "{\"id\": \"ch_{code}\", \"status\": \"succeeded\"}"
+    }
+  }
+}

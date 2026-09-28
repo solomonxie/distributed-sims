@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "id": "problem-kv-store-v1",
+  "name": "KV store: ONE/ONE",
+  "description": "Five members on a consistent-hash ring, N=3, but reads and writes wait for a single replica. Fast, until a partition lets both sides accept writes.",
+  "nodes": [
+    {"id":"users","type":"web-client","name":"Clients","pos":{"x":0,"y":0}},
+    {"id":"api","type":"service","skin":"go-service","name":"KV API","pos":{"x":0,"y":110},"config":{"instances":2}},
+    {"id":"kv","type":"kv-store","skin":"cassandra","name":"KV cluster","pos":{"x":0,"y":220},"config":{"members":5,"replicationFactor":3,"readConsistency":"one","writeConsistency":"one"}}
+  ],
+  "edges": [
+    {"id":"users-api","from":"users","to":"api","config":{"timeoutMs":3000}},
+    {"id":"api-kv","from":"api","to":"kv","config":{"timeoutMs":500}}
+  ],
+  "containers": [],
+  "scenario": {"durationSec":60,"sources":[{"id":"ops","node":"users","shape":{"kind":"constant","rps":10000},"readRatio":0.7,"keys":{"kind":"zipf","s":0.9}}],"events":[]},
+  "wire": {
+    "host": "kv.internal",
+    "read": {
+      "method": "GET",
+      "path": "/v1/kv/{code}",
+      "status": 200,
+      "body": "{\"key\": \"{code}\", \"value\": {value}, \"version\": 3}"
+    },
+    "write": {
+      "method": "PUT",
+      "path": "/v1/kv/{code}",
+      "reqBody": "{\"value\": {value}}",
+      "status": 200,
+      "body": "{\"key\": \"{code}\", \"version\": 4}"
+    },
+    "table": "kv",
+    "keyCol": "k",
+    "valCol": "v"
+  }
+}

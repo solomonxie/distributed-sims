@@ -1,0 +1,112 @@
+id: machine-memory
+title: Memory
+group: machine
+icon: memory-stick
+order: 2
+summary: The latency ladder from registers to disk, heaps and GC, NUMA, and fork.
+info: Each step down the memory hierarchy is 3–1000× slower, so fast systems keep their hot data near the top. Heaps fragment and garbage collectors pause, which is where many p99 spikes come from. Big servers have non-uniform memory, and fork() shares pages until someone writes.
+algos: [mem-hierarchy, mem-gc, mem-numa, mem-fork-cow]
+lessons:
+  - id: hierarchy
+    title: The memory hierarchy
+    minutes: 3
+    algo: mem-hierarchy
+    steps:
+      - title: Stretch 1 ns to 1 s
+        body: L1 is a second, L2 four seconds, RAM a minute and a half. An NVMe read is a day.
+        watch: The human-time column next to each level.
+        check: { metric: manual }
+      - title: The network is the bottom
+        body: A datacenter round trip is almost a week, a cross-region one about 5 years. Every remote call is a trip down the ladder.
+        check: { metric: manual }
+
+  - id: gc
+    title: Allocation & GC
+    minutes: 4
+    algo: mem-gc
+    steps:
+      - title: Fragmentation
+        body: Freeing every other object leaves 64 KB free in 16 KB holes. A 32 KB malloc still doesn't fit, so the heap grows.
+        watch: RSS grows while free memory sits unused.
+        check: { metric: manual }
+      - title: Generational GC
+        body: Switch to "Generational GC". Minor collections copy the few live young objects in ~5 ms.
+        watch: A full GC on an old gen full of cache objects stops the world for ~800 ms, the classic p99 spike.
+        check: { metric: manual }
+
+  - id: numa
+    title: NUMA
+    minutes: 3
+    algo: mem-numa
+    steps:
+      - title: Local memory
+        body: Two sockets, each with its own DRAM. A thread's buffer is allocated on the node where it first touches it.
+        watch: Local misses cost ~90 ns.
+        check: { metric: manual }
+      - title: Thread migrated
+        body: Switch to "Thread migrated". The scheduler moves the thread to the other socket but its data stays behind.
+        watch: Every miss now crosses the socket link, ~1.5× slower.
+        check: { metric: manual }
+
+  - id: fork-cow
+    title: fork() and copy-on-write
+    minutes: 3
+    algo: mem-fork-cow
+    steps:
+      - title: Fork shares everything
+        body: Redis forks to write a snapshot. The child gets a copy of the page table only, and all pages turn read-only.
+        check: { metric: manual }
+      - title: Writes copy pages
+        body: When the parent writes a page, a fault copies just that 4 KB page. Write-heavy Redis can nearly double its RAM during a save.
+        watch: Copied pages and RSS grow with each write.
+        check: { metric: manual }
+
+  - id: why-p99-bad
+    title: "Bridge: why is my p99 bad?"
+    minutes: 5
+    template: lesson-machine-p99
+    steps:
+      - title: A JVM service
+        body: Orders runs on a JVM with a 2 GB heap. Every few seconds a GC pause freezes all its threads.
+        watch: Tap Orders; gcPauseMs shows the last pause.
+        check: { metric: gauge:gcPauseMs, target: api, op: '>=', value: 50 }
+      - title: Pauses become tail latency
+        body: Requests that arrive during a pause wait for it to end. The median barely moves, but p99 jumps whenever a pause lands.
+        watch: User p99 spikes, then settles.
+        check: { metric: p99, target: web, op: '>=', value: 200 }
+      - title: A memory leak
+        body: Start a 100 MB/s leak in Orders. The heap fills and GC runs harder to keep up.
+        action: { event: { kind: memory-leak, target: api, params: { mbPerSec: 100 }, durationSec: 60 } }
+        watch: memMb climbs toward the 2 GB limit.
+        check: { metric: gauge:memMb, target: api, op: '>=', value: 1000 }
+      - title: OOM kill
+        body: At 2 GB the kernel's OOM killer ends the process. Every in-flight request fails while it restarts.
+        watch: Drill into the host view to see memory and page faults climb before the kill.
+        check: { metric: 'eventMatch:OOM-killed', op: '>=', value: 1 }
+
+  - id: why-redis-fast-ram
+    title: "Bridge: why is Redis fast? (RAM)"
+    minutes: 3
+    algo: mem-hierarchy
+    steps:
+      - title: Data lives in RAM
+        body: Redis keeps every key in memory. A lookup is a few RAM accesses, about a minute on the human clock.
+        watch: The RAM rung.
+        check: { metric: manual }
+      - title: Disk databases pay a day
+        body: A disk-backed store that misses its buffer pool reads SSD, about a day on the same clock. That gap is most of Redis's speed.
+        watch: The NVMe rung, then the network rungs below it.
+        check: { metric: manual }
+
+  - id: why-redis-fast-loop
+    title: "Bridge: why is Redis fast? (one thread)"
+    minutes: 3
+    algo: bus-event-loop
+    steps:
+      - title: One thread, 10k sockets
+        body: Redis runs one event loop. epoll hands it only the sockets that have data, in one syscall.
+        watch: Commands run back to back with zero context switches or locks.
+        check: { metric: manual }
+      - title: The catch
+        body: One slow command, such as KEYS *, blocks every client. Switch to "Thread per connection" to see the alternative's switching cost.
+        check: { metric: manual }

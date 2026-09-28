@@ -1,0 +1,125 @@
+id: dynamodb
+title: DynamoDB
+group: under-the-hood
+icon: table-2
+order: 13
+summary: A managed table split into partitions — every request is metered, and one hot key can throttle you while the table is half idle.
+info: A request router authenticates each call, hashes the partition key to a partition and sends it to that partition's leader, which acks once 2 of 3 copies in different AZs have the write. Capacity is metered per second for the table and per partition (at most 3,000 RCU / 1,000 WCU each). Global secondary indexes are separate tables fed asynchronously; DAX caches items in front.
+problems: [kv-store, ticket-booking]
+lessons:
+  - id: anatomy
+    title: Anatomy of a table
+    minutes: 3
+    template: tech-dynamodb-anatomy
+    steps:
+      - title: The parts
+        body: DAX caches items; the request router meters capacity and routes by partition key; storage nodes hold partition leaders; a GSI indexes the same items by another key.
+        check: { metric: time, op: '>=', value: 3 }
+      - title: Partitions
+        body: 3,000 RCU and 1,000 WCU fit in 2 partitions, but this table starts with 3. Each key's hash picks one.
+        watch: P0, P1… badges on the storage nodes.
+        check: { metric: gauge:partitions, target: router, op: '>=', value: 3 }
+      - title: DAX absorbs reads
+        body: DAX is a write-through item cache, so most reads never reach the table or use RCUs.
+        check: { metric: gauge:hitRatio, target: dax, op: '>=', value: 60 }
+      - title: Eventually consistent by default
+        body: Default reads may hit a replica a few ms behind, and GSI queries lag further. The anomaly counter shows the stale reads.
+        check: { metric: anomaly:stale-read, op: '>=', value: 1 }
+
+  - id: lifecycle
+    title: "Lifecycle: PutItem and GetItem"
+    minutes: 3
+    template: tech-dynamodb-anatomy
+    steps:
+      - title: Route
+        body: The router authenticates the call, hashes the partition key and finds the partition in its map.
+        check: { metric: eventMatch:PutItem key, op: '>=', value: 1 }
+      - title: Leader + 2 AZs
+        body: The partition leader logs the write and replicates it to copies in two other AZs.
+        check: { metric: eventMatch:replicating to 2 other AZs, op: '>=', value: 1 }
+      - title: Ack at 2 of 3
+        body: Once 2 of the 3 copies are durable the write is acknowledged; the third catches up.
+        check: { metric: eventMatch:2 of 3 copies durable, op: '>=', value: 1 }
+      - title: The GSI follows later
+        body: The index is updated asynchronously from the base table, usually within milliseconds.
+        check: { metric: eventMatch:updated, op: '>=', value: 1 }
+      - title: GetItem
+        body: An eventually consistent read costs 0.5 RCU and may go to any copy; a strongly consistent read costs 1 RCU and goes to the leader.
+        check: { metric: eventMatch:GetItem key, op: '>=', value: 1 }
+
+  - id: hot-partition
+    title: Hot partition key
+    minutes: 5
+    template: tech-dynamodb-hot-partition
+    steps:
+      - title: Spread out
+        body: 4,000 requests/s over many keys. Every partition stays well under its share.
+        check: { metric: time, op: '>=', value: 5 }
+      - title: One key gets hot
+        body: A viral item — 60% of all traffic now hits one partition key.
+        action: { event: { kind: traffic, action: hot-key, params: { hot: 0.6 }, durationSec: 90 } }
+        check: { metric: eventMatch:adaptive capacity, op: '>=', value: 1 }
+      - title: Throttled at 1,000 WCU
+        body: Adaptive capacity lets the hot partition borrow unused table throughput, but never past 1,000 WCU per partition. Writes beyond that get 429.
+        check: { metric: availability, target: router, op: '<', value: 97 }
+      - title: Split for heat
+        body: After sustained heat DynamoDB splits the partition and moves half of it to another storage node.
+        check: { metric: 'eventMatch:split for heat:', op: '>=', value: 1 }
+      - title: A key can't be split
+        body: Once the hot key sits alone, splitting can't help. Spread writes with key suffixes (write sharding) or cache the reads.
+        check: { metric: "eventMatch:can't help", op: '>=', value: 1 }
+
+  - id: gsi-backpressure
+    title: GSI back-pressure throttles the table
+    minutes: 4
+    template: tech-dynamodb-gsi
+    steps:
+      - title: A small index
+        body: The base table is on-demand, but its GSI is provisioned at only 300 WCU. Every base write is also an index write.
+        check: { metric: time, op: '>=', value: 5 }
+      - title: Write burst
+        body: Writes triple for 30s. The GSI applies 300/s; the rest queue up.
+        action: { event: { kind: traffic, action: burst, params: { x: 3 }, durationSec: 30 } }
+        check: { metric: gauge:backlog, target: gsi, op: '>=', value: 1000 }
+      - title: Stale index reads
+        body: Queries on the GSI now return data seconds old.
+        watch: The lag badge on the GSI.
+        check: { metric: gauge:lagMs, target: gsi, op: '>=', value: 2000 }
+      - title: The base table pays
+        body: When the backlog is too big, DynamoDB throttles writes to the base table itself, even though it has capacity. Give GSIs at least the base table's write capacity.
+        check: { metric: eventMatch:GSI back-pressure, op: '>=', value: 1 }
+
+  - id: on-demand-burst
+    title: Bursting past on-demand
+    minutes: 3
+    template: tech-dynamodb-on-demand
+    steps:
+      - title: On-demand
+        body: No capacity to set; the table serves up to double its previous peak (500 WCU) instantly.
+        check: { metric: time, op: '>=', value: 5 }
+      - title: 4× burst
+        body: Traffic bursts 4×. Demand jumps to ~2,000 WCU, twice what the table can take right now.
+        action: { event: { kind: traffic, action: burst, params: { x: 4 }, durationSec: 40 } }
+        check: { metric: availability, target: router, op: '<', value: 95 }
+      - title: The table scales up
+        body: DynamoDB raises the previous peak as the traffic stays; here it may double every 10s (about 30 minutes in real life).
+        check: { metric: 'eventMatch:on-demand scaling', op: '>=', value: 1 }
+      - title: Caught up
+        body: Once 2× the new peak covers the burst, throttling stops. Pre-warm by switching to provisioned for known launches.
+        check: { metric: availability, target: router, op: '>=', value: 99.5 }
+
+  - id: transactions
+    title: Transaction conflicts
+    minutes: 3
+    template: tech-dynamodb-txn
+    steps:
+      - title: TransactWriteItems
+        body: 30% of writes update an order and an inventory item atomically; each costs 2× WCU and holds both items while it prepares and commits.
+        check: { metric: eventMatch:transaction committed, op: '>=', value: 1 }
+      - title: Contention
+        body: A flash sale — half the writes now target one item, so transactions overlap on it.
+        action: { event: { kind: traffic, action: hot-key, params: { hot: 0.5 }, durationSec: 40 } }
+        check: { metric: gauge:conflicts, target: router, op: '>=', value: 50 }
+      - title: Cancelled
+        body: Overlapping transactions fail with TransactionCanceledException and plain writes to a locked item fail too. Clients must retry, idempotently with a ClientRequestToken.
+        check: { metric: availability, target: router, op: '<', value: 95 }

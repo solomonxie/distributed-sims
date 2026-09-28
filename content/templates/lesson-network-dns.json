@@ -1,0 +1,213 @@
+{
+  "schemaVersion": 1,
+  "id": "lesson-network-dns",
+  "name": "DNS failover",
+  "description": "Two DNS zones point at the same two regions: us-east-1 is primary, us-west-2 is standby. Health checks run every 2s. When us-east-1 goes down, both zones switch within seconds, but clients keep using their cached answer until the TTL runs out: 5s on the left, 30s on the right.",
+  "nodes": [
+    {
+      "id": "users-5",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 75,
+        "y": 40
+      }
+    },
+    {
+      "id": "dns-5",
+      "type": "dns",
+      "name": "DNS · TTL 5s",
+      "pos": {
+        "x": 75,
+        "y": 160
+      },
+      "skin": "route53",
+      "config": {
+        "routing": "failover",
+        "ttlSec": 5,
+        "healthIntervalMs": 2000,
+        "unhealthyThreshold": 2
+      }
+    },
+    {
+      "id": "users-30",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 315,
+        "y": 40
+      }
+    },
+    {
+      "id": "dns-30",
+      "type": "dns",
+      "name": "DNS · TTL 30s",
+      "pos": {
+        "x": 315,
+        "y": 160
+      },
+      "skin": "route53",
+      "config": {
+        "routing": "failover",
+        "ttlSec": 30,
+        "healthIntervalMs": 2000,
+        "unhealthyThreshold": 2
+      }
+    },
+    {
+      "id": "lb-east",
+      "type": "load-balancer",
+      "name": "LB",
+      "pos": {
+        "x": 85,
+        "y": 310
+      },
+      "skin": "aws-alb",
+      "parent": "east"
+    },
+    {
+      "id": "app-east",
+      "type": "service",
+      "name": "App",
+      "pos": {
+        "x": 85,
+        "y": 430
+      },
+      "parent": "east",
+      "config": {
+        "instances": 2
+      }
+    },
+    {
+      "id": "lb-west",
+      "type": "load-balancer",
+      "name": "LB",
+      "pos": {
+        "x": 305,
+        "y": 310
+      },
+      "skin": "aws-alb",
+      "parent": "west"
+    },
+    {
+      "id": "app-west",
+      "type": "service",
+      "name": "App",
+      "pos": {
+        "x": 305,
+        "y": 430
+      },
+      "parent": "west",
+      "config": {
+        "instances": 2
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "users-5->dns-5",
+      "from": "users-5",
+      "to": "dns-5",
+      "config": {
+        "timeoutMs": 3000
+      }
+    },
+    {
+      "id": "users-30->dns-30",
+      "from": "users-30",
+      "to": "dns-30",
+      "config": {
+        "timeoutMs": 3000
+      }
+    },
+    {
+      "id": "dns-5->lb-east",
+      "from": "dns-5",
+      "to": "lb-east",
+      "config": {
+        "timeoutMs": 1000
+      }
+    },
+    {
+      "id": "dns-5->lb-west",
+      "from": "dns-5",
+      "to": "lb-west",
+      "config": {
+        "timeoutMs": 1000
+      }
+    },
+    {
+      "id": "dns-30->lb-east",
+      "from": "dns-30",
+      "to": "lb-east",
+      "config": {
+        "timeoutMs": 1000
+      }
+    },
+    {
+      "id": "dns-30->lb-west",
+      "from": "dns-30",
+      "to": "lb-west",
+      "config": {
+        "timeoutMs": 1000
+      }
+    },
+    {
+      "id": "lb-east->app-east",
+      "from": "lb-east",
+      "to": "app-east"
+    },
+    {
+      "id": "lb-west->app-west",
+      "from": "lb-west",
+      "to": "app-west"
+    }
+  ],
+  "containers": [
+    {
+      "id": "east",
+      "kind": "region",
+      "name": "us-east-1"
+    },
+    {
+      "id": "west",
+      "kind": "region",
+      "name": "us-west-2"
+    }
+  ],
+  "scenario": {
+    "durationSec": 150,
+    "sources": [
+      {
+        "id": "s1",
+        "node": "users-5",
+        "shape": {
+          "kind": "constant",
+          "rps": 100
+        }
+      },
+      {
+        "id": "s2",
+        "node": "users-30",
+        "shape": {
+          "kind": "constant",
+          "rps": 100
+        }
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "www.travel.example",
+    "read": {
+      "path": "/api/bookings/{key}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/bookings",
+      "reqBody": "{\"flight\": \"UA{value}\", \"seats\": 1}",
+      "status": 201,
+      "body": "{\"booking_id\": {key}, \"status\": \"held\"}"
+    }
+  }
+}

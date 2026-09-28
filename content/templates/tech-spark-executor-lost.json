@@ -1,0 +1,95 @@
+{
+  "schemaVersion": 1,
+  "id": "tech-spark-executor-lost",
+  "name": "Spark: executor lost mid-shuffle",
+  "description": "Longer jobs back to back. Kill an executor and the driver reruns only the lost partitions from lineage.",
+  "nodes": [
+    {
+      "id": "driver",
+      "type": "spark-driver",
+      "skin": "spark-driver-std",
+      "name": "Driver",
+      "pos": {
+        "x": 195,
+        "y": 60
+      },
+      "config": {
+        "cronSec": 10,
+        "stages": 4,
+        "inputMb": 3072
+      }
+    },
+    {
+      "id": "exec-1",
+      "type": "spark-executor",
+      "skin": "spark-executor-std",
+      "name": "Executor 1",
+      "pos": {
+        "x": 55,
+        "y": 220
+      },
+      "config": {}
+    },
+    {
+      "id": "exec-2",
+      "type": "spark-executor",
+      "skin": "spark-executor-std",
+      "name": "Executor 2",
+      "pos": {
+        "x": 195,
+        "y": 220
+      },
+      "config": {}
+    },
+    {
+      "id": "exec-3",
+      "type": "spark-executor",
+      "skin": "spark-executor-std",
+      "name": "Executor 3",
+      "pos": {
+        "x": 335,
+        "y": 220
+      },
+      "config": {}
+    }
+  ],
+  "edges": [
+    {
+      "id": "d-e1",
+      "from": "driver",
+      "to": "exec-1"
+    },
+    {
+      "id": "d-e2",
+      "from": "driver",
+      "to": "exec-2"
+    },
+    {
+      "id": "d-e3",
+      "from": "driver",
+      "to": "exec-3"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 120,
+    "sources": [],
+    "events": []
+  },
+  "wire": {
+    "host": "spark-master.internal:6066",
+    "read": {
+      "path": "/api/v1/applications/app-{key}/executors",
+      "body": "[{\"id\": \"2\", \"isActive\": false, \"failedTasks\": 4}]"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/v1/submissions/create",
+      "reqBody": "{\"mainClass\": \"logs.Compact\", \"appArgs\": [\"--day\", \"2026-09-26\"]}",
+      "status": 200,
+      "body": "{\"submissionId\": \"driver-{key}\", \"success\": true}"
+    },
+    "table": "access_logs",
+    "valCol": "bytes"
+  }
+}

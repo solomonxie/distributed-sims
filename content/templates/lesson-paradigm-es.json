@@ -1,0 +1,156 @@
+{
+  "schemaVersion": 1,
+  "id": "lesson-paradigm-es",
+  "name": "Event sourcing: rebuild from the log",
+  "description": "The event log is the source of truth; each balance view is just a projection of it. Replay from offset 0 to rebuild the views, or from a recent snapshot to replay only the tail. The left projector blindly re-applies events (double-counted balances); the right one is idempotent and skips what it already applied.",
+  "nodes": [
+    {
+      "id": "web",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 195,
+        "y": 20
+      },
+      "skin": "react-spa"
+    },
+    {
+      "id": "cmd",
+      "type": "service",
+      "name": "Accounts",
+      "pos": {
+        "x": 195,
+        "y": 130
+      },
+      "skin": "go-service"
+    },
+    {
+      "id": "log",
+      "type": "log-stream",
+      "name": "Event log",
+      "pos": {
+        "x": 195,
+        "y": 250
+      },
+      "skin": "kafka",
+      "config": {
+        "retentionSec": 31536000
+      }
+    },
+    {
+      "id": "projA",
+      "type": "worker",
+      "name": "Projector (naive)",
+      "pos": {
+        "x": 100,
+        "y": 370
+      },
+      "config": {
+        "instances": 1,
+        "slots": 4,
+        "p50Ms": 8,
+        "p99Ms": 20,
+        "idempotent": false
+      }
+    },
+    {
+      "id": "projB",
+      "type": "worker",
+      "name": "Projector (idempotent)",
+      "pos": {
+        "x": 290,
+        "y": 370
+      },
+      "config": {
+        "instances": 1,
+        "slots": 4,
+        "p50Ms": 8,
+        "p99Ms": 20,
+        "idempotent": true
+      }
+    },
+    {
+      "id": "viewA",
+      "type": "document-db",
+      "name": "Balances A",
+      "pos": {
+        "x": 100,
+        "y": 480
+      },
+      "skin": "mongodb"
+    },
+    {
+      "id": "viewB",
+      "type": "document-db",
+      "name": "Balances B",
+      "pos": {
+        "x": 290,
+        "y": 480
+      },
+      "skin": "mongodb"
+    }
+  ],
+  "edges": [
+    {
+      "id": "web->cmd",
+      "from": "web",
+      "to": "cmd"
+    },
+    {
+      "id": "cmd->log",
+      "from": "cmd",
+      "to": "log"
+    },
+    {
+      "id": "log->projA",
+      "from": "log",
+      "to": "projA"
+    },
+    {
+      "id": "log->projB",
+      "from": "log",
+      "to": "projB"
+    },
+    {
+      "id": "projA->viewA",
+      "from": "projA",
+      "to": "viewA"
+    },
+    {
+      "id": "projB->viewB",
+      "from": "projB",
+      "to": "viewB"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 90,
+    "sources": [
+      {
+        "id": "s",
+        "node": "web",
+        "shape": {
+          "kind": "constant",
+          "rps": 150
+        },
+        "readRatio": 0
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "bank.example",
+    "read": {
+      "path": "/api/accounts/{key}/balance"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/accounts/{key}/events",
+      "reqBody": "{\"type\": \"Deposited\", \"amount_cents\": {value}}",
+      "status": 201,
+      "body": "{\"account\": {key}, \"offset\": 1042}"
+    },
+    "table": "balances",
+    "topic": "account-events"
+  }
+}

@@ -1,0 +1,170 @@
+{
+  "schemaVersion": 1,
+  "id": "lesson-search-cdc",
+  "name": "Search indexing pipeline (CDC)",
+  "description": "Writes go to Postgres; Debezium tails the WAL into Kafka and an indexer writes Elasticsearch. Searches read only ES, so every stage of the pipeline is time a new listing is invisible (stale reads). Slow the indexer and watch Kafka lag grow.",
+  "nodes": [
+    {
+      "id": "web",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 195,
+        "y": 20
+      },
+      "skin": "react-spa"
+    },
+    {
+      "id": "api",
+      "type": "service",
+      "name": "Listings API",
+      "pos": {
+        "x": 195,
+        "y": 120
+      },
+      "skin": "go-service"
+    },
+    {
+      "id": "pg",
+      "type": "relational-db",
+      "name": "Postgres",
+      "pos": {
+        "x": 60,
+        "y": 240
+      },
+      "skin": "postgres"
+    },
+    {
+      "id": "cdc",
+      "type": "outbox-relay",
+      "name": "Debezium",
+      "pos": {
+        "x": 195,
+        "y": 240
+      },
+      "skin": "debezium",
+      "config": {
+        "pollMs": 500
+      }
+    },
+    {
+      "id": "k",
+      "type": "log-stream",
+      "name": "Kafka",
+      "pos": {
+        "x": 195,
+        "y": 350
+      },
+      "skin": "kafka"
+    },
+    {
+      "id": "idx",
+      "type": "worker",
+      "name": "Indexer",
+      "pos": {
+        "x": 195,
+        "y": 460
+      },
+      "config": {
+        "instances": 2,
+        "slots": 4,
+        "p50Ms": 5,
+        "p99Ms": 20,
+        "idempotent": true
+      }
+    },
+    {
+      "id": "es",
+      "type": "search-index",
+      "name": "Elasticsearch",
+      "pos": {
+        "x": 330,
+        "y": 240
+      },
+      "skin": "elasticsearch"
+    }
+  ],
+  "edges": [
+    {
+      "id": "web->api",
+      "from": "web",
+      "to": "api"
+    },
+    {
+      "id": "api->pg",
+      "from": "api",
+      "to": "pg",
+      "config": {
+        "op": "write"
+      }
+    },
+    {
+      "id": "api->cdc",
+      "from": "api",
+      "to": "cdc",
+      "config": {
+        "op": "write"
+      }
+    },
+    {
+      "id": "api->es",
+      "from": "api",
+      "to": "es",
+      "config": {
+        "op": "read"
+      }
+    },
+    {
+      "id": "cdc->k",
+      "from": "cdc",
+      "to": "k"
+    },
+    {
+      "id": "k->idx",
+      "from": "k",
+      "to": "idx"
+    },
+    {
+      "id": "idx->es",
+      "from": "idx",
+      "to": "es"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 90,
+    "sources": [
+      {
+        "id": "s",
+        "node": "web",
+        "shape": {
+          "kind": "constant",
+          "rps": 200
+        },
+        "readRatio": 0.5,
+        "keys": {
+          "kind": "zipf",
+          "s": 1.1
+        }
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "homes.example",
+    "read": {
+      "path": "/api/listings/search?q=loft+{key}",
+      "body": "{\"hits\": [{key}], \"total\": 14}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/listings",
+      "reqBody": "{\"title\": \"Loft {key}\", \"price\": {value}}",
+      "status": 201,
+      "body": "{\"id\": {key}, \"status\": \"active\"}"
+    },
+    "table": "listings",
+    "valCol": "title",
+    "topic": "pg.public.listings"
+  }
+}

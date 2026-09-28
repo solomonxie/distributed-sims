@@ -1,0 +1,208 @@
+group: { id: data, label: Data, order: 4 }
+# Data core (behaviors/store.ts), sharding (behaviors/sharding.ts), cache (behaviors/cache.ts).
+# Keys live in a sampled keyspace of 1024 logical keys; capacityKeys etc. are in those units.
+types:
+  - type: relational-db
+    label: Relational DB
+    description: Stores data safely on disk; the source of truth
+    icon: database
+    costPerInstanceMonth: 180
+    knobs:
+      - { key: instances, label: Instances, kind: int, default: 1, min: 1, max: 64 }
+      - { key: slots, label: Pool size, kind: int, default: 100, min: 1, max: 5000, help: Connections per instance; each replica has its own pool }
+      - { key: p50Ms, label: Read p50, kind: ms, default: 1, min: 0.05, max: 5000 }
+      - { key: p99Ms, label: Read p99, kind: ms, default: 10, min: 0.05, max: 30000 }
+      - { key: writeP50Ms, label: Write p50, kind: ms, default: 3, min: 0.05, max: 5000, help: Row lock is held this long (plus sync replication wait) }
+      - { key: writeP99Ms, label: Write p99, kind: ms, default: 15, min: 0.05, max: 30000, advanced: true }
+      - { key: replicas, label: Replicas, kind: int, default: 2, min: 0, max: 15 }
+      - { key: replication, label: Replication, kind: enum, default: async, options: [async, semi-sync, sync], help: "async: ack before replicas have it · semi-sync: 1 replica · sync: all" }
+      - { key: replicaLagMs, label: Replica lag p50, kind: ms, default: 30, min: 0, max: 600000 }
+      - { key: replicaLagP99Ms, label: Replica lag p99, kind: ms, default: 150, min: 0, max: 600000, advanced: true }
+      - { key: readFrom, label: Read from, kind: enum, default: primary, options: [primary, replicas, any] }
+      - { key: consistency, label: Read consistency, kind: enum, default: eventual, options: [eventual, read-your-writes, monotonic, linearizable], help: Applies when reading replicas; linearizable pays a leader-lease check }
+      - { key: leaseCheckMs, label: Lease check, kind: ms, default: 2, min: 0, max: 1000, advanced: true }
+      - { key: isolation, label: Isolation, kind: enum, default: read-committed, options: [read-committed, repeatable-read, serializable], help: Serializable aborts contended writes with a conflict }
+      - { key: readModifyWrite, label: Read-modify-write, kind: bool, default: false, advanced: true, help: "App reads then writes the row: read-committed loses updates, stricter levels abort" }
+      - { key: failoverSec, label: Failover time, kind: number, default: 30, min: 1, max: 600, unit: s }
+      - { key: queueLimit, label: Queue limit, kind: int, default: 1000, min: 0, max: 100000, advanced: true }
+      - { key: costMonth, label: Cost / month, kind: number, default: 180, min: 0, max: 100000, unit: $ }
+
+  - type: document-db
+    label: Document DB
+    description: Replica set with write concern and read preference; rollback on election
+    icon: file-json
+    costPerInstanceMonth: 250
+    knobs:
+      - { key: instances, label: Instances, kind: int, default: 1, min: 1, max: 64 }
+      - { key: slots, label: Connections, kind: int, default: 200, min: 1, max: 10000, advanced: true }
+      - { key: p50Ms, label: Read p50, kind: ms, default: 1, min: 0.05, max: 5000 }
+      - { key: p99Ms, label: Read p99, kind: ms, default: 8, min: 0.05, max: 30000 }
+      - { key: writeP50Ms, label: Write p50, kind: ms, default: 2, min: 0.05, max: 5000 }
+      - { key: writeP99Ms, label: Write p99, kind: ms, default: 12, min: 0.05, max: 30000, advanced: true }
+      - { key: secondaries, label: Secondaries, kind: int, default: 2, min: 0, max: 49 }
+      - { key: writeConcern, label: Write concern, kind: enum, default: majority, options: [w1, majority], help: "w1 acks before secondaries have it: rolled back if the primary dies" }
+      - { key: readPreference, label: Read preference, kind: enum, default: primary, options: [primary, primaryPreferred, secondary, nearest] }
+      - { key: consistency, label: Read consistency, kind: enum, default: eventual, options: [eventual, read-your-writes, monotonic, linearizable] }
+      - { key: replicaLagMs, label: Oplog lag p50, kind: ms, default: 10, min: 0, max: 600000 }
+      - { key: replicaLagP99Ms, label: Oplog lag p99, kind: ms, default: 60, min: 0, max: 600000, advanced: true }
+      - { key: electionSec, label: Election time, kind: number, default: 12, min: 1, max: 120, unit: s }
+      - { key: queueLimit, label: Queue limit, kind: int, default: 1000, min: 0, max: 100000, advanced: true }
+      - { key: costMonth, label: Cost / month, kind: number, default: 250, min: 0, max: 100000, unit: $ }
+
+  - type: kv-store
+    label: Key-value store
+    description: Dynamo-style members; N replicas per key, R/W quorums, hinted handoff, read repair
+    icon: key-round
+    costPerInstanceMonth: 200
+    knobs:
+      - { key: instances, label: Instances, kind: int, default: 1, min: 1, max: 64 }
+      - { key: slots, label: Slots, kind: int, default: 256, min: 1, max: 100000, advanced: true }
+      - { key: p50Ms, label: Coordinator p50, kind: ms, default: 0.5, min: 0.01, max: 5000 }
+      - { key: p99Ms, label: Coordinator p99, kind: ms, default: 3, min: 0.01, max: 30000 }
+      - { key: members, label: Members, kind: int, default: 3, min: 1, max: 32 }
+      - { key: replicationFactor, label: Replicas per key (N), kind: int, default: 3, min: 1, max: 7 }
+      - { key: readConsistency, label: Read level (R), kind: enum, default: quorum, options: [one, quorum, all] }
+      - { key: writeConsistency, label: Write level (W), kind: enum, default: quorum, options: [one, quorum, all], help: R+W>N means every read overlaps the latest write }
+      - { key: memberP50Ms, label: Replica p50, kind: ms, default: 1, min: 0.01, max: 5000 }
+      - { key: memberP99Ms, label: Replica p99, kind: ms, default: 8, min: 0.01, max: 30000, advanced: true }
+      - { key: hintedHandoff, label: Hinted handoff, kind: bool, default: true, help: Store writes for down replicas and replay on recovery }
+      - { key: sloppyQuorum, label: Sloppy quorum, kind: bool, default: false, advanced: true, help: Stand-in members count toward W; stays writable, loses R+W>N }
+      - { key: readRepair, label: Read repair, kind: bool, default: true, advanced: true }
+      - { key: queueLimit, label: Queue limit, kind: int, default: 2000, min: 0, max: 100000, advanced: true }
+      - { key: costMonth, label: Cost / month, kind: number, default: 200, min: 0, max: 100000, unit: $ }
+
+  - type: cache
+    label: Cache
+    description: Keeps hot data in memory so reads skip the database
+    icon: zap
+    costPerInstanceMonth: 120
+    knobs:
+      - { key: instances, label: Instances, kind: int, default: 1, min: 1, max: 64 }
+      - { key: slots, label: Slots, kind: int, default: 10, min: 1, max: 1000, advanced: true, help: Parallel commands; Redis is single-threaded }
+      - { key: p50Ms, label: p50, kind: ms, default: 0.1, min: 0.01, max: 1000 }
+      - { key: p99Ms, label: p99, kind: ms, default: 0.5, min: 0.01, max: 5000 }
+      - { key: capacityKeys, label: Capacity, kind: int, default: 256, min: 1, max: 1024, unit: keys, help: Out of 1024 sampled keys }
+      - { key: eviction, label: Eviction, kind: enum, default: lru, options: [lru, lfu, ttl] }
+      - { key: ttlSec, label: TTL, kind: number, default: 60, min: 0, max: 86400, unit: s, help: 0 = never expires }
+      - { key: ttlJitterPct, label: TTL jitter, kind: percent, default: 0, min: 0, max: 100, help: Spreads expiries to avoid stampedes }
+      - { key: strategy, label: Strategy, kind: enum, default: cache-aside, options: [cache-aside, write-through, write-behind], help: "write-behind acks before the DB has it; a crash loses unflushed writes" }
+      - { key: invalidation, label: On write, kind: enum, default: delete-on-write, options: [delete-on-write, update, none] }
+      - { key: coalescing, label: Request coalescing, kind: bool, default: false, help: One DB fetch per missing key; others wait }
+      - { key: flushMs, label: Write-behind flush, kind: ms, default: 1000, min: 10, max: 600000, advanced: true }
+      - { key: clusterShards, label: Cluster shards, kind: int, default: 1, min: 1, max: 500 }
+      - { key: queueLimit, label: Queue limit, kind: int, default: 10000, min: 0, max: 1000000, advanced: true }
+      - { key: costMonth, label: Cost / month, kind: number, default: 120, min: 0, max: 100000, unit: $ }
+
+  - type: shard-router
+    label: Shard router
+    description: Routes each key to one shard (its out-edges) by hash, range, ring or directory
+    icon: split
+    costPerInstanceMonth: 150
+    knobs:
+      - { key: instances, label: Instances, kind: int, default: 2, min: 1, max: 64 }
+      - { key: slots, label: Slots, kind: int, default: 256, min: 1, max: 10000, advanced: true }
+      - { key: p50Ms, label: p50, kind: ms, default: 0.5, min: 0.01, max: 1000 }
+      - { key: p99Ms, label: p99, kind: ms, default: 3, min: 0.01, max: 5000 }
+      - { key: shardBy, label: Shard map, kind: enum, default: hash, options: [hash, range, consistent-hash, directory] }
+      - { key: vnodes, label: Virtual nodes, kind: int, default: 64, min: 1, max: 1024, help: Ring points per shard (consistent-hash) }
+      - { key: activeShards, label: Active shards, kind: int, default: 0, min: 0, max: 256, advanced: true, help: 0 = every out-edge; extras join via Add shard }
+      - { key: keyPattern, label: Insert keys, kind: enum, default: as-is, options: [as-is, sequential], help: Sequential = auto-increment ids; all new rows land at the end of the range }
+      - { key: insertKeysPerSec, label: Id growth, kind: number, default: 8, min: 0.1, max: 1000, advanced: true, unit: keys/s }
+      - { key: scatterPct, label: Scatter-gather reads, kind: percent, default: 0, min: 0, max: 100, help: Cross-shard queries fan out to all shards and wait for the slowest }
+      - { key: dualReadMs, label: Dual-read window, kind: ms, default: 2000, min: 0, max: 600000, advanced: true, help: While a key moves, reads go to old and new shard }
+      - { key: queueLimit, label: Queue limit, kind: int, default: 5000, min: 0, max: 100000, advanced: true }
+      - { key: costMonth, label: Cost / month, kind: number, default: 150, min: 0, max: 100000, unit: $ }
+
+skins:
+  - name: postgres
+    type: relational-db
+    label: Postgres
+    description: Open-source relational database; streaming replication, Patroni failover
+    icon: brand:postgres
+    tags: [sql, oltp, self-hosted]
+    # max_connections default 100; READ COMMITTED default; Patroni ttl 30s
+    defaults: { slots: 100, p50Ms: 1, p99Ms: 10, writeP50Ms: 3, writeP99Ms: 15, isolation: read-committed, failoverSec: 30, costMonth: 180 }
+  - name: mysql
+    type: relational-db
+    label: MySQL
+    description: Open-source relational database; InnoDB, binlog replication
+    icon: brand:mysql
+    tags: [sql, oltp, self-hosted]
+    # max_connections default 151; InnoDB default REPEATABLE READ
+    defaults: { slots: 151, p50Ms: 1, p99Ms: 10, writeP50Ms: 3, writeP99Ms: 15, isolation: repeatable-read, failoverSec: 30, costMonth: 170 }
+  - name: aurora
+    type: relational-db
+    label: Aurora
+    description: AWS managed MySQL/Postgres on a 6-way replicated storage volume
+    icon: brand:aws
+    tags: [sql, aws, managed]
+    # replica lag typically <100 ms, often ~10–20 ms; failover typically <30 s (AWS docs). Shared storage ⇒ no acked-write loss: modelled as semi-sync.
+    defaults: { replicas: 2, replication: semi-sync, replicaLagMs: 15, replicaLagP99Ms: 80, readFrom: replicas, failoverSec: 30, slots: 1000, costMonth: 300 }
+  - name: mongodb
+    type: document-db
+    label: MongoDB
+    description: Document database; replica set with elections
+    icon: leaf
+    tags: [nosql, document, self-hosted]
+    # w:majority default since 5.0; electionTimeoutMillis 10 s, median election < 12 s (MongoDB docs)
+    defaults: { writeConcern: majority, readPreference: primary, electionSec: 12, replicaLagMs: 10, costMonth: 250 }
+  - name: dynamodb
+    type: kv-store
+    label: DynamoDB
+    description: AWS managed key-value store; 3 AZ replicas, eventually consistent reads by default
+    icon: brand:aws
+    tags: [nosql, aws, managed, serverless]
+    # writes ack after 2 of 3 AZ copies; default reads eventually consistent (1 copy); single-digit ms
+    defaults: { members: 3, replicationFactor: 3, writeConsistency: quorum, readConsistency: one, p50Ms: 3, p99Ms: 10, memberP50Ms: 1, memberP99Ms: 6, slots: 4000, costMonth: 250 }
+  - name: cassandra
+    type: kv-store
+    label: Cassandra
+    description: Wide-column store; tunable consistency, hinted handoff
+    icon: brand:cassandra
+    tags: [nosql, wide-column, self-hosted]
+    # default consistency level ONE; RF 3 typical; hints kept 3 h
+    defaults: { members: 6, replicationFactor: 3, readConsistency: one, writeConsistency: one, hintedHandoff: true, sloppyQuorum: false, p50Ms: 0.5, p99Ms: 5, memberP50Ms: 1, memberP99Ms: 15, costMonth: 600 }
+  - name: riak
+    type: kv-store
+    label: Riak KV
+    description: Dynamo-style store with sloppy quorum and vector clocks
+    icon: database
+    tags: [nosql, key-value, self-hosted]
+    # n_val 3, r/w quorum defaults; sloppy quorum with hinted handoff
+    defaults: { members: 5, replicationFactor: 3, readConsistency: quorum, writeConsistency: quorum, hintedHandoff: true, sloppyQuorum: true, costMonth: 500 }
+  - name: redis
+    type: cache
+    label: Redis
+    description: In-memory data store used as a cache
+    icon: brand:redis
+    tags: [cache, in-memory, self-hosted]
+    # single-threaded ~100k ops/s; server time ≪ 1 ms
+    defaults: { slots: 10, p50Ms: 0.1, p99Ms: 0.5, eviction: lru, costMonth: 120 }
+  - name: memcached
+    type: cache
+    label: Memcached
+    description: Multi-threaded in-memory cache
+    icon: brand:memcached
+    tags: [cache, in-memory, self-hosted]
+    defaults: { slots: 40, p50Ms: 0.1, p99Ms: 0.4, eviction: lru, costMonth: 100 }
+  - name: elasticache
+    type: cache
+    label: ElastiCache
+    description: AWS managed Redis/Valkey, cluster mode
+    icon: brand:aws
+    tags: [cache, aws, managed]
+    defaults: { slots: 10, p50Ms: 0.1, p99Ms: 0.6, clusterShards: 3, costMonth: 250 }
+  - name: vitess
+    type: shard-router
+    label: Vitess
+    description: MySQL sharding; vtgate routes by vindex, resharding with dual reads
+    icon: split
+    tags: [sql, sharding, self-hosted]
+    defaults: { shardBy: hash, p50Ms: 0.5, p99Ms: 3, costMonth: 150 }
+  - name: citus
+    type: shard-router
+    label: Citus
+    description: Postgres extension; coordinator distributes tables by hash
+    icon: database
+    tags: [sql, sharding, postgres]
+    defaults: { shardBy: hash, p50Ms: 1, p99Ms: 5, costMonth: 200 }

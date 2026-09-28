@@ -1,0 +1,146 @@
+{
+  "schemaVersion": 1,
+  "id": "lesson-migration-schema",
+  "name": "Schema change under load",
+  "description": "Two copies of the same app, half reads and half writes. Left: a plain ALTER TABLE takes a table lock, so every write queues behind it and times out. Right: an online migration (gh-ost-style) copies rows into a shadow table in the background. It costs DB CPU, but no write blocks.",
+  "nodes": [
+    {
+      "id": "users-a",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 75,
+        "y": 60
+      }
+    },
+    {
+      "id": "app-a",
+      "type": "service",
+      "name": "App",
+      "pos": {
+        "x": 75,
+        "y": 200
+      }
+    },
+    {
+      "id": "db-a",
+      "type": "relational-db",
+      "name": "Postgres · ALTER",
+      "pos": {
+        "x": 75,
+        "y": 340
+      },
+      "skin": "postgres",
+      "config": {
+        "instances": 1,
+        "slots": 16
+      }
+    },
+    {
+      "id": "users-b",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 315,
+        "y": 60
+      }
+    },
+    {
+      "id": "app-b",
+      "type": "service",
+      "name": "App",
+      "pos": {
+        "x": 315,
+        "y": 200
+      }
+    },
+    {
+      "id": "db-b",
+      "type": "relational-db",
+      "name": "MySQL · gh-ost",
+      "pos": {
+        "x": 315,
+        "y": 340
+      },
+      "skin": "mysql",
+      "config": {
+        "instances": 1,
+        "slots": 16
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "users-a->app-a",
+      "from": "users-a",
+      "to": "app-a",
+      "config": {
+        "timeoutMs": 3000
+      }
+    },
+    {
+      "id": "app-a->db-a",
+      "from": "app-a",
+      "to": "db-a",
+      "config": {
+        "timeoutMs": 1000
+      }
+    },
+    {
+      "id": "users-b->app-b",
+      "from": "users-b",
+      "to": "app-b",
+      "config": {
+        "timeoutMs": 3000
+      }
+    },
+    {
+      "id": "app-b->db-b",
+      "from": "app-b",
+      "to": "db-b",
+      "config": {
+        "timeoutMs": 1000
+      }
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 120,
+    "sources": [
+      {
+        "id": "s1",
+        "node": "users-a",
+        "shape": {
+          "kind": "constant",
+          "rps": 600
+        },
+        "readRatio": 0.5
+      },
+      {
+        "id": "s2",
+        "node": "users-b",
+        "shape": {
+          "kind": "constant",
+          "rps": 600
+        },
+        "readRatio": 0.5
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "shop.example",
+    "read": {
+      "path": "/api/users/{key}"
+    },
+    "write": {
+      "method": "PATCH",
+      "path": "/api/users/{key}",
+      "reqBody": "{\"email\": \"u{key}@mail.example\"}",
+      "status": 200,
+      "body": "{\"id\": {key}, \"updated\": true}"
+    },
+    "table": "users",
+    "valCol": "email"
+  }
+}

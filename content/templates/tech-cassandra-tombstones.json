@@ -1,0 +1,179 @@
+{
+  "schemaVersion": 1,
+  "id": "tech-cassandra-tombstones",
+  "name": "Cassandra: tombstones (queue anti-pattern)",
+  "description": "A jobs table used as a queue: workers insert, read and DELETE rows in one hot partition. Every delete leaves a tombstone.",
+  "nodes": [
+    {
+      "id": "users",
+      "type": "web-client",
+      "name": "Workers",
+      "pos": {
+        "x": 195,
+        "y": 40
+      },
+      "config": {}
+    },
+    {
+      "id": "driver",
+      "type": "cassandra-driver",
+      "name": "driver",
+      "pos": {
+        "x": 195,
+        "y": 140
+      },
+      "config": {
+        "writeCL": "ONE",
+        "readCL": "ONE",
+        "deletePct": 90
+      }
+    },
+    {
+      "id": "n1",
+      "type": "cassandra-node",
+      "name": "n1",
+      "pos": {
+        "x": 195,
+        "y": 240
+      },
+      "config": {
+        "tombstoneFail": 10000
+      }
+    },
+    {
+      "id": "n2",
+      "type": "cassandra-node",
+      "name": "n2",
+      "pos": {
+        "x": 316,
+        "y": 310
+      },
+      "config": {
+        "tombstoneFail": 10000
+      }
+    },
+    {
+      "id": "n3",
+      "type": "cassandra-node",
+      "name": "n3",
+      "pos": {
+        "x": 316,
+        "y": 450
+      },
+      "config": {
+        "tombstoneFail": 10000
+      }
+    },
+    {
+      "id": "n4",
+      "type": "cassandra-node",
+      "name": "n4",
+      "pos": {
+        "x": 195,
+        "y": 520
+      },
+      "config": {
+        "tombstoneFail": 10000
+      }
+    },
+    {
+      "id": "n5",
+      "type": "cassandra-node",
+      "name": "n5",
+      "pos": {
+        "x": 74,
+        "y": 450
+      },
+      "config": {
+        "tombstoneFail": 10000
+      }
+    },
+    {
+      "id": "n6",
+      "type": "cassandra-node",
+      "name": "n6",
+      "pos": {
+        "x": 74,
+        "y": 310
+      },
+      "config": {
+        "tombstoneFail": 10000
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-users-driver",
+      "from": "users",
+      "to": "driver"
+    },
+    {
+      "id": "e-driver-n1",
+      "from": "driver",
+      "to": "n1"
+    },
+    {
+      "id": "e-driver-n2",
+      "from": "driver",
+      "to": "n2"
+    },
+    {
+      "id": "e-driver-n3",
+      "from": "driver",
+      "to": "n3"
+    },
+    {
+      "id": "e-driver-n4",
+      "from": "driver",
+      "to": "n4"
+    },
+    {
+      "id": "e-driver-n5",
+      "from": "driver",
+      "to": "n5"
+    },
+    {
+      "id": "e-driver-n6",
+      "from": "driver",
+      "to": "n6"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 120,
+    "sources": [
+      {
+        "id": "s1",
+        "node": "users",
+        "shape": {
+          "kind": "constant",
+          "rps": 2000
+        },
+        "readRatio": 0.5,
+        "keys": {
+          "kind": "hot",
+          "hot": 0.5
+        }
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "jobs.internal",
+    "read": {
+      "method": "GET",
+      "path": "/api/jobs/{key}",
+      "status": 200,
+      "body": "{\"job_id\": {key}, \"payload\": {value}}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/jobs",
+      "reqBody": "{\"type\": \"resize\", \"payload\": {value}}",
+      "status": 201,
+      "body": "{\"job_id\": {key}}"
+    },
+    "table": "jobs",
+    "valCol": "payload"
+  }
+}

@@ -1,0 +1,145 @@
+{
+  "schemaVersion": 1,
+  "id": "lesson-obs-overload",
+  "name": "Telemetry overload",
+  "description": "Every request emits spans, logs and metrics. The trace and log pipelines have ingest caps. A 6× burst floods them: they drop telemetry to protect themselves, users are fine, and you are blind exactly when it matters.",
+  "nodes": [
+    {
+      "id": "web",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 195,
+        "y": 20
+      },
+      "skin": "react-spa"
+    },
+    {
+      "id": "api",
+      "type": "service",
+      "name": "API",
+      "pos": {
+        "x": 195,
+        "y": 150
+      },
+      "skin": "go-service",
+      "config": {
+        "instances": 4
+      }
+    },
+    {
+      "id": "db",
+      "type": "relational-db",
+      "name": "Postgres",
+      "pos": {
+        "x": 195,
+        "y": 290
+      },
+      "skin": "postgres"
+    },
+    {
+      "id": "otel",
+      "type": "trace-collector",
+      "name": "OTel",
+      "pos": {
+        "x": 50,
+        "y": 290
+      },
+      "skin": "otel-collector",
+      "config": {
+        "ingestLimit": 1000,
+        "sampling": "none"
+      }
+    },
+    {
+      "id": "loki",
+      "type": "log-pipeline",
+      "name": "Loki",
+      "pos": {
+        "x": 340,
+        "y": 290
+      },
+      "skin": "loki",
+      "config": {
+        "ingestLimit": 1500
+      }
+    },
+    {
+      "id": "prom",
+      "type": "metrics-collector",
+      "name": "Prometheus",
+      "pos": {
+        "x": 340,
+        "y": 150
+      },
+      "skin": "prometheus"
+    }
+  ],
+  "edges": [
+    {
+      "id": "web->api",
+      "from": "web",
+      "to": "api"
+    },
+    {
+      "id": "api->db",
+      "from": "api",
+      "to": "db"
+    },
+    {
+      "id": "api->otel",
+      "from": "api",
+      "to": "otel",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "api->loki",
+      "from": "api",
+      "to": "loki",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "api->prom",
+      "from": "api",
+      "to": "prom",
+      "config": {
+        "mode": "async"
+      }
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 60,
+    "sources": [
+      {
+        "id": "s",
+        "node": "web",
+        "shape": {
+          "kind": "constant",
+          "rps": 400
+        },
+        "readRatio": 0.8
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "shop.example",
+    "read": {
+      "path": "/api/products/{key}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/orders",
+      "reqBody": "{\"product_id\": {key}, \"qty\": 1}",
+      "status": 201,
+      "body": "{\"order_id\": {key}, \"status\": \"placed\"}"
+    },
+    "table": "orders",
+    "valCol": "status"
+  }
+}

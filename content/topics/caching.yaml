@@ -1,0 +1,125 @@
+id: caching
+title: Caching
+group: topics
+icon: database-zap
+order: 1
+summary: Keep hot data close so the database only sees what the cache can't answer.
+info: A cache trades freshness and memory for latency and database load. The hard parts are what happens on a miss, on a write, and when the cache empties all at once. Every lesson here runs a live Redis/CDN in front of a real store.
+algos: [bloom-filter, count-min-sketch]
+problems: [tinyurl, facebook-feed]
+lessons:
+  - id: cache-aside
+    title: Cache-aside
+    minutes: 3
+    template: lesson-caching-aside
+    steps:
+      - title: Start cold
+        body: Redis starts empty, so every read misses and the API fetches from Postgres, then stores the row in Redis.
+        watch: The hit % badge on Redis climbs as popular keys land in the cache.
+        check: { metric: gauge:hitRatio, target: cache, op: '>=', value: 70 }
+      - title: The database cools down
+        body: Hits never reach Postgres. Only misses and writes do.
+        watch: Postgres rps falls from ~130 to ~50.
+        check: { metric: rps, target: db, op: '<=', value: 60 }
+      - title: Flush the cache
+        body: Tap ⚡ Break → Cache flush on Redis. Every key is gone at once.
+        action: { event: { kind: cache-flush, target: cache } }
+        watch: Postgres load jumps back up while the cache refills.
+        check: { metric: rps, target: db, op: '>=', value: 100 }
+      - title: It refills itself
+        body: Cache-aside needs no warm-up job; the next reads repopulate it. Big caches take longer, and the DB must survive the gap.
+        check: { metric: gauge:hitRatio, target: cache, op: '>=', value: 70 }
+
+  - id: write-through-vs-behind
+    title: Write-through vs write-behind
+    minutes: 4
+    template: lesson-caching-write-modes
+    steps:
+      - title: Write-through waits
+        body: Lane A writes to Redis and Postgres before replying. Postgres writes take ~40ms, so every write pays that.
+        watch: p99 on Write-through sits near 100ms.
+        check: { metric: p99, target: through, op: '>=', value: 80 }
+      - title: Write-behind acks at once
+        body: Lane B stores the write in Redis, replies, and flushes to Postgres every 5s.
+        watch: p99 on Write-behind stays in single-digit ms; the dirty badge counts unflushed keys.
+        check: { metric: gauge:dirty, target: behind, op: '>=', value: 20 }
+      - title: Crash the write-behind cache
+        body: Tap ⚡ Break → Kill on Write-behind. Its dirty keys were acknowledged but never reached Postgres.
+        action: { event: { kind: kill, target: behind } }
+        watch: The lost-write counter jumps. That is the data-loss window you bought with the speed.
+        check: { metric: anomaly:lost-write, op: '>=', value: 1 }
+
+  - id: stampede
+    title: Stampede
+    minutes: 3
+    template: lesson-caching-stampede
+    steps:
+      - title: One hot key, short TTL
+        body: 95% of reads hit one key with a 5s TTL, backed by a 250ms query.
+        watch: Watch Postgres A every 5 seconds.
+        check: { metric: time, op: '>=', value: 6 }
+      - title: The expiry stampede
+        body: When the key expires, every concurrent reader misses at once and all of them query the DB.
+        watch: Postgres A spikes to ~150 rps and saturates, then goes quiet until the next expiry.
+        check: { metric: rps, target: db-a, op: '>=', value: 120 }
+      - title: Coalescing flattens it
+        body: Redis B lets one request fetch the missing key while the others wait for it. 20% TTL jitter also spreads expiries.
+        watch: Postgres B stays flat at ~30 rps.
+        check: { metric: rps, target: db-b, op: '<=', value: 45 }
+
+  - id: eviction
+    title: Eviction (LRU vs LFU)
+    minutes: 4
+    template: lesson-caching-eviction
+    steps:
+      - title: Two small caches
+        body: Each Redis holds 128 of 1024 keys. Users read a few popular keys, so both hit ~75%.
+        check: { metric: gauge:hitRatio, target: lru, op: '>=', value: 65 }
+      - title: Start the batch scan
+        body: A batch job reads every key once, 600 rps. Each scanned key pushes something out.
+        action: { event: { kind: traffic, source: scan, action: set, params: { rps: 600 } }, label: Start the scan }
+        watch: Redis LRU drops to the high 30s; the scan keys look "recent" and evict the popular ones.
+        check: { metric: gauge:hitRatio, target: lru, op: '<=', value: 40 }
+      - title: LFU keeps the popular keys
+        body: LFU evicts the key used least often, so one-off scan keys leave first. The scan's own reads miss in both caches.
+        watch: Redis LFU stays ~8 points higher, and Postgres B sees fewer queries.
+        check: { metric: gauge:hitRatio, target: lfu, op: '>=', value: 45 }
+
+  - id: cdn
+    title: CDN and origin shield
+    minutes: 4
+    template: lesson-caching-cdn
+    steps:
+      - title: The edge answers most requests
+        body: Four POPs per CDN serve cached pages. Origins only see uncacheable requests and writes.
+        watch: Each origin runs ~120 rps at ~35% busy.
+        check: { metric: gauge:hitRatio, target: cdn-a, op: '>=', value: 0.8 }
+      - title: Purge CDN A
+        body: Tap ⚡ Break → Purge on CDN A. All 4 POPs miss at once and each fetches from the origin.
+        action: { event: { kind: purge, target: cdn-a } }
+        watch: Origin A saturates; its queue and p99 climb past a second.
+        check: { metric: p99, target: origin-a, op: '>=', value: 1000 }
+      - title: Purge CDN B
+        body: Now purge CDN B. Its POP misses go through the shield, which fetches each key once.
+        action: { event: { kind: purge, target: cdn-b } }
+        check: { metric: eventCount:chaos, op: '>=', value: 2 }
+      - title: The shield absorbs it
+        body: Origin B takes a short bump and recovers in seconds; Origin A is still digging out.
+        check: { metric: p99, target: origin-b, op: '<=', value: 150 }
+
+  - id: invalidation
+    title: Invalidation
+    minutes: 3
+    template: lesson-caching-invalidation
+    steps:
+      - title: Writes skip the cache
+        body: Lane A updates Postgres but leaves the old row in Redis until its 5 min TTL expires.
+        watch: The stale-read counter climbs by ~100 per second.
+        check: { metric: anomaly:stale-read, op: '>=', value: 100 }
+      - title: Delete on write
+        body: Lane B deletes the key after each write; the next read misses and refills from Postgres.
+        watch: Redis B keeps a high hit ratio anyway; deletes cost only the keys that changed.
+        check: { metric: gauge:hitRatio, target: cache-b, op: '>=', value: 70 }
+      - title: The remaining race
+        body: A read can fetch the old row just before a write and store it just after the delete. Versioned keys (user:42:v7) close that gap.
+        check: { metric: manual, op: '>=', value: 0 }

@@ -1,0 +1,102 @@
+{
+  "schemaVersion": 1,
+  "id": "lesson-auth-jwks",
+  "name": "JWKS caching and key rotation",
+  "description": "The gateway verifies JWTs locally with public keys cached from the IdP JWKS endpoint (refreshed every 30 s). When the IdP rotates its signing key, new tokens carry a kid the gateway has never seen: they fail until the cache refreshes.",
+  "nodes": [
+    {
+      "id": "web",
+      "type": "web-client",
+      "name": "App",
+      "pos": {
+        "x": 195,
+        "y": 20
+      },
+      "skin": "react-spa"
+    },
+    {
+      "id": "gw",
+      "type": "auth-middleware",
+      "name": "Gateway (JWT)",
+      "pos": {
+        "x": 195,
+        "y": 150
+      },
+      "skin": "oauth2-proxy",
+      "config": {
+        "authMode": "jwt"
+      }
+    },
+    {
+      "id": "idp",
+      "type": "identity-provider",
+      "name": "IdP",
+      "pos": {
+        "x": 60,
+        "y": 290
+      },
+      "skin": "keycloak",
+      "config": {
+        "tokenTtlSec": 60,
+        "jwksTtlSec": 30
+      }
+    },
+    {
+      "id": "api",
+      "type": "service",
+      "name": "API",
+      "pos": {
+        "x": 330,
+        "y": 290
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "web->gw",
+      "from": "web",
+      "to": "gw"
+    },
+    {
+      "id": "gw->idp",
+      "from": "gw",
+      "to": "idp",
+      "config": {
+        "timeoutMs": 500
+      }
+    },
+    {
+      "id": "gw->api",
+      "from": "gw",
+      "to": "api"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 90,
+    "sources": [
+      {
+        "id": "s",
+        "node": "web",
+        "shape": {
+          "kind": "constant",
+          "rps": 300
+        }
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "app.example.com",
+    "read": {
+      "path": "/api/me/documents/{key}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/me/documents",
+      "reqBody": "{\"title\": \"Draft {key}\"}",
+      "status": 201,
+      "body": "{\"id\": {key}, \"owner\": \"me\"}"
+    }
+  }
+}

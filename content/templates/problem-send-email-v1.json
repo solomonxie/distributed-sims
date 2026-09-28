@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "id": "problem-send-email-v1",
+  "name": "Send email: naive",
+  "description": "The API calls SendGrid inline. Works on a quiet day; a provider outage or a marketing blast fails user requests directly.",
+  "nodes": [
+    {"id":"users","type":"web-client","skin":"react-spa","name":"Users","pos":{"x":0,"y":0}},
+    {"id":"api","type":"service","skin":"node-service","name":"Notify API","pos":{"x":0,"y":110},"config":{"instances":2}},
+    {"id":"db","type":"relational-db","skin":"postgres","name":"Notifications DB","pos":{"x":-80,"y":220}},
+    {"id":"sendgrid","type":"external-api","skin":"sendgrid","name":"SendGrid","pos":{"x":80,"y":220}}
+  ],
+  "edges": [
+    {"id":"users-api","from":"users","to":"api","config":{"timeoutMs":5000}},
+    {"id":"api-db","from":"api","to":"db"},
+    {"id":"api-sendgrid","from":"api","to":"sendgrid","config":{"timeoutMs":2000}}
+  ],
+  "containers": [],
+  "scenario": {"durationSec":60,"sources":[{"id":"sends","node":"users","shape":{"kind":"constant","rps":200},"readRatio":0}],"events":[]},
+  "wire": {
+    "host": "api.mailer.example",
+    "read": {
+      "method": "GET",
+      "path": "/v1/messages/{key}",
+      "status": 200,
+      "body": "{\"id\": {key}, \"status\": \"delivered\", \"provider\": \"sendgrid\"}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/v1/messages",
+      "reqBody": "{\"to\": \"user{key}@example.com\", \"template\": \"welcome\"}",
+      "status": 202,
+      "body": "{\"id\": {key}, \"status\": \"queued\"}"
+    },
+    "table": "email_sends",
+    "valCol": "status"
+  }
+}

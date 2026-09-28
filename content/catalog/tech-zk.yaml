@@ -1,0 +1,72 @@
+group: { id: tech, label: Under the hood, order: 14 }
+# ZooKeeper / etcd internals (technologies.md v1.1). Ensemble = Raft (raft.ts) standing in for ZAB; on top:
+# znodes/keys, one-shot watches, sessions/leases + ephemeral nodes, zxid/revision. Leader-election recipe in zk-app.
+# Protocol kinds: raft.*, zk.connect / zk.create / zk.children / zk.exists / zk.ping, zk.watch.
+types:
+  - type: zk-server
+    label: Coordination server
+    description: ZooKeeper / etcd ensemble member; writes go through the leader and a quorum, reads are served locally; tracks sessions, ephemeral nodes and watches
+    icon: tree-pine
+    costPerInstanceMonth: 60
+    knobs:
+      - { key: flavor, label: Flavor, kind: enum, default: zookeeper, options: [zookeeper, etcd], help: "Wording only: znode/zxid/session vs key/revision/lease" }
+      - { key: group, label: Ensemble, kind: string, default: zk, help: Servers with the same ensemble name form one cluster }
+      - { key: reads, label: Reads, kind: enum, default: stale, options: [stale, linearizable, lease], help: "stale = any server answers from its copy (ZooKeeper default, keeps working without quorum); linearizable = etcd default" }
+      - { key: electionMinMs, label: Election timeout min, kind: ms, default: 600, min: 10, max: 30000 }
+      - { key: electionMaxMs, label: Election timeout max, kind: ms, default: 1200, min: 10, max: 60000 }
+      - { key: heartbeatMs, label: Heartbeat, kind: ms, default: 100, min: 5, max: 10000 }
+      - { key: commitTimeoutMs, label: Commit timeout, kind: ms, default: 2000, min: 100, max: 60000, advanced: true }
+      - { key: slots, label: Slots, kind: int, default: 16, min: 1, max: 4096, advanced: true }
+      - { key: p50Ms, label: Request p50, kind: ms, default: 1, min: 0.1, max: 1000 }
+      - { key: p99Ms, label: Request p99, kind: ms, default: 5, min: 0.1, max: 5000 }
+      - { key: queueLimit, label: Queue limit, kind: int, default: 1000, min: 0, max: 100000, advanced: true }
+      - { key: costMonth, label: Cost / month, kind: number, default: 60, unit: $, advanced: true }
+  - type: zk-app
+    label: Election client
+    description: App processes running the leader-election recipe — ephemeral sequential znode, lowest wins, watch the next-lower one (or the parent)
+    icon: users
+    costPerInstanceMonth: 40
+    knobs:
+      - { key: procs, label: Processes, kind: int, default: 1, min: 1, max: 64, help: Each process has its own session and znode }
+      - { key: recipe, label: Watch, kind: enum, default: predecessor, options: [predecessor, herd], help: "predecessor = watch only the next-lower znode; herd = everyone watches /election and wakes on every change" }
+      - { key: sessionTimeoutMs, label: Session timeout, kind: ms, default: 4000, min: 100, max: 600000, help: No heartbeat this long → session expires and its ephemeral nodes are deleted }
+      - { key: workMs, label: Leader work period, kind: ms, default: 500, min: 10, max: 60000, advanced: true }
+      - { key: opTimeoutMs, label: Request timeout, kind: ms, default: 1000, min: 10, max: 60000, advanced: true }
+      - { key: startDelayMs, label: Start delay, kind: ms, default: 500, min: 0, max: 600000 }
+      - { key: elect, label: Join election, kind: bool, default: true, help: "false = only forward app reads/writes to its server (fails over on timeout)" }
+      - { key: costMonth, label: Cost / month, kind: number, default: 40, unit: $, advanced: true }
+skins:
+  - name: zookeeper-node
+    type: zk-server
+    label: ZooKeeper server
+    description: ZAB ensemble member (znodes, sessions, watches)
+    icon: tree-pine
+    tags: [zookeeper, coordination, apache]
+    # source: ZooKeeper admin guide — tickTime 2000ms, initLimit/syncLimit; followers answer reads locally
+    defaults: { flavor: zookeeper, reads: stale, costMonth: 60 }
+  - name: etcd-node
+    type: zk-server
+    label: etcd member
+    description: Raft member (keys, revisions, leases, watches)
+    icon: database-zap
+    tags: [etcd, raft, cncf]
+    defaults: { flavor: etcd, reads: linearizable, costMonth: 60 }
+  - { name: election-app, type: zk-app, label: App (leader election), description: Curator-style LeaderLatch recipe, icon: users, tags: [zookeeper, recipe] }
+  - name: zookeeper-internals
+    type: zk-server
+    label: ZooKeeper (internals)
+    description: 3-server ensemble; drill in to see the leader, sessions and znodes
+    icon: tree-pine
+    tags: [zookeeper, composite]
+    defaults: { costMonth: 180 }
+    ports: { in: zk-1 }
+    internals:
+      schemaVersion: 1
+      id: zookeeper-internals
+      name: ZooKeeper
+      nodes:
+        - { id: zk-1, type: zk-server, skin: zookeeper-node, name: zk-1, pos: { x: 0, y: 0 } }
+        - { id: zk-2, type: zk-server, skin: zookeeper-node, name: zk-2, pos: { x: 140, y: 0 } }
+        - { id: zk-3, type: zk-server, skin: zookeeper-node, name: zk-3, pos: { x: 70, y: 120 } }
+      edges: []
+      containers: []

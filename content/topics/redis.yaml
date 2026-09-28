@@ -1,0 +1,151 @@
+id: redis
+title: Redis
+group: under-the-hood
+icon: memory-stick
+order: 6
+summary: Why one thread serving RAM beats a big database for simple operations — and the handful of ways that one thread gets stuck.
+info: Redis keeps the whole dataset in memory and runs every command on a single event-loop thread; epoll tells it which of thousands of sockets are readable. No locks, no context switches, tiny O(1) operations. The flip side — one slow command, a fork() for snapshots, or an fsync on the main thread stalls every client at once.
+algos: []
+problems: [tinyurl]
+lessons:
+  - id: anatomy
+    title: Anatomy of Redis
+    minutes: 3
+    template: tech-redis-anatomy
+    steps:
+      - title: The parts
+        body: An app sends 20k commands/s to a Redis primary; an async replica follows it.
+        check: { metric: time, op: '>=', value: 3 }
+      - title: One thread does it all
+        body: 20k commands/s, and the event loop is mostly idle. Each GET/SET is a hash lookup in RAM — about 1.5 µs.
+        watch: Utilization on the primary stays well under half.
+        check: { metric: rps, target: redis, op: '>=', value: 15000 }
+      - title: Many clients, one loop
+        body: 1,000 client sockets sit in one epoll set; the loop only touches sockets that have data. No thread per client.
+        check: { metric: gauge:clients, target: redis, op: '>=', value: 1000 }
+      - title: The replica follows
+        body: The primary streams every write to the replica after replying — asynchronously. The R badge shows how far behind it is.
+        check: { metric: gauge:replOffset, target: replica, op: '>=', value: 5000 }
+
+  - id: lifecycle
+    title: "Lifecycle: one command"
+    minutes: 3
+    template: tech-redis-anatomy
+    steps:
+      - title: Socket readable
+        body: epoll reports the client's socket readable; the loop reads the bytes and parses the RESP command.
+        check: { metric: rps, target: redis, op: '>=', value: 10000 }
+      - title: Execute in RAM
+        body: The command runs to completion — no locks, since nothing else runs at the same time.
+        check: { metric: p99, target: redis, op: '<', value: 1 }
+      - title: Reply buffered, written
+        body: The reply goes into the client's output buffer and is written when the socket is writable. The whole trip is microseconds; the network is most of the latency.
+        check: { metric: p99, target: app, op: '<', value: 5 }
+      - title: Then replicated
+        body: The write is already acknowledged when it is sent to the replica.
+        check: { metric: gauge:replOffset, target: replica, op: '>=', value: 10000 }
+
+  - id: vs-disk-db
+    title: "Why fast: Redis vs a disk database"
+    minutes: 3
+    template: tech-redis-vs-postgres
+    steps:
+      - title: Same load, side by side
+        body: 20k ops/s, 80% reads, into Redis (left) and Postgres (right).
+        check: { metric: time, op: '>=', value: 4 }
+      - title: Redis answers in microseconds
+        body: RAM, one thread, O(1) hash lookups — p99 stays under a millisecond on a single core.
+        check: { metric: p99, target: redis, op: '<', value: 1 }
+      - title: Postgres pays for durability and generality
+        body: Parsing SQL, the buffer manager, row locks and the WAL fsync add milliseconds per query and eat connection slots.
+        check: { metric: p99, target: pg, op: '>', value: 5 }
+      - title: The trade
+        body: Redis is fast because it does less — data must fit in RAM, and durability is optional. Use it next to a database, not instead of one.
+        check: { metric: util, target: pg, op: '>', value: 20 }
+
+  - id: io-threads
+    title: "Why fast: io-threads help only I/O"
+    minutes: 3
+    template: tech-redis-io-threads
+    steps:
+      - title: 80k ops/s each
+        body: Left does socket reads, parsing, execution and writes on one thread. Right hands reading and writing to 4 io-threads.
+        check: { metric: time, op: '>=', value: 4 }
+      - title: The single thread is busy
+        body: With small commands, syscalls and parsing are most of the work.
+        check: { metric: util, target: r1, op: '>=', value: 50 }
+      - title: io-threads take the I/O
+        body: Execution still happens on one thread, in order — so there are still no locks — but the loop has headroom again.
+        check: { metric: util, target: r4, op: '<', value: 40 }
+
+  - id: keys
+    title: "Break it: one KEYS * blocks everyone"
+    minutes: 3
+    template: tech-redis-keys
+    steps:
+      - title: Healthy
+        body: 20k ops/s at sub-millisecond p99.
+        check: { metric: rps, target: redis, op: '>=', value: 15000 }
+      - title: Someone runs KEYS *
+        body: It walks all 10M keys — about a second — on the only thread. Every client's command queues behind it.
+        action: { event: { kind: slow-command, target: redis, params: { command: "KEYS *", everySec: 5 }, durationSec: 30 } }
+        check: { metric: p99, target: redis, op: '>=', value: 500 }
+      - title: Everyone waited
+        body: The spike hits every client, not just the one that asked. Use SCAN (incremental) and UNLINK (background delete) instead.
+        check: { metric: gauge:loopBlockedMs, target: redis, op: '>=', value: 500 }
+
+  - id: fork-cow
+    title: "Break it: fork() on a 50 GB instance"
+    minutes: 4
+    template: tech-redis-bgsave
+    steps:
+      - title: A big, busy instance
+        body: 50 GB in RAM, 10k writes/s.
+        check: { metric: time, op: '>=', value: 3 }
+      - title: BGSAVE forks
+        body: fork() copies the page tables — ~10 ms per GB — and the loop is frozen meanwhile.
+        action: { event: { kind: bgsave, target: redis } }
+        check: { metric: p99, target: redis, op: '>=', value: 300 }
+      - title: Copy-on-write
+        body: The child writes the snapshot from shared pages. Each write the parent makes to a shared page copies it first — memory grows while the snapshot runs.
+        check: { metric: gauge:cowMb, target: redis, op: '>=', value: 100 }
+
+  - id: aof
+    title: "Break it: appendfsync always on a slow disk"
+    minutes: 4
+    template: tech-redis-aof
+    steps:
+      - title: Two durability settings
+        body: Left fsyncs the AOF before replying; writes that arrive meanwhile share the next fsync. Right fsyncs once a second in the background.
+        check: { metric: rps, target: r-everysec, op: '>=', value: 5000 }
+      - title: The disk gets slow
+        body: fsync on the left server's disk now takes 20ms. Its loop waits on every fsync — reads included.
+        action: { event: { kind: slow-disk, target: r-always, params: { x: 20 } } }
+        check: { metric: p99, target: r-always, op: '>=', value: 15 }
+      - title: everysec shrugs
+        body: The background fsync doesn't block the loop, so the right side stays fast.
+        check: { metric: p99, target: r-everysec, op: '<', value: 1 }
+      - title: But everysec can lose a second
+        body: Crash the right server. Writes since its last fsync were only in the page cache.
+        action: { event: { kind: kill, target: r-everysec } }
+        check: { metric: anomaly:lost-write, op: '>=', value: 1 }
+
+  - id: failover
+    title: "Break it: primary dies before replicating"
+    minutes: 4
+    template: tech-redis-failover
+    steps:
+      - title: Async replication
+        body: The primary acks a write, then streams it to the replica.
+        check: { metric: gauge:replOffset, target: replica, op: '>=', value: 5000 }
+      - title: The replica falls behind
+        body: A congested link delays the replication stream by 3s.
+        action: { event: { kind: replica-lag, target: redis, params: { ms: 3000 } } }
+        check: { metric: eventCount:chaos, op: '>=', value: 1 }
+      - title: Kill the primary
+        body: Sentinel notices after down-after-milliseconds (3s here) and promotes the replica.
+        action: { event: { kind: kill, target: redis } }
+        check: { metric: badge:primary, target: replica, op: '>=', value: 1 }
+      - title: Acked writes are gone
+        body: Everything the replica had not received is lost, although clients were told OK. WAIT or a CP store is the fix.
+        check: { metric: anomaly:lost-write, op: '>=', value: 1 }

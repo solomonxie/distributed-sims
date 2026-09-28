@@ -1,0 +1,231 @@
+{
+  "schemaVersion": 1,
+  "id": "tech-rabbitmq-anatomy",
+  "name": "RabbitMQ: anatomy",
+  "description": "A publisher sends order.created / order.paid / user.signup to a topic exchange. Bindings decide which queues get a copy: billing (order.*), audit (#), mailer (user.signup).",
+  "nodes": [
+    {
+      "id": "users",
+      "type": "web-client",
+      "skin": "react-spa",
+      "name": "Users",
+      "pos": {
+        "x": 40,
+        "y": 30
+      },
+      "config": {}
+    },
+    {
+      "id": "pub",
+      "type": "rabbitmq-publisher",
+      "skin": "rabbitmq-app-publisher",
+      "name": "shop (publisher)",
+      "pos": {
+        "x": 40,
+        "y": 140
+      },
+      "config": {}
+    },
+    {
+      "id": "ex",
+      "type": "rabbitmq-exchange",
+      "skin": "rabbitmq-topic-exchange",
+      "name": "events (topic)",
+      "pos": {
+        "x": 195,
+        "y": 140
+      },
+      "config": {}
+    },
+    {
+      "id": "rmq1",
+      "type": "rabbitmq-node",
+      "skin": "rabbitmq-broker-node",
+      "name": "rmq-1",
+      "pos": {
+        "x": 195,
+        "y": 30
+      },
+      "config": {}
+    },
+    {
+      "id": "rmq2",
+      "type": "rabbitmq-node",
+      "skin": "rabbitmq-broker-node",
+      "name": "rmq-2",
+      "pos": {
+        "x": 275,
+        "y": 30
+      },
+      "config": {}
+    },
+    {
+      "id": "rmq3",
+      "type": "rabbitmq-node",
+      "skin": "rabbitmq-broker-node",
+      "name": "rmq-3",
+      "pos": {
+        "x": 355,
+        "y": 30
+      },
+      "config": {}
+    },
+    {
+      "id": "billing",
+      "type": "rabbitmq-queue",
+      "skin": "rabbitmq-quorum-queue",
+      "name": "billing",
+      "pos": {
+        "x": 55,
+        "y": 260
+      },
+      "config": {
+        "bindingKey": "order.*",
+        "leader": "rmq1"
+      }
+    },
+    {
+      "id": "audit",
+      "type": "rabbitmq-queue",
+      "skin": "rabbitmq-quorum-queue",
+      "name": "audit",
+      "pos": {
+        "x": 195,
+        "y": 260
+      },
+      "config": {
+        "bindingKey": "#",
+        "leader": "rmq2"
+      }
+    },
+    {
+      "id": "mailer",
+      "type": "rabbitmq-queue",
+      "skin": "rabbitmq-quorum-queue",
+      "name": "mailer",
+      "pos": {
+        "x": 335,
+        "y": 260
+      },
+      "config": {
+        "bindingKey": "user.signup",
+        "leader": "rmq3"
+      }
+    },
+    {
+      "id": "c-billing",
+      "type": "rabbitmq-consumer",
+      "skin": "rabbitmq-worker",
+      "name": "billing worker",
+      "pos": {
+        "x": 55,
+        "y": 380
+      },
+      "config": {}
+    },
+    {
+      "id": "c-audit",
+      "type": "rabbitmq-consumer",
+      "skin": "rabbitmq-worker",
+      "name": "audit worker",
+      "pos": {
+        "x": 195,
+        "y": 380
+      },
+      "config": {}
+    },
+    {
+      "id": "c-mailer",
+      "type": "rabbitmq-consumer",
+      "skin": "rabbitmq-worker",
+      "name": "mailer",
+      "pos": {
+        "x": 335,
+        "y": 380
+      },
+      "config": {}
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-users-pub",
+      "from": "users",
+      "to": "pub"
+    },
+    {
+      "id": "e-pub-ex",
+      "from": "pub",
+      "to": "ex"
+    },
+    {
+      "id": "e-ex-billing",
+      "from": "ex",
+      "to": "billing"
+    },
+    {
+      "id": "e-ex-audit",
+      "from": "ex",
+      "to": "audit"
+    },
+    {
+      "id": "e-ex-mailer",
+      "from": "ex",
+      "to": "mailer"
+    },
+    {
+      "id": "e-billing-c-billing",
+      "from": "billing",
+      "to": "c-billing",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "e-audit-c-audit",
+      "from": "audit",
+      "to": "c-audit",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "e-mailer-c-mailer",
+      "from": "mailer",
+      "to": "c-mailer",
+      "config": {
+        "mode": "async"
+      }
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 120,
+    "sources": [
+      {
+        "id": "s-users",
+        "node": "users",
+        "shape": {
+          "kind": "constant",
+          "rps": 150
+        },
+        "readRatio": 0
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "shop.fernandco.com",
+    "read": {
+      "path": "/api/orders/{key}",
+      "body": "{\"order_id\": {key}, \"status\": \"paid\"}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/orders",
+      "reqBody": "{\"cart_id\": {key}, \"total_cents\": {value}}",
+      "status": 202,
+      "body": "{\"order_id\": {key}, \"status\": \"created\"}"
+    },
+    "topic": "order.created"
+  }
+}

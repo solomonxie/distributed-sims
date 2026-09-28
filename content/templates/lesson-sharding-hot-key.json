@@ -1,0 +1,224 @@
+{
+  "schemaVersion": 1,
+  "id": "lesson-sharding-hot-key",
+  "name": "Lesson: hot key / celebrity",
+  "description": "Two hash-sharded MySQL clusters, 3 shards each, 90% reads. Lane B's shards also have 3 read replicas. A celebrity key concentrates reads on whichever shard owns it.",
+  "nodes": [
+    {
+      "id": "web",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 195,
+        "y": 60
+      }
+    },
+    {
+      "id": "router-a",
+      "type": "shard-router",
+      "skin": "vitess",
+      "name": "vtgate A",
+      "pos": {
+        "x": 90,
+        "y": 190
+      },
+      "config": {
+        "shardBy": "hash"
+      }
+    },
+    {
+      "id": "router-b",
+      "type": "shard-router",
+      "skin": "vitess",
+      "name": "vtgate B (replicas)",
+      "pos": {
+        "x": 300,
+        "y": 190
+      },
+      "config": {
+        "shardBy": "hash"
+      }
+    },
+    {
+      "id": "a1",
+      "type": "relational-db",
+      "skin": "mysql",
+      "name": "A1",
+      "pos": {
+        "x": 20,
+        "y": 330
+      },
+      "config": {
+        "replicas": 0,
+        "slots": 4,
+        "p50Ms": 4,
+        "p99Ms": 20
+      }
+    },
+    {
+      "id": "a2",
+      "type": "relational-db",
+      "skin": "mysql",
+      "name": "A2",
+      "pos": {
+        "x": 90,
+        "y": 330
+      },
+      "config": {
+        "replicas": 0,
+        "slots": 4,
+        "p50Ms": 4,
+        "p99Ms": 20
+      }
+    },
+    {
+      "id": "a3",
+      "type": "relational-db",
+      "skin": "mysql",
+      "name": "A3",
+      "pos": {
+        "x": 160,
+        "y": 330
+      },
+      "config": {
+        "replicas": 0,
+        "slots": 4,
+        "p50Ms": 4,
+        "p99Ms": 20
+      }
+    },
+    {
+      "id": "b1",
+      "type": "relational-db",
+      "skin": "mysql",
+      "name": "B1",
+      "pos": {
+        "x": 230,
+        "y": 330
+      },
+      "config": {
+        "replicas": 3,
+        "slots": 4,
+        "p50Ms": 4,
+        "p99Ms": 20,
+        "readFrom": "replicas"
+      }
+    },
+    {
+      "id": "b2",
+      "type": "relational-db",
+      "skin": "mysql",
+      "name": "B2",
+      "pos": {
+        "x": 300,
+        "y": 330
+      },
+      "config": {
+        "replicas": 3,
+        "slots": 4,
+        "p50Ms": 4,
+        "p99Ms": 20,
+        "readFrom": "replicas"
+      }
+    },
+    {
+      "id": "b3",
+      "type": "relational-db",
+      "skin": "mysql",
+      "name": "B3",
+      "pos": {
+        "x": 370,
+        "y": 330
+      },
+      "config": {
+        "replicas": 3,
+        "slots": 4,
+        "p50Ms": 4,
+        "p99Ms": 20,
+        "readFrom": "replicas"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "web",
+      "to": "router-a",
+      "config": {
+        "ratio": 0.5
+      }
+    },
+    {
+      "id": "e2",
+      "from": "web",
+      "to": "router-b",
+      "config": {
+        "ratio": 0.5
+      }
+    },
+    {
+      "id": "e3",
+      "from": "router-a",
+      "to": "a1"
+    },
+    {
+      "id": "e4",
+      "from": "router-a",
+      "to": "a2"
+    },
+    {
+      "id": "e5",
+      "from": "router-a",
+      "to": "a3"
+    },
+    {
+      "id": "e6",
+      "from": "router-b",
+      "to": "b1"
+    },
+    {
+      "id": "e7",
+      "from": "router-b",
+      "to": "b2"
+    },
+    {
+      "id": "e8",
+      "from": "router-b",
+      "to": "b3"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 300,
+    "sources": [
+      {
+        "id": "s1",
+        "node": "web",
+        "shape": {
+          "kind": "constant",
+          "rps": 2400
+        },
+        "readRatio": 0.9,
+        "keys": {
+          "kind": "uniform"
+        }
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "social.example",
+    "read": {
+      "path": "/api/users/{key}/profile"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/users/{key}/follow",
+      "reqBody": "{\"follower\": {value}}",
+      "status": 201,
+      "body": "{\"following\": true}"
+    },
+    "table": "profiles",
+    "valCol": "follower_count"
+  }
+}

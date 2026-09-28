@@ -1,0 +1,344 @@
+group: { id: edge, label: Edge, order: 2 }
+# Edge behaviours: engine/src/behaviors/edge.ts
+types:
+  - type: dns
+    label: DNS
+    description: Resolves names to targets; answers cached for TTL; geo/latency/failover routing with health checks
+    icon: globe
+    costPerInstanceMonth: 1
+    knobs:
+      - { key: routing, label: Routing, kind: enum, default: simple, options: [simple, weighted, failover, geo, latency], help: failover = first out-edge is primary; weighted uses edge ratio }
+      - { key: ttlSec, label: TTL, kind: number, default: 60, min: 0, max: 86400, unit: s, help: How long resolvers cache an answer; failover waits this long }
+      - { key: healthChecks, label: Health checks, kind: bool, default: true }
+      - { key: healthIntervalMs, label: Check interval, kind: ms, default: 30000, min: 1000, max: 300000, advanced: true }
+      - { key: unhealthyThreshold, label: Failures to mark down, kind: int, default: 3, min: 1, max: 10, advanced: true }
+      - { key: healthyThreshold, label: Successes to mark up, kind: int, default: 3, min: 1, max: 10, advanced: true }
+      - { key: serveStale, label: Serve stale on failure, kind: bool, default: false, advanced: true, help: Keep answering with expired records when upstream DNS fails }
+      - { key: instances, label: Instances, kind: int, default: 1, min: 1, max: 64 }
+      - { key: slots, label: Slots, kind: int, default: 100000, min: 1, max: 1000000, advanced: true }
+      - { key: p50Ms, label: Lookup p50, kind: ms, default: 20, min: 0.1, max: 5000, help: Paid only on resolver cache miss }
+      - { key: p99Ms, label: Lookup p99, kind: ms, default: 80, min: 0.1, max: 5000 }
+      - { key: queueLimit, label: Queue limit, kind: int, default: 100000, min: 0, max: 1000000, advanced: true }
+      - { key: costMonth, label: Cost / month, kind: number, default: 1, min: 0, max: 100000, unit: $ }
+
+  - type: cdn
+    label: CDN
+    description: Serves copies close to users so most requests never reach you
+    icon: cloud
+    costPerInstanceMonth: 85
+    knobs:
+      - { key: cacheablePct, label: Cacheable, kind: percent, default: 90, min: 0, max: 100, unit: '%', help: Share of reads that are cacheable; the live hit ratio also depends on TTL and warmth }
+      - { key: ttlSec, label: TTL, kind: number, default: 3600, min: 1, max: 604800, unit: s }
+      - { key: pops, label: POPs, kind: int, default: 4, min: 1, max: 32, help: Each edge location has its own cache }
+      - { key: originShield, label: Origin shield, kind: bool, default: false, help: Shared mid-tier cache that collapses POP misses }
+      - { key: shieldMs, label: Shield hop, kind: ms, default: 15, min: 0, max: 500, advanced: true }
+      - { key: warmStart, label: Start warm, kind: bool, default: true, advanced: true }
+      - { key: instances, label: Instances, kind: int, default: 1, min: 1, max: 64 }
+      - { key: slots, label: Slots, kind: int, default: 100000, min: 1, max: 1000000, advanced: true }
+      - { key: p50Ms, label: Edge p50, kind: ms, default: 1, min: 0.1, max: 1000 }
+      - { key: p99Ms, label: Edge p99, kind: ms, default: 5, min: 0.1, max: 5000 }
+      - { key: queueLimit, label: Queue limit, kind: int, default: 100000, min: 0, max: 1000000, advanced: true }
+      - { key: costMonth, label: Cost / month, kind: number, default: 85, min: 0, max: 100000, unit: $ }
+
+  - type: waf
+    label: WAF
+    description: Evaluates rules on each request; blocked requests get 403
+    icon: shield
+    costPerInstanceMonth: 20
+    knobs:
+      - { key: rules, label: Rules, kind: int, default: 50, min: 0, max: 1500 }
+      - { key: ruleCostUs, label: Cost per rule, kind: number, default: 5, min: 0, max: 1000, unit: µs }
+      - { key: blockPct, label: Block rate, kind: percent, default: 1, min: 0, max: 100, step: 0.1, unit: '%', help: Share of normal traffic matched (attacks + false positives) }
+      - { key: botBlockPct, label: Bot block rate, kind: percent, default: 90, min: 0, max: 100, unit: '%' }
+      - { key: instances, label: Instances, kind: int, default: 1, min: 1, max: 64 }
+      - { key: slots, label: Slots, kind: int, default: 10000, min: 1, max: 1000000, advanced: true }
+      - { key: p50Ms, label: p50, kind: ms, default: 0.3, min: 0, max: 1000 }
+      - { key: p99Ms, label: p99, kind: ms, default: 1.5, min: 0, max: 5000 }
+      - { key: queueLimit, label: Queue limit, kind: int, default: 10000, min: 0, max: 1000000, advanced: true }
+      - { key: costMonth, label: Cost / month, kind: number, default: 20, min: 0, max: 100000, unit: $ }
+
+  - type: load-balancer
+    label: Load balancer
+    description: Spreads requests across healthy servers
+    icon: split
+    costPerInstanceMonth: 22
+    knobs:
+      - { key: algorithm, label: Algorithm, kind: enum, default: round-robin, options: [round-robin, least-conn, p2c, hash, weighted, random, failover], help: hash = consistent hash on key; weighted uses edge ratio; failover = first healthy out-edge }
+      - { key: layer, label: Layer, kind: enum, default: L7, options: [L7, L4], help: L7 can route by request route; L4 is cheaper }
+      - { key: healthChecks, label: Health checks, kind: bool, default: true }
+      - { key: healthIntervalMs, label: Check interval, kind: ms, default: 5000, min: 500, max: 300000 }
+      - { key: unhealthyThreshold, label: Failures to mark down, kind: int, default: 2, min: 1, max: 10, advanced: true }
+      - { key: healthyThreshold, label: Successes to mark up, kind: int, default: 2, min: 1, max: 10, advanced: true }
+      - { key: sticky, label: Sticky sessions, kind: bool, default: false, help: Pin a tenant/key to one target }
+      - { key: instances, label: Instances, kind: int, default: 2, min: 1, max: 64 }
+      - { key: slots, label: Slots, kind: int, default: 10000, min: 1, max: 1000000, advanced: true }
+      - { key: p50Ms, label: p50, kind: ms, default: 0.5, min: 0, max: 1000 }
+      - { key: p99Ms, label: p99, kind: ms, default: 3, min: 0, max: 5000 }
+      - { key: queueLimit, label: Queue limit, kind: int, default: 10000, min: 0, max: 1000000, advanced: true }
+      - { key: costMonth, label: Cost / month, kind: number, default: 22, min: 0, max: 100000, unit: $ }
+
+  - type: api-gateway
+    label: API gateway
+    description: Routes by route label, checks auth (IdP out-edge refreshes tokens), rate limits, integration timeout
+    icon: door-open
+    costPerInstanceMonth: 35
+    knobs:
+      - { key: authCheck, label: Auth check, kind: bool, default: true, help: Expired tokens → 403 unless an identity-provider out-edge can refresh them }
+      - { key: rateLimitRps, label: Rate limit, kind: number, default: 0, min: 0, max: 1000000, unit: rps, help: 0 = off; token bucket → 429 }
+      - { key: rateLimitBurst, label: Burst, kind: number, default: 0, min: 0, max: 1000000, advanced: true, help: 0 = same as rate limit }
+      - { key: timeoutMs, label: Integration timeout, kind: ms, default: 29000, min: 50, max: 300000 }
+      - { key: instances, label: Instances, kind: int, default: 1, min: 1, max: 64, help: 1 instance = single point of failure }
+      - { key: slots, label: Slots, kind: int, default: 1000, min: 1, max: 1000000, advanced: true }
+      - { key: p50Ms, label: p50, kind: ms, default: 2, min: 0, max: 1000 }
+      - { key: p99Ms, label: p99, kind: ms, default: 10, min: 0, max: 5000 }
+      - { key: queueLimit, label: Queue limit, kind: int, default: 5000, min: 0, max: 1000000, advanced: true }
+      - { key: costMonth, label: Cost / month, kind: number, default: 35, min: 0, max: 100000, unit: $ }
+
+  - type: rate-limiter
+    label: Rate limiter
+    description: Admits up to a limit per window, rejects the rest with 429; local or shared counters
+    icon: gauge
+    costPerInstanceMonth: 15
+    knobs:
+      - { key: algorithm, label: Algorithm, kind: enum, default: token-bucket, options: [token-bucket, leaky-bucket, fixed-window, sliding-window-log, sliding-window-counter] }
+      - { key: limit, label: Limit, kind: number, default: 100, min: 1, max: 1000000, help: Requests per window (token/leaky refill rate) }
+      - { key: windowMs, label: Window, kind: ms, default: 1000, min: 10, max: 3600000 }
+      - { key: burst, label: Bucket size, kind: number, default: 100, min: 1, max: 1000000, help: Token/leaky bucket capacity }
+      - { key: scope, label: Scope, kind: enum, default: global, options: [global, per-tenant, per-key] }
+      - { key: store, label: Counter store, kind: enum, default: local, options: [local, shared], help: shared needs an out-edge to a cache/kv node (extra hop); local counts per instance → over-admits }
+      - { key: failOpen, label: Fail open, kind: bool, default: true, advanced: true, help: Admit when the shared store is unreachable }
+      - { key: instances, label: Instances, kind: int, default: 1, min: 1, max: 64 }
+      - { key: slots, label: Slots, kind: int, default: 10000, min: 1, max: 1000000, advanced: true }
+      - { key: p50Ms, label: p50, kind: ms, default: 0.2, min: 0, max: 1000 }
+      - { key: p99Ms, label: p99, kind: ms, default: 1, min: 0, max: 5000 }
+      - { key: queueLimit, label: Queue limit, kind: int, default: 10000, min: 0, max: 1000000, advanced: true }
+      - { key: costMonth, label: Cost / month, kind: number, default: 15, min: 0, max: 100000, unit: $ }
+
+  - type: service-mesh-sidecar
+    label: Mesh sidecar
+    description: Proxy next to a service; mTLS, retries, outlier ejection, max-requests circuit breaker
+    icon: container
+    costPerInstanceMonth: 5
+    knobs:
+      - { key: mtls, label: mTLS, kind: bool, default: true }
+      - { key: mtlsCostMs, label: mTLS cost / req, kind: ms, default: 0.05, min: 0, max: 50, advanced: true }
+      - { key: handshakeMs, label: TLS handshake, kind: ms, default: 2, min: 0, max: 200, advanced: true }
+      - { key: connReusePct, label: Connection reuse, kind: percent, default: 99, min: 0, max: 100, unit: '%', advanced: true, help: Share of requests on an existing connection (no handshake) }
+      - { key: retries, label: Retries, kind: int, default: 2, min: 0, max: 10 }
+      - { key: algorithm, label: LB algorithm, kind: enum, default: round-robin, options: [round-robin, least-conn, p2c, random] }
+      - { key: consecutive5xx, label: Eject after 5xx, kind: int, default: 5, min: 1, max: 100 }
+      - { key: baseEjectionMs, label: Ejection time, kind: ms, default: 30000, min: 100, max: 600000 }
+      - { key: maxEjectionPct, label: Max ejected, kind: percent, default: 10, min: 0, max: 100, unit: '%' }
+      - { key: maxRequests, label: Max requests, kind: int, default: 1024, min: 1, max: 100000, help: Circuit breaker; beyond this → 503 }
+      - { key: instances, label: Instances, kind: int, default: 1, min: 1, max: 64 }
+      - { key: slots, label: Slots, kind: int, default: 10000, min: 1, max: 1000000, advanced: true }
+      - { key: p50Ms, label: p50, kind: ms, default: 0.3, min: 0, max: 100 }
+      - { key: p99Ms, label: p99, kind: ms, default: 1.5, min: 0, max: 1000 }
+      - { key: queueLimit, label: Queue limit, kind: int, default: 10000, min: 0, max: 1000000, advanced: true }
+      - { key: costMonth, label: Cost / month, kind: number, default: 5, min: 0, max: 100000, unit: $ }
+
+  - type: vpn-gateway
+    label: VPN gateway
+    description: Site-to-site VPN endpoint; sends traffic down the first healthy tunnel, dead-peer detection fails over to the next
+    icon: router
+    costPerInstanceMonth: 36
+    knobs:
+      - { key: algorithm, label: Tunnel choice, kind: enum, default: failover, options: [failover, round-robin], help: failover = active/standby (first out-edge is primary); round-robin = ECMP }
+      - { key: layer, label: Layer, kind: enum, default: L4, options: [L4], advanced: true }
+      - { key: healthChecks, label: Dead-peer detection, kind: bool, default: true }
+      - { key: healthIntervalMs, label: DPD interval, kind: ms, default: 10000, min: 500, max: 300000, help: AWS default 10s }
+      - { key: unhealthyThreshold, label: Missed to mark down, kind: int, default: 3, min: 1, max: 10 }
+      - { key: healthyThreshold, label: Replies to mark up, kind: int, default: 2, min: 1, max: 10, advanced: true }
+      - { key: instances, label: Instances, kind: int, default: 1, min: 1, max: 8 }
+      - { key: slots, label: Slots, kind: int, default: 10000, min: 1, max: 1000000, advanced: true }
+      - { key: p50Ms, label: p50, kind: ms, default: 0.2, min: 0, max: 1000 }
+      - { key: p99Ms, label: p99, kind: ms, default: 1, min: 0, max: 5000 }
+      - { key: queueLimit, label: Queue limit, kind: int, default: 10000, min: 0, max: 1000000, advanced: true }
+      - { key: costMonth, label: Cost / month, kind: number, default: 36, min: 0, max: 100000, unit: $ }
+
+  - type: vpn-tunnel
+    label: VPN tunnel
+    description: One IPsec tunnel over the internet; encrypts every packet and caps throughput
+    icon: lock
+    costPerInstanceMonth: 0
+    knobs:
+      - { key: instances, label: Tunnels, kind: int, default: 1, min: 1, max: 8 }
+      - { key: slots, label: Crypto lanes, kind: int, default: 4, min: 1, max: 1024, help: Throughput cap ≈ lanes ÷ encrypt time }
+      - { key: p50Ms, label: Encrypt p50, kind: ms, default: 1, min: 0.01, max: 1000 }
+      - { key: p99Ms, label: Encrypt p99, kind: ms, default: 3, min: 0.01, max: 5000 }
+      - { key: queueLimit, label: Buffer, kind: int, default: 500, min: 0, max: 100000, help: Packets beyond this are dropped }
+      - { key: costMonth, label: Cost / month, kind: number, default: 0, min: 0, max: 100000, unit: $ }
+
+  - type: nat-gateway
+    label: NAT gateway
+    description: Lets private instances call out; each connection holds a source port per destination
+    icon: arrow-right-left
+    costPerInstanceMonth: 33
+    knobs:
+      - { key: portsPerDest, label: Ports / destination, kind: int, default: 55000, min: 1, max: 1000000, help: AWS NAT gateway limit per destination IP+port }
+      - { key: portHoldSec, label: Port hold after close, kind: number, default: 60, min: 0, max: 600, unit: s, help: A closed connection's port can't be reused for this long (TIME_WAIT) }
+      - { key: instances, label: Instances, kind: int, default: 1, min: 1, max: 8 }
+      - { key: slots, label: Slots, kind: int, default: 100000, min: 1, max: 1000000, advanced: true }
+      - { key: p50Ms, label: p50, kind: ms, default: 0.1, min: 0, max: 1000 }
+      - { key: p99Ms, label: p99, kind: ms, default: 0.5, min: 0, max: 5000 }
+      - { key: queueLimit, label: Queue limit, kind: int, default: 100000, min: 0, max: 1000000, advanced: true }
+      - { key: costMonth, label: Cost / month, kind: number, default: 33, min: 0, max: 100000, unit: $ }
+
+skins:
+  # dns
+  - name: route53
+    type: dns
+    label: Route 53
+    description: AWS managed DNS with health-checked routing policies
+    icon: brand:aws
+    tags: [dns, aws, managed]
+    # source: Route 53 docs — health check interval 30s (10s fast), failure threshold 3; $0.50/zone + $0.40/M queries
+    defaults: { healthIntervalMs: 30000, unhealthyThreshold: 3, healthyThreshold: 3, ttlSec: 60, costMonth: 1 }
+  - name: cloudflare-dns
+    type: dns
+    label: Cloudflare DNS
+    description: Anycast authoritative DNS; proxied records use short TTLs
+    icon: cloud
+    tags: [dns, managed]
+    # source: Cloudflare docs — proxied records TTL "Auto" = 300s; LB monitors default 60s interval
+    defaults: { ttlSec: 300, healthIntervalMs: 60000, unhealthyThreshold: 2, healthyThreshold: 2, p50Ms: 10, p99Ms: 40, costMonth: 0 }
+
+  # cdn
+  - name: cloudfront
+    type: cdn
+    label: CloudFront
+    description: AWS managed CDN
+    icon: brand:aws
+    tags: [cdn, aws, managed]
+    # source: CloudFront default TTL 86400s; Origin Shield is an optional regional tier; hit ratio from v0 catalog
+    defaults: { cacheablePct: 90, ttlSec: 86400, pops: 8, p50Ms: 2, p99Ms: 10, costMonth: 85 }
+  - name: fastly
+    type: cdn
+    label: Fastly
+    description: Edge CDN with instant purge and shielding
+    icon: brand:fastly
+    tags: [cdn, managed]
+    # source: v0 catalog cache_hit_ratio 0.92; Fastly default TTL 3600s; purge ~150ms global
+    defaults: { cacheablePct: 92, ttlSec: 3600, pops: 8, originShield: true, p50Ms: 1, p99Ms: 8, costMonth: 50 }
+  - name: cloudflare-cdn
+    type: cdn
+    label: Cloudflare CDN
+    description: Anycast CDN; Tiered Cache acts as origin shield
+    icon: cloud
+    tags: [cdn, managed]
+    # source: Cloudflare edge TTL default respects origin; 4h for cacheable 200s without headers
+    defaults: { cacheablePct: 90, ttlSec: 14400, pops: 8, originShield: true, p50Ms: 1, p99Ms: 8, costMonth: 20 }
+
+  # waf
+  - name: aws-waf
+    type: waf
+    label: AWS WAF
+    description: Managed web ACL in front of CloudFront / ALB / API Gateway
+    icon: brand:aws
+    tags: [waf, aws, managed]
+    # source: AWS WAF pricing $5/web ACL + $1/rule + $0.60/M requests; ACL capacity 1500 WCU
+    defaults: { rules: 20, ruleCostUs: 5, p50Ms: 0.3, p99Ms: 1.5, costMonth: 25 }
+
+  # load balancers
+  - name: aws-alb
+    type: load-balancer
+    label: AWS ALB
+    description: Managed L7 load balancer
+    icon: brand:aws
+    tags: [load-balancer, aws, managed]
+    # source: ALB target group defaults — interval 30s, unhealthy 2, healthy 5; ~$16/mo + LCU
+    defaults: { layer: L7, algorithm: round-robin, healthIntervalMs: 30000, unhealthyThreshold: 2, healthyThreshold: 5, p50Ms: 1, p99Ms: 5, costMonth: 22 }
+  - name: aws-nlb
+    type: load-balancer
+    label: AWS NLB
+    description: Managed L4 load balancer, ultra-low latency
+    icon: brand:aws
+    tags: [load-balancer, aws, managed]
+    # source: NLB target group defaults — interval 30s, unhealthy 2, healthy 5; flow hash routing
+    defaults: { layer: L4, algorithm: hash, healthIntervalMs: 30000, unhealthyThreshold: 2, healthyThreshold: 5, p50Ms: 0.1, p99Ms: 0.5, costMonth: 22 }
+  - name: nginx-lb
+    type: load-balancer
+    label: nginx
+    description: Reverse proxy / load balancer (passive checks in OSS)
+    icon: brand:nginx
+    tags: [load-balancer, self-hosted]
+    # source: nginx upstream defaults — round-robin, max_fails=1 fail_timeout=10s
+    defaults: { layer: L7, algorithm: round-robin, healthIntervalMs: 10000, unhealthyThreshold: 1, healthyThreshold: 1, p50Ms: 0.5, p99Ms: 2, costMonth: 30 }
+  - name: haproxy
+    type: load-balancer
+    label: HAProxy
+    description: High-performance TCP/HTTP load balancer
+    icon: network
+    tags: [load-balancer, self-hosted]
+    # source: HAProxy check defaults — inter 2s, fall 3, rise 2
+    defaults: { layer: L7, algorithm: round-robin, healthIntervalMs: 2000, unhealthyThreshold: 3, healthyThreshold: 2, p50Ms: 0.3, p99Ms: 1.5, costMonth: 30 }
+  - name: envoy-lb
+    type: load-balancer
+    label: Envoy
+    description: L7 proxy; LEAST_REQUEST uses power of two choices
+    icon: brand:envoy
+    tags: [load-balancer, self-hosted, cncf]
+    # source: Envoy docs — least_request picks best of 2 random hosts (P2C) by default
+    defaults: { layer: L7, algorithm: p2c, healthIntervalMs: 5000, unhealthyThreshold: 2, healthyThreshold: 1, p50Ms: 0.3, p99Ms: 1.5, costMonth: 30 }
+
+  # api gateways
+  - name: kong
+    type: api-gateway
+    label: Kong
+    description: Open-source API gateway (nginx/OpenResty)
+    icon: brand:kong
+    tags: [gateway, self-hosted]
+    # source: v0 catalog avg 5ms; Kong upstream read timeout default 60s
+    defaults: { p50Ms: 1, p99Ms: 5, timeoutMs: 60000, slots: 2000, costMonth: 40 }
+  - name: aws-api-gateway
+    type: api-gateway
+    label: AWS API Gateway
+    description: Managed API gateway on AWS
+    icon: brand:aws
+    tags: [gateway, aws, managed]
+    # source: AWS quotas — 10,000 rps steady / 5,000 burst per account-region; 29s integration timeout; v0 avg 10ms
+    defaults: { p50Ms: 10, p99Ms: 40, rateLimitRps: 10000, rateLimitBurst: 5000, timeoutMs: 29000, instances: 3, slots: 5000, costMonth: 35 }
+  - name: apigee
+    type: api-gateway
+    label: Apigee
+    description: Google Cloud API management platform
+    icon: waypoints
+    tags: [gateway, gcp, managed]
+    # source: Apigee default target io.timeout.millis 55s; policies add ~10-30ms
+    defaults: { p50Ms: 15, p99Ms: 60, timeoutMs: 55000, instances: 2, slots: 2000, costMonth: 500 }
+
+  # rate limiters
+  - name: redis-rate-limiter
+    type: rate-limiter
+    label: Redis rate limiter
+    description: Counters in Redis (INCR + EXPIRE); shared across instances
+    icon: brand:redis
+    tags: [rate-limit, redis]
+    # source: common Redis pattern — sliding window counter over INCR; needs an out-edge to a Redis cache node
+    defaults: { algorithm: sliding-window-counter, store: shared, instances: 3, costMonth: 15 }
+  - name: envoy-rls
+    type: rate-limiter
+    label: Envoy RLS
+    description: Envoy global rate limit service (Redis-backed, fixed windows per unit)
+    icon: brand:envoy
+    tags: [rate-limit, envoy, cncf]
+    # source: envoyproxy/ratelimit — fixed window per unit (second/minute/...), Redis backend
+    defaults: { algorithm: fixed-window, store: shared, instances: 2, p50Ms: 0.5, p99Ms: 2, costMonth: 20 }
+
+  # sidecars
+  - name: envoy-sidecar
+    type: service-mesh-sidecar
+    label: Envoy sidecar (Istio)
+    description: Istio data plane proxy
+    icon: brand:istio
+    tags: [mesh, envoy, istio, cncf]
+    # source: Istio perf docs — ~0.2-0.5ms added per proxy at p50; outlier detection consecutive_5xx 5, base ejection 30s, max 10%; retries attempts 2
+    defaults: { p50Ms: 0.3, p99Ms: 1.5, retries: 2, consecutive5xx: 5, baseEjectionMs: 30000, maxEjectionPct: 10, maxRequests: 1024, costMonth: 5 }
+  - name: linkerd
+    type: service-mesh-sidecar
+    label: Linkerd
+    description: Rust micro-proxy; EWMA balancing, failure accrual
+    icon: git-merge
+    tags: [mesh, cncf]
+    # source: Linkerd benchmarks (Buoyant 2021) — lower added latency than Envoy; failure accrual after 7 consecutive failures
+    defaults: { p50Ms: 0.2, p99Ms: 1, retries: 0, algorithm: p2c, consecutive5xx: 7, baseEjectionMs: 10000, maxEjectionPct: 50, costMonth: 4 }

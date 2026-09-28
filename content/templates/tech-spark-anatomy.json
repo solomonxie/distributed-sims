@@ -1,0 +1,93 @@
+{
+  "schemaVersion": 1,
+  "id": "tech-spark-anatomy",
+  "name": "Spark: driver, executors, stages",
+  "description": "A driver splits each job into stages at shuffle boundaries and runs one task per partition on 3 executors × 4 cores. A cron submits a job every 12s.",
+  "nodes": [
+    {
+      "id": "driver",
+      "type": "spark-driver",
+      "skin": "spark-driver-std",
+      "name": "Driver",
+      "pos": {
+        "x": 195,
+        "y": 60
+      },
+      "config": {
+        "cronSec": 12
+      }
+    },
+    {
+      "id": "exec-1",
+      "type": "spark-executor",
+      "skin": "spark-executor-std",
+      "name": "Executor 1",
+      "pos": {
+        "x": 55,
+        "y": 220
+      },
+      "config": {}
+    },
+    {
+      "id": "exec-2",
+      "type": "spark-executor",
+      "skin": "spark-executor-std",
+      "name": "Executor 2",
+      "pos": {
+        "x": 195,
+        "y": 220
+      },
+      "config": {}
+    },
+    {
+      "id": "exec-3",
+      "type": "spark-executor",
+      "skin": "spark-executor-std",
+      "name": "Executor 3",
+      "pos": {
+        "x": 335,
+        "y": 220
+      },
+      "config": {}
+    }
+  ],
+  "edges": [
+    {
+      "id": "d-e1",
+      "from": "driver",
+      "to": "exec-1"
+    },
+    {
+      "id": "d-e2",
+      "from": "driver",
+      "to": "exec-2"
+    },
+    {
+      "id": "d-e3",
+      "from": "driver",
+      "to": "exec-3"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 120,
+    "sources": [],
+    "events": []
+  },
+  "wire": {
+    "host": "spark-master.internal:6066",
+    "read": {
+      "path": "/api/v1/applications/app-{key}/stages",
+      "body": "[{\"stageId\": 2, \"status\": \"ACTIVE\", \"numTasks\": 12}]"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/v1/submissions/create",
+      "reqBody": "{\"mainClass\": \"etl.DailySales\", \"appArgs\": [\"2026-09-27\"]}",
+      "status": 200,
+      "body": "{\"submissionId\": \"driver-{key}\", \"success\": true}"
+    },
+    "table": "daily_sales",
+    "valCol": "revenue"
+  }
+}

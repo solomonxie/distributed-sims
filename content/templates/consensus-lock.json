@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "id": "consensus-lock",
+  "name": "Distributed lock: lease + fencing",
+  "description": "Two workers take a Redlock lease (TTL 3s) before writing the ledger. Worker A GC-pauses 5s while holding it: the lease expires, B takes over, then A wakes and writes anyway (double holder). Swap the lock to Chubby (fencing tokens) and the ledger rejects A's stale token.",
+  "nodes": [
+    { "id": "worker-a", "type": "lock-client", "name": "Worker A", "pos": { "x": 85, "y": 60 }, "config": { "everyMs": 500, "holdMs": 1500 } },
+    { "id": "worker-b", "type": "lock-client", "name": "Worker B", "pos": { "x": 305, "y": 60 }, "config": { "everyMs": 500, "holdMs": 300 } },
+    { "id": "lock", "type": "lock-service", "skin": "redlock", "name": "Lock", "pos": { "x": 195, "y": 220 } },
+    { "id": "ledger", "type": "service", "name": "Ledger store", "pos": { "x": 195, "y": 380 } }
+  ],
+  "edges": [
+    { "id": "e1", "from": "worker-a", "to": "lock" },
+    { "id": "e2", "from": "worker-b", "to": "lock" },
+    { "id": "e3", "from": "worker-a", "to": "ledger" },
+    { "id": "e4", "from": "worker-b", "to": "ledger" }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 45,
+    "sources": [],
+    "events": [
+      { "atSec": 10, "event": { "kind": "gc-pause", "target": "worker-a", "params": { "sec": 5 } } },
+      { "atSec": 30, "event": { "kind": "gc-pause", "target": "worker-a", "params": { "sec": 5 } } }
+    ]
+  },
+  "wire": {
+    "host": "ledger.internal",
+    "read": {
+      "method": "GET",
+      "path": "/v1/accounts/{key}/balance",
+      "body": "{\"account\": {key}, \"balance\": {value}}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/v1/accounts/{key}/entries",
+      "reqBody": "{\"amount\": {value}, \"fencing_token\": 34}",
+      "status": 201,
+      "body": "{\"entry_id\": {key}, \"fencing_token\": 34}"
+    },
+    "table": "ledger_entries",
+    "valCol": "amount"
+  }
+}

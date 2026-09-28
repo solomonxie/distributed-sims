@@ -1,0 +1,128 @@
+{
+  "schemaVersion": 1,
+  "id": "lesson-micro-breaker",
+  "name": "Circuit breaker",
+  "description": "Two checkout services call the same Payments API with a 1s timeout. The left edge has a circuit breaker: after half the recent calls fail it opens and fails fast, probes again after 5s (half-open) and closes on success. The right edge keeps waiting on every call.",
+  "nodes": [
+    {
+      "id": "users-cb",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 75,
+        "y": 60
+      }
+    },
+    {
+      "id": "api-cb",
+      "type": "service",
+      "name": "Checkout · breaker",
+      "pos": {
+        "x": 75,
+        "y": 200
+      }
+    },
+    {
+      "id": "users-nb",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 315,
+        "y": 60
+      }
+    },
+    {
+      "id": "api-nb",
+      "type": "service",
+      "name": "Checkout · no breaker",
+      "pos": {
+        "x": 315,
+        "y": 200
+      }
+    },
+    {
+      "id": "pay",
+      "type": "service",
+      "name": "Payments API",
+      "pos": {
+        "x": 195,
+        "y": 360
+      },
+      "config": {
+        "p50Ms": 30,
+        "p99Ms": 90
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "users-cb->api-cb",
+      "from": "users-cb",
+      "to": "api-cb",
+      "config": {
+        "timeoutMs": 3000
+      }
+    },
+    {
+      "id": "api-cb->pay",
+      "from": "api-cb",
+      "to": "pay",
+      "config": {
+        "timeoutMs": 1000,
+        "circuitBreaker": true
+      }
+    },
+    {
+      "id": "users-nb->api-nb",
+      "from": "users-nb",
+      "to": "api-nb",
+      "config": {
+        "timeoutMs": 3000
+      }
+    },
+    {
+      "id": "api-nb->pay",
+      "from": "api-nb",
+      "to": "pay",
+      "config": {
+        "timeoutMs": 1000
+      }
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 120,
+    "sources": [
+      {
+        "id": "s1",
+        "node": "users-cb",
+        "shape": {
+          "kind": "constant",
+          "rps": 100
+        }
+      },
+      {
+        "id": "s2",
+        "node": "users-nb",
+        "shape": {
+          "kind": "constant",
+          "rps": 100
+        }
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "shop.example",
+    "read": {
+      "path": "/api/checkout/{key}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/checkout",
+      "reqBody": "{\"cart_id\": {key}, \"card\": \"tok_visa\"}",
+      "status": 201,
+      "body": "{\"order_id\": {key}, \"paid\": true}"
+    }
+  }
+}

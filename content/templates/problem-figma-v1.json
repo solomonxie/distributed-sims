@@ -1,0 +1,112 @@
+{
+  "schemaVersion": 1,
+  "id": "problem-figma-v1",
+  "name": "Figma — naive",
+  "description": "One multiplayer server holds each document in RAM and checkpoints it to Postgres every 30s.",
+  "nodes": [
+    {
+      "id": "users",
+      "type": "web-client",
+      "skin": "react-spa",
+      "name": "Editors",
+      "pos": {
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "id": "alb",
+      "type": "load-balancer",
+      "skin": "aws-alb",
+      "name": "Load balancer",
+      "pos": {
+        "x": 0,
+        "y": 110
+      },
+      "config": {
+        "healthIntervalMs": 2000
+      }
+    },
+    {
+      "id": "mp-a",
+      "type": "cache",
+      "name": "Multiplayer server (doc in RAM)",
+      "pos": {
+        "x": 0,
+        "y": 220
+      },
+      "config": {
+        "strategy": "write-behind",
+        "flushMs": 30000,
+        "capacityKeys": 1024,
+        "ttlSec": 3600,
+        "slots": 8,
+        "p50Ms": 1.5,
+        "p99Ms": 6
+      }
+    },
+    {
+      "id": "db",
+      "type": "relational-db",
+      "skin": "postgres",
+      "name": "Doc checkpoints",
+      "pos": {
+        "x": 0,
+        "y": 330
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "users->alb",
+      "from": "users",
+      "to": "alb"
+    },
+    {
+      "id": "alb->mp-a",
+      "from": "alb",
+      "to": "mp-a"
+    },
+    {
+      "id": "mp-a->db",
+      "from": "mp-a",
+      "to": "db"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 60,
+    "sources": [
+      {
+        "id": "editors",
+        "node": "users",
+        "shape": {
+          "kind": "constant",
+          "rps": 1000
+        },
+        "readRatio": 0.3
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "api.figma.example",
+    "read": {
+      "method": "GET",
+      "path": "/v1/files/{code}",
+      "status": 200,
+      "body": "{\"key\": \"{code}\", \"version\": {value}, \"nodes\": 1284}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/v1/files/{code}/ops",
+      "reqBody": "{\"op\": \"set\", \"node\": \"1:{key}\", \"prop\": \"x\", \"value\": {value}}",
+      "status": 200,
+      "body": "{\"ack\": true, \"seq\": {key}}"
+    },
+    "table": "documents",
+    "keyCol": "file_key",
+    "valCol": "snapshot",
+    "cachePrefix": "doc:"
+  }
+}

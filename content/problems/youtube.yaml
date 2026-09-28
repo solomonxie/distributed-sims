@@ -1,0 +1,51 @@
+id: youtube
+title: YouTube
+icon: clapperboard
+category: product
+order: 12
+summary: Upload, transcode and stream video to the world; survive a viral hit.
+requirements:
+  - Upload video, transcode to several renditions, stream adaptive segments, count views
+  - 2B MAU · 500 hours uploaded/min · 1B hours watched/day
+  - Start-up p99 < 200ms · uploads never block playback
+estimates:
+  - Segment reads ~1M/s peak (> 95% CDN hits) · uploads ~100/s
+  - Storage grows ~1 PB/day across renditions · egress dominated by CDN
+designs:
+  - { id: v1, title: "Naive: video servers stream + transcode, no CDN", template: problem-youtube-v1 }
+  - { id: v2, title: "Reference: CDN + shield, S3, transcode queue", template: problem-youtube-v2 }
+challenges:
+  - id: viral-video
+    title: "Viral video: CDN miss storm"
+    template: problem-youtube-v2
+    scenario:
+      durationSec: 60
+      sources:
+        - { id: watch, node: users, shape: { kind: constant, rps: 3000 }, readRatio: 1 }
+        - { id: upload, node: users, shape: { kind: constant, rps: 2 }, readRatio: 0, payloadBytes: 50000000 }
+      events:
+        - { atSec: 15, event: { kind: purge, target: cdn } }
+        - { atSec: 15, event: { kind: traffic, source: watch, action: hot-key, params: { hot: 0.5 }, durationSec: 45 } }
+        - { atSec: 15, event: { kind: traffic, source: watch, action: burst, params: { x: 8 }, durationSec: 45 } }
+    pass:
+      - { metric: p99, op: '<', value: 200 }
+      - { metric: availability, op: '>=', value: 99.5 }
+      - { metric: costMonth, op: '<=', value: 3000 }
+  - id: upload-spike
+    title: "Creator rush: 10× uploads"
+    template: problem-youtube-v2
+    scenario:
+      durationSec: 60
+      sources:
+        - { id: watch, node: users, shape: { kind: constant, rps: 3000 }, readRatio: 1 }
+        - { id: upload, node: users, shape: { kind: constant, rps: 2 }, readRatio: 0, payloadBytes: 50000000 }
+      events:
+        - { atSec: 10, event: { kind: traffic, source: upload, action: burst, params: { x: 10 }, durationSec: 50 } }
+    pass:
+      - { metric: availability, op: '>=', value: 99.5 }
+      - { metric: anomalies, op: '=', value: 0 }
+keyIdeas:
+  - { label: CDN + origin shield, link: "lesson:caching/cdn" }
+  - { label: Transcode job queue, link: "lesson:message-queue/consumer-lag" }
+  - { label: Hot key on one video, link: "lesson:sharding/hot-key" }
+  - { label: View counts via count-min sketch, link: "algo:count-min-sketch" }

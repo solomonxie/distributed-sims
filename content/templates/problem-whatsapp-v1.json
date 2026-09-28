@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "id": "problem-whatsapp-v1",
+  "name": "WhatsApp: naive",
+  "description": "Gateways hand messages to a standard SQS queue; any worker may deliver any message, so a conversation can arrive out of order. The ALB checks gateway health every 30s.",
+  "nodes": [
+    {"id":"users","type":"mobile-client","skin":"ios-app","name":"Phones","pos":{"x":0,"y":0}},
+    {"id":"lb","type":"load-balancer","skin":"aws-alb","name":"Connection LB","pos":{"x":0,"y":110}},
+    {"id":"gw-1","type":"service","skin":"go-service","name":"Gateway 1","pos":{"x":-80,"y":220},"config":{"instances":2}},
+    {"id":"gw-2","type":"service","skin":"go-service","name":"Gateway 2","pos":{"x":80,"y":220},"config":{"instances":2}},
+    {"id":"mq","type":"queue","skin":"sqs","name":"Message queue","pos":{"x":0,"y":330}},
+    {"id":"delivery","type":"worker","name":"Delivery workers","pos":{"x":0,"y":440},"config":{"instances":4,"slots":8,"p50Ms":2,"p99Ms":10,"idempotent":true}},
+    {"id":"store","type":"kv-store","skin":"cassandra","name":"Messages","pos":{"x":0,"y":550}}
+  ],
+  "edges": [
+    {"id":"users-lb","from":"users","to":"lb","config":{"timeoutMs":3000}},
+    {"id":"lb-gw-1","from":"lb","to":"gw-1"},
+    {"id":"lb-gw-2","from":"lb","to":"gw-2"},
+    {"id":"gw-1-mq","from":"gw-1","to":"mq","config":{"op":"write"}},
+    {"id":"gw-2-mq","from":"gw-2","to":"mq","config":{"op":"write"}},
+    {"id":"gw-1-store","from":"gw-1","to":"store","config":{"op":"read"}},
+    {"id":"gw-2-store","from":"gw-2","to":"store","config":{"op":"read"}},
+    {"id":"mq-delivery","from":"mq","to":"delivery"},
+    {"id":"delivery-store","from":"delivery","to":"store"}
+  ],
+  "containers": [],
+  "scenario": {"durationSec":60,"sources":[{"id":"msgs","node":"users","shape":{"kind":"constant","rps":4000},"readRatio":0.2,"keys":{"kind":"zipf","s":0.8}}],"events":[]},
+  "wire": {
+    "host": "chat.whatsapp.example",
+    "read": {
+      "method": "GET",
+      "path": "/v1/chats/{key}/messages",
+      "status": 200,
+      "body": "{\"chat_id\": {key}, \"messages\": [{\"id\": \"{code}\", \"text\": \"hey\"}]}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/v1/chats/{key}/messages",
+      "reqBody": "{\"client_msg_id\": \"{code}\", \"text\": \"hey\"}",
+      "status": 201,
+      "body": "{\"id\": \"{code}\", \"status\": \"sent\"}"
+    },
+    "table": "messages",
+    "valCol": "body",
+    "topic": "chat-messages"
+  }
+}

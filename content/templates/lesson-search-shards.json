@@ -1,0 +1,135 @@
+{
+  "schemaVersion": 1,
+  "id": "lesson-search-shards",
+  "name": "Search: shard count vs tail latency",
+  "description": "Every query fans out to every shard and waits for the slowest one. Left index has 5 shards, right has 40 on the same hardware: more shards = more chances one is slow, and more work per query.",
+  "nodes": [
+    {
+      "id": "w5",
+      "type": "web-client",
+      "name": "Search UI",
+      "pos": {
+        "x": 100,
+        "y": 20
+      },
+      "skin": "react-spa"
+    },
+    {
+      "id": "api5",
+      "type": "service",
+      "name": "Search API",
+      "pos": {
+        "x": 100,
+        "y": 130
+      },
+      "skin": "go-service"
+    },
+    {
+      "id": "es5",
+      "type": "search-index",
+      "name": "ES · 5 shards",
+      "pos": {
+        "x": 100,
+        "y": 260
+      },
+      "skin": "elasticsearch",
+      "config": {
+        "shards": 5
+      }
+    },
+    {
+      "id": "w40",
+      "type": "web-client",
+      "name": "Search UI",
+      "pos": {
+        "x": 290,
+        "y": 20
+      },
+      "skin": "react-spa"
+    },
+    {
+      "id": "api40",
+      "type": "service",
+      "name": "Search API",
+      "pos": {
+        "x": 290,
+        "y": 130
+      },
+      "skin": "go-service"
+    },
+    {
+      "id": "es40",
+      "type": "search-index",
+      "name": "ES · 40 shards",
+      "pos": {
+        "x": 290,
+        "y": 260
+      },
+      "skin": "elasticsearch",
+      "config": {
+        "shards": 40
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "w5->api5",
+      "from": "w5",
+      "to": "api5"
+    },
+    {
+      "id": "api5->es5",
+      "from": "api5",
+      "to": "es5"
+    },
+    {
+      "id": "w40->api40",
+      "from": "w40",
+      "to": "api40"
+    },
+    {
+      "id": "api40->es40",
+      "from": "api40",
+      "to": "es40"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 60,
+    "sources": [
+      {
+        "id": "s5",
+        "node": "w5",
+        "shape": {
+          "kind": "constant",
+          "rps": 150
+        },
+        "readRatio": 1
+      },
+      {
+        "id": "s40",
+        "node": "w40",
+        "shape": {
+          "kind": "constant",
+          "rps": 150
+        },
+        "readRatio": 1
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "docs.example",
+    "read": {
+      "path": "/api/search?q=term{key}",
+      "body": "{\"hits\": [{key}], \"total\": 37}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/docs",
+      "reqBody": "{\"title\": \"Doc {key}\"}",
+      "status": 201,
+      "body": "{\"id\": {key}}"
+    }
+  }
+}

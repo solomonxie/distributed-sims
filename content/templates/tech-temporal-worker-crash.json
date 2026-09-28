@@ -1,0 +1,152 @@
+{
+ "schemaVersion": 1,
+ "id": "tech-temporal-worker-crash",
+ "name": "Temporal: worker crash mid-workflow",
+ "description": "Two workers share the task queue. Kill one mid-workflow: its activities time out and retry elsewhere, and the other worker replays each history to continue.",
+ "nodes": [
+  {
+   "id": "app",
+   "type": "web-client",
+   "name": "Checkout app",
+   "pos": {
+    "x": 0,
+    "y": 0
+   }
+  },
+  {
+   "id": "frontend",
+   "type": "temporal-frontend",
+   "name": "Frontend",
+   "pos": {
+    "x": 0,
+    "y": 120
+   }
+  },
+  {
+   "id": "history",
+   "type": "temporal-history",
+   "name": "History",
+   "pos": {
+    "x": -100,
+    "y": 240
+   }
+  },
+  {
+   "id": "matching",
+   "type": "temporal-matching",
+   "name": "Matching",
+   "pos": {
+    "x": 100,
+    "y": 240
+   }
+  },
+  {
+   "id": "db",
+   "type": "temporal-persistence",
+   "skin": "temporal-cassandra",
+   "name": "Persistence",
+   "pos": {
+    "x": -100,
+    "y": 360
+   }
+  },
+  {
+   "id": "worker-1",
+   "type": "temporal-worker",
+   "name": "Worker 1",
+   "pos": {
+    "x": 40,
+    "y": 360
+   },
+   "config": {
+    "actP50Ms": 1500,
+    "actP99Ms": 3000,
+    "startToCloseSec": 8
+   }
+  },
+  {
+   "id": "worker-2",
+   "type": "temporal-worker",
+   "name": "Worker 2",
+   "pos": {
+    "x": 150,
+    "y": 360
+   },
+   "config": {
+    "actP50Ms": 1500,
+    "actP99Ms": 3000,
+    "startToCloseSec": 8
+   }
+  }
+ ],
+ "edges": [
+  {
+   "id": "e-app",
+   "from": "app",
+   "to": "frontend"
+  },
+  {
+   "id": "e-fh",
+   "from": "frontend",
+   "to": "history"
+  },
+  {
+   "id": "e-fm",
+   "from": "frontend",
+   "to": "matching"
+  },
+  {
+   "id": "e-hdb",
+   "from": "history",
+   "to": "db"
+  },
+  {
+   "id": "e-hm",
+   "from": "history",
+   "to": "matching",
+   "config": {
+    "mode": "async"
+   }
+  },
+  {
+   "id": "e-w1",
+   "from": "worker-1",
+   "to": "frontend"
+  },
+  {
+   "id": "e-w2",
+   "from": "worker-2",
+   "to": "frontend"
+  }
+ ],
+ "containers": [],
+ "scenario": {
+  "durationSec": 180,
+  "sources": [
+   {
+    "id": "starts",
+    "node": "app",
+    "shape": {
+     "kind": "constant",
+     "rps": 2
+    },
+    "readRatio": 1
+   }
+  ],
+  "events": []
+ },
+ "wire": {
+  "host": "api.printnow.com",
+  "read": {
+   "path": "/v1/print-jobs/{key}",
+   "body": "{\"workflow_id\": \"print-{key}\", \"status\": \"RUNNING\"}"
+  },
+  "write": {
+   "method": "POST",
+   "path": "/v1/print-jobs",
+   "reqBody": "{\"design_id\": {key}, \"copies\": {value}}",
+   "status": 202,
+   "body": "{\"workflow_id\": \"print-{key}\"}"
+  }
+ }
+}

@@ -1,0 +1,172 @@
+{
+  "schemaVersion": 1,
+  "id": "edge-rate-limit",
+  "name": "Rate limiting: local vs shared",
+  "description": "Both limiters allow 200 req/s. Left: 3 instances with local counters each admit 200 \u2192 ~600/s gets through. Right: counters in Redis \u2192 ~200/s, at the cost of an extra hop. At 20s a 10\u00d7 burst hits both; try token-bucket vs fixed-window.",
+  "nodes": [
+    {
+      "id": "web1",
+      "type": "web-client",
+      "name": "Users (local)",
+      "pos": {
+        "x": 55,
+        "y": 60
+      }
+    },
+    {
+      "id": "rl1",
+      "type": "rate-limiter",
+      "name": "Limiter \u00d73 (local)",
+      "pos": {
+        "x": 55,
+        "y": 200
+      },
+      "config": {
+        "algorithm": "fixed-window",
+        "limit": 200,
+        "instances": 3,
+        "store": "local"
+      }
+    },
+    {
+      "id": "api1",
+      "type": "service",
+      "name": "API",
+      "pos": {
+        "x": 55,
+        "y": 340
+      },
+      "config": {
+        "instances": 4
+      }
+    },
+    {
+      "id": "web2",
+      "type": "web-client",
+      "name": "Users (shared)",
+      "pos": {
+        "x": 265,
+        "y": 60
+      }
+    },
+    {
+      "id": "rl2",
+      "type": "rate-limiter",
+      "name": "Limiter \u00d73 (Redis)",
+      "pos": {
+        "x": 265,
+        "y": 200
+      },
+      "skin": "redis-rate-limiter",
+      "config": {
+        "algorithm": "fixed-window",
+        "limit": 200,
+        "instances": 3,
+        "store": "shared"
+      }
+    },
+    {
+      "id": "redis",
+      "type": "cache",
+      "name": "Redis counters",
+      "pos": {
+        "x": 335,
+        "y": 340
+      }
+    },
+    {
+      "id": "api2",
+      "type": "service",
+      "name": "API",
+      "pos": {
+        "x": 195,
+        "y": 340
+      },
+      "config": {
+        "instances": 4
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "web1->rl1",
+      "from": "web1",
+      "to": "rl1"
+    },
+    {
+      "id": "rl1->api1",
+      "from": "rl1",
+      "to": "api1"
+    },
+    {
+      "id": "web2->rl2",
+      "from": "web2",
+      "to": "rl2"
+    },
+    {
+      "id": "rl2->api2",
+      "from": "rl2",
+      "to": "api2"
+    },
+    {
+      "id": "rl2->redis",
+      "from": "rl2",
+      "to": "redis",
+      "config": {
+        "route": "store",
+        "timeoutMs": 50
+      }
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 90,
+    "sources": [
+      {
+        "id": "s1",
+        "node": "web1",
+        "shape": {
+          "kind": "constant",
+          "rps": 150
+        }
+      },
+      {
+        "id": "s2",
+        "node": "web2",
+        "shape": {
+          "kind": "constant",
+          "rps": 150
+        }
+      }
+    ],
+    "events": [
+      {
+        "atSec": 20,
+        "event": {
+          "kind": "traffic",
+          "action": "burst",
+          "params": {
+            "x": 10
+          },
+          "durationSec": 10
+        }
+      }
+    ]
+  },
+  "wire": {
+    "host": "api.weather.io",
+    "read": {
+      "method": "GET",
+      "path": "/v1/forecast?city={key}",
+      "body": "{\"city\": {key}, \"temp_c\": 18, \"cond\": \"cloudy\"}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/v1/alerts",
+      "reqBody": "{\"city\": {key}, \"threshold\": {value}}",
+      "status": 201,
+      "body": "{\"alert_id\": {key}}"
+    },
+    "cachePrefix": "rl:"
+  }
+}

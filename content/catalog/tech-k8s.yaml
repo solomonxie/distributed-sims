@@ -1,0 +1,118 @@
+group: { id: tech, label: Under the hood, order: 14 }
+# Kubernetes internals (technologies.md v1.1). etcd = consensus-member (etcd skin, own group).
+# Protocol kinds: k8s.create/delete/bind/status/scale/rollout/node/lease (rpc to the API server), etcd.put (API server → etcd).
+# Times are sim-scaled: node grace 5s (real 40s), eviction 10s (real 5min), crash back-off 1s→16s (real 10s→5min).
+types:
+  - type: k8s-api-server
+    label: kube-apiserver
+    description: Front door of the control plane; validates every change and is the only component that talks to etcd
+    icon: server-cog
+    costPerInstanceMonth: 70
+    knobs:
+      - { key: cluster, label: Cluster, kind: string, default: k8s, help: Components with the same cluster name work together }
+      - { key: etcdTimeoutMs, label: etcd timeout, kind: ms, default: 1000, min: 50, max: 30000, advanced: true }
+      - { key: slots, label: Slots, kind: int, default: 64, min: 1, max: 4096, advanced: true }
+      - { key: p50Ms, label: Request p50, kind: ms, default: 1, min: 0.1, max: 1000 }
+      - { key: p99Ms, label: Request p99, kind: ms, default: 5, min: 0.1, max: 5000 }
+      - { key: queueLimit, label: Queue limit, kind: int, default: 1000, min: 0, max: 100000, advanced: true }
+      - { key: costMonth, label: Cost / month, kind: number, default: 70, unit: $, advanced: true }
+  - type: k8s-scheduler
+    label: kube-scheduler
+    description: Watches Pending pods and binds each to a Ready node with enough free CPU (least-allocated first)
+    icon: calendar-check
+    costPerInstanceMonth: 0
+    knobs:
+      - { key: cluster, label: Cluster, kind: string, default: k8s }
+      - { key: loopMs, label: Scheduling loop, kind: ms, default: 200, min: 10, max: 10000, advanced: true }
+      - { key: costMonth, label: Cost / month, kind: number, default: 0, unit: $, advanced: true }
+  - type: k8s-controller-manager
+    label: kube-controller-manager
+    description: Reconcile loops — Deployment/ReplicaSet (rolling update), node lifecycle (NotReady → evict), HPA
+    icon: refresh-cw
+    costPerInstanceMonth: 0
+    knobs:
+      - { key: cluster, label: Cluster, kind: string, default: k8s }
+      - { key: replicas, label: Replicas, kind: int, default: 3, min: 0, max: 100, help: Deployment spec.replicas at start }
+      - { key: podCpuMillis, label: Pod CPU request, kind: number, default: 500, min: 10, max: 64000, unit: m }
+      - { key: maxSurgePct, label: maxSurge, kind: percent, default: 25, min: 0, max: 100, help: Extra pods allowed during a rollout (rounded up) }
+      - { key: maxUnavailablePct, label: maxUnavailable, kind: percent, default: 25, min: 0, max: 100, help: "Pods that may be not Ready during a rollout (rounded down); 100% ≈ Recreate" }
+      - { key: progressDeadlineSec, label: Progress deadline, kind: number, default: 20, min: 1, max: 3600, unit: s, advanced: true, help: Real default 600s }
+      - { key: hpa, label: HPA, kind: bool, default: false, help: HorizontalPodAutoscaler on CPU }
+      - { key: hpaTargetPct, label: HPA CPU target, kind: percent, default: 60, min: 1, max: 100 }
+      - { key: hpaMin, label: HPA min, kind: int, default: 2, min: 1, max: 100 }
+      - { key: hpaMax, label: HPA max, kind: int, default: 10, min: 1, max: 1000 }
+      - { key: hpaSyncSec, label: HPA sync, kind: number, default: 3, min: 1, max: 60, unit: s, advanced: true, help: Real default 15s }
+      - { key: hpaDownWindowSec, label: Scale-down window, kind: number, default: 15, min: 0, max: 3600, unit: s, advanced: true, help: Real default 300s }
+      - { key: nodeGraceSec, label: Node grace period, kind: number, default: 5, min: 1, max: 600, unit: s, help: No heartbeat this long → NotReady (real 40s) }
+      - { key: evictionSec, label: Eviction timeout, kind: number, default: 10, min: 1, max: 3600, unit: s, help: NotReady this long → pods evicted and recreated (real 300s) }
+      - { key: loopMs, label: Reconcile loop, kind: ms, default: 500, min: 50, max: 60000, advanced: true }
+      - { key: costMonth, label: Cost / month, kind: number, default: 0, unit: $, advanced: true }
+  - type: k8s-kubelet
+    label: Kubelet (worker node)
+    description: Agent on each node; starts the pods bound to it, runs readiness probes, restarts crashed containers with back-off
+    icon: server
+    costPerInstanceMonth: 70
+    knobs:
+      - { key: cluster, label: Cluster, kind: string, default: k8s }
+      - { key: cpuMillis, label: Allocatable CPU, kind: number, default: 2000, min: 100, max: 256000, unit: m }
+      - { key: podSlots, label: Concurrency per pod, kind: int, default: 4, min: 1, max: 1024 }
+      - { key: p50Ms, label: Pod request p50, kind: ms, default: 20, min: 0.1, max: 60000 }
+      - { key: p99Ms, label: Pod request p99, kind: ms, default: 60, min: 0.1, max: 60000 }
+      - { key: podStartMs, label: Pod start (pull + start), kind: ms, default: 2000, min: 0, max: 600000 }
+      - { key: readinessDelayMs, label: Readiness initial delay, kind: ms, default: 1000, min: 0, max: 600000 }
+      - { key: terminationGraceMs, label: Termination grace, kind: ms, default: 1500, min: 0, max: 600000, advanced: true, help: A deleted pod keeps finishing in-flight requests this long (real 30s) }
+      - { key: probePeriodMs, label: Probe period, kind: ms, default: 500, min: 50, max: 60000, advanced: true }
+      - { key: heartbeatMs, label: Node heartbeat, kind: ms, default: 1000, min: 100, max: 60000, advanced: true, help: Lease renewal (real 10s) }
+      - { key: backoffMs, label: Crash back-off base, kind: ms, default: 1000, min: 10, max: 600000, advanced: true, help: Doubles per restart (real 10s) }
+      - { key: backoffMaxMs, label: Crash back-off max, kind: ms, default: 16000, min: 10, max: 3600000, advanced: true, help: Real 5 min }
+      - { key: crashAfterMs, label: Crash after start, kind: ms, default: 800, min: 0, max: 60000, advanced: true }
+      - { key: queueLimit, label: Queue limit, kind: int, default: 1000, min: 0, max: 100000, advanced: true }
+      - { key: costMonth, label: Cost / month, kind: number, default: 70, unit: $, advanced: true }
+  - type: k8s-service
+    label: Service (kube-proxy)
+    description: Virtual IP; kube-proxy spreads connections over the Ready pods listed in the Service's endpoints
+    icon: network
+    costPerInstanceMonth: 0
+    knobs:
+      - { key: cluster, label: Cluster, kind: string, default: k8s }
+      - { key: syncMs, label: Endpoint sync, kind: ms, default: 500, min: 50, max: 60000, advanced: true }
+      - { key: costMonth, label: Cost / month, kind: number, default: 0, unit: $, advanced: true }
+skins:
+  - { name: kube-apiserver, type: k8s-api-server, label: kube-apiserver, description: Kubernetes API server, icon: brand:kubernetes, tags: [kubernetes, control-plane], defaults: { costMonth: 70 } }
+  - { name: kube-scheduler, type: k8s-scheduler, label: kube-scheduler, description: Default Kubernetes scheduler, icon: brand:kubernetes, tags: [kubernetes, control-plane] }
+  - { name: kube-controller-manager, type: k8s-controller-manager, label: kube-controller-manager, description: Deployment, node and HPA controllers, icon: brand:kubernetes, tags: [kubernetes, control-plane] }
+  - { name: kubelet-node, type: k8s-kubelet, label: Worker node, description: Kubelet + container runtime on a VM, icon: brand:kubernetes, tags: [kubernetes, node], defaults: { costMonth: 70 } }
+  - { name: kube-proxy-service, type: k8s-service, label: Service (ClusterIP), description: kube-proxy iptables rules to Ready pods, icon: brand:kubernetes, tags: [kubernetes, networking] }
+  - name: kubernetes-internals
+    type: k8s-service
+    label: Kubernetes (internals)
+    description: Service → 3 worker nodes; API server, scheduler, controller manager and a 3-member etcd; drill in to see pods move
+    icon: brand:kubernetes
+    tags: [kubernetes, composite]
+    defaults: { costMonth: 390 }
+    ports: { in: svc }
+    internals:
+      schemaVersion: 1
+      id: kubernetes-internals
+      name: Kubernetes
+      nodes:
+        - { id: svc, type: k8s-service, skin: kube-proxy-service, name: Service web, pos: { x: 195, y: 0 } }
+        - { id: node-1, type: k8s-kubelet, skin: kubelet-node, name: node-1, pos: { x: 60, y: 130 } }
+        - { id: node-2, type: k8s-kubelet, skin: kubelet-node, name: node-2, pos: { x: 195, y: 130 } }
+        - { id: node-3, type: k8s-kubelet, skin: kubelet-node, name: node-3, pos: { x: 330, y: 130 } }
+        - { id: sched, type: k8s-scheduler, skin: kube-scheduler, name: scheduler, pos: { x: 60, y: 260 } }
+        - { id: api, type: k8s-api-server, skin: kube-apiserver, name: API server, pos: { x: 195, y: 260 } }
+        - { id: ctrl, type: k8s-controller-manager, skin: kube-controller-manager, name: controllers, pos: { x: 330, y: 260 } }
+        - { id: etcd-1, type: consensus-member, skin: etcd, name: etcd-1, pos: { x: 90, y: 390 }, config: { group: k8s-etcd, heartbeatMs: 50, electionMinMs: 300, electionMaxMs: 600 } }
+        - { id: etcd-2, type: consensus-member, skin: etcd, name: etcd-2, pos: { x: 195, y: 390 }, config: { group: k8s-etcd, heartbeatMs: 50, electionMinMs: 300, electionMaxMs: 600 } }
+        - { id: etcd-3, type: consensus-member, skin: etcd, name: etcd-3, pos: { x: 300, y: 390 }, config: { group: k8s-etcd, heartbeatMs: 50, electionMinMs: 300, electionMaxMs: 600 } }
+      edges:
+        - { id: e1, from: svc, to: node-1 }
+        - { id: e2, from: svc, to: node-2 }
+        - { id: e3, from: svc, to: node-3 }
+        - { id: e4, from: api, to: etcd-1 }
+        - { id: e5, from: api, to: etcd-2 }
+        - { id: e6, from: api, to: etcd-3 }
+        - { id: e7, from: sched, to: api }
+        - { id: e8, from: ctrl, to: api }
+      containers: []

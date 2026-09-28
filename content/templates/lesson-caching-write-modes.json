@@ -1,0 +1,166 @@
+{
+  "schemaVersion": 1,
+  "id": "lesson-caching-write-modes",
+  "name": "Lesson: write-through vs write-behind",
+  "description": "Two lanes over a slow Postgres (writes ~40ms). Lane A: write-through Redis, writes wait for the DB. Lane B: write-behind Redis, acks at once and flushes every 5s.",
+  "nodes": [
+    {
+      "id": "web",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 195,
+        "y": 60
+      }
+    },
+    {
+      "id": "api-t",
+      "type": "service",
+      "name": "API A",
+      "pos": {
+        "x": 90,
+        "y": 180
+      }
+    },
+    {
+      "id": "api-b",
+      "type": "service",
+      "name": "API B",
+      "pos": {
+        "x": 300,
+        "y": 180
+      }
+    },
+    {
+      "id": "through",
+      "type": "cache",
+      "skin": "redis",
+      "name": "Write-through",
+      "pos": {
+        "x": 90,
+        "y": 300
+      },
+      "config": {
+        "strategy": "write-through",
+        "capacityKeys": 1024,
+        "ttlSec": 300
+      }
+    },
+    {
+      "id": "behind",
+      "type": "cache",
+      "skin": "redis",
+      "name": "Write-behind",
+      "pos": {
+        "x": 300,
+        "y": 300
+      },
+      "config": {
+        "strategy": "write-behind",
+        "capacityKeys": 1024,
+        "ttlSec": 300,
+        "flushMs": 5000
+      }
+    },
+    {
+      "id": "db-t",
+      "type": "relational-db",
+      "skin": "postgres",
+      "name": "Postgres A",
+      "pos": {
+        "x": 90,
+        "y": 420
+      },
+      "config": {
+        "replicas": 0,
+        "writeP50Ms": 40,
+        "writeP99Ms": 150
+      }
+    },
+    {
+      "id": "db-b",
+      "type": "relational-db",
+      "skin": "postgres",
+      "name": "Postgres B",
+      "pos": {
+        "x": 300,
+        "y": 420
+      },
+      "config": {
+        "replicas": 0,
+        "writeP50Ms": 40,
+        "writeP99Ms": 150
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "web",
+      "to": "api-t",
+      "config": {
+        "ratio": 0.5
+      }
+    },
+    {
+      "id": "e2",
+      "from": "web",
+      "to": "api-b",
+      "config": {
+        "ratio": 0.5
+      }
+    },
+    {
+      "id": "e3",
+      "from": "api-t",
+      "to": "through"
+    },
+    {
+      "id": "e4",
+      "from": "api-b",
+      "to": "behind"
+    },
+    {
+      "id": "e5",
+      "from": "through",
+      "to": "db-t"
+    },
+    {
+      "id": "e6",
+      "from": "behind",
+      "to": "db-b"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 300,
+    "sources": [
+      {
+        "id": "s1",
+        "node": "web",
+        "shape": {
+          "kind": "constant",
+          "rps": 300
+        },
+        "readRatio": 0.5
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "game.example",
+    "read": {
+      "path": "/api/players/{key}/stats"
+    },
+    "write": {
+      "method": "PUT",
+      "path": "/api/players/{key}/stats",
+      "reqBody": "{\"xp\": {value}}",
+      "status": 200,
+      "body": "{\"player\": {key}, \"xp\": {value}}"
+    },
+    "table": "player_stats",
+    "valCol": "xp",
+    "cachePrefix": "stats:"
+  }
+}

@@ -1,0 +1,111 @@
+id: rate-limit
+title: Rate limit
+group: topics
+icon: gauge
+order: 6
+summary: Cap how fast clients can call you, and shed what you can't serve.
+info: A rate limiter counts requests per key (global, per tenant, per user) and answers 429 once the budget is spent. The algorithm decides how bursts are treated, and where the counters live decides whether a fleet of limiters actually enforces one limit. Load shedding is the server-side twin, dropping excess work early so admitted requests stay fast.
+algos: [token-bucket, leaky-bucket, sliding-window]
+problems: [rate-limiter]
+lessons:
+  - id: token-vs-leaky
+    title: Token bucket vs leaky bucket
+    minutes: 4
+    template: lesson-ratelimit-buckets
+    steps:
+      - title: Two limiters, same budget
+        body: Both allow 100 req/s with room for 100 extra. At 60 req/s nothing is rejected.
+        watch: Both limiter badges show no 429s.
+        check: { metric: time, op: '>=', value: 5 }
+      - title: Burst 20×
+        body: Tap ⚡ Break → Burst ×20 for 5s. The token bucket spends its 100 saved tokens at once, then rejects everything above 100/s.
+        action: { event: { kind: traffic, action: burst, params: { x: 20 }, durationSec: 5 } }
+        watch: "429 n/s appears on the Token bucket badge."
+        check: { metric: 'gauge:rejected', target: rl-token, op: '>=', value: 100 }
+      - title: The leaky bucket queues instead
+        body: The leaky bucket holds up to 100 requests and lets them out at a steady 100/s. Admitted requests wait up to a second, and the overflow is rejected.
+        watch: Users p99 on the right climbs toward ~1s, while the left stays fast.
+        check: { metric: p99, target: users-lb, op: '>=', value: 500 }
+      - title: Back to normal
+        body: When the burst ends, the token bucket refills and the leaky bucket drains. Use token bucket for APIs that should allow short bursts, and leaky bucket when the downstream needs a smooth rate.
+        check: { metric: availability, target: users-tb, op: '>=', value: 99.5 }
+
+  - id: fixed-vs-sliding
+    title: Fixed vs sliding window
+    minutes: 3
+    algo: sliding-window
+    steps:
+      - title: Limit 5 per second
+        body: Top row counts per calendar second and resets at each boundary. Bottom row counts what was admitted in the last 1s, at every request.
+        check: { metric: manual }
+      - title: A burst straddles the boundary
+        body: Step through the requests at 0.8–1.16s. The fixed window admits 5 before 1.0s and 5 more right after the reset.
+        watch: 10 green dots within ~0.4s on the top row, which is 2× the limit.
+        check: { metric: manual }
+      - title: Sliding log holds the line
+        body: The sliding log sees all 5 earlier admits still inside its window and rejects the rest. Switch the input to Sliding counter for the O(1)-memory estimate Redis and Cloudflare use.
+        check: { metric: manual }
+
+  - id: distributed-limiter
+    title: Distributed limiter
+    minutes: 4
+    template: edge-rate-limit
+    steps:
+      - title: Three limiters, one limit
+        body: Both sides allow 200 req/s. Left, 3 limiter instances each keep local counters. Right, all 3 count in Redis.
+        watch: The left badge says local ×3 and the right one says shared.
+        check: { metric: time, op: '>=', value: 5 }
+      - title: Burst 10×
+        body: Tap ⚡ Break → Burst ×10 (it also fires at 20s). Each local instance admits its own 200/s.
+        action: { event: { kind: traffic, action: burst, params: { x: 10 }, durationSec: 10 } }
+        watch: About 600 req/s get through on the left, 3× the limit.
+        check: { metric: 'gauge:allowed', target: rl1, op: '>=', value: 400 }
+      - title: Shared counters enforce it
+        body: The Redis-backed limiter admits ~200/s in total, at the cost of one extra hop per request.
+        watch: 429s pile up on the right while the API behind it stays calm.
+        check: { metric: 'gauge:rejected', target: rl2, op: '>=', value: 500 }
+      - title: Redis goes down
+        body: Kill Redis. The limiter fails open, so traffic keeps flowing but nothing is limited until Redis is back.
+        action: { event: { kind: kill, target: redis, durationSec: 15 } }
+        watch: The failOpen gauge counts requests let through without a check.
+        check: { metric: 'gauge:failOpen', target: rl2, op: '>=', value: 1 }
+
+  - id: per-tenant
+    title: Per-tenant limits
+    minutes: 4
+    template: lesson-ratelimit-tenants
+    steps:
+      - title: Two tenants, two policies
+        body: Acme and Noisy Co send 80 req/s each. Left is one global budget of 200/s, right is 100/s per tenant.
+        check: { metric: time, op: '>=', value: 5 }
+      - title: Noisy tenant bursts on the left
+        body: Noisy Co sends 10× for 20s against the global limit. It takes most of the shared tokens.
+        action: { event: { kind: traffic, source: noisy-g, action: burst, params: { x: 10 }, durationSec: 20 } }
+        watch: Acme on the left starts getting 429s although it didn't change.
+        check: { metric: availability, target: acme-g, op: '<', value: 60 }
+      - title: Same burst on the right
+        body: Now Noisy Co bursts against the per-tenant limiter. Only its own bucket runs dry.
+        action: { event: { kind: traffic, source: noisy-t, action: burst, params: { x: 10 }, durationSec: 20 } }
+        watch: Hundreds of 429s per second for Noisy Co, while Acme on the right stays at 100%.
+        check: { metric: 'gauge:rejected', target: rl-tenant, op: '>=', value: 300 }
+
+  - id: load-shedding
+    title: Backpressure & load shedding
+    minutes: 4
+    template: lesson-ratelimit-shedding
+    steps:
+      - title: Same API, different queues
+        body: Each API handles about 600 req/s. The left one queues without limit, and the right one keeps at most 40 waiting.
+        check: { metric: time, op: '>=', value: 5 }
+      - title: Overload 3×
+        body: Tap ⚡ Break → Burst ×3 for 30s. The unbounded queue grows by hundreds per second.
+        action: { event: { kind: traffic, action: burst, params: { x: 3 }, durationSec: 30 } }
+        watch: Left p99 climbs into seconds, then requests time out.
+        check: { metric: p99, target: users-q, op: '>=', value: 1000 }
+      - title: Shedding keeps p99 low
+        body: The bounded API rejects excess requests right away with 503. The requests it does admit wait behind at most 40 others.
+        watch: Right error rate jumps, but its p99 stays low.
+        check: { metric: errRate, target: users-s, op: '>=', value: 10 }
+      - title: Recovery
+        body: After the burst the right side recovers at once. The left one still has to work through its backlog of stale requests, which nobody is waiting for any more.
+        check: { metric: availability, target: users-q, op: '>=', value: 99 }

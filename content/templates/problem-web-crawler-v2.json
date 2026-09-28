@@ -1,0 +1,215 @@
+{
+  "schemaVersion": 1,
+  "id": "problem-web-crawler-v2",
+  "name": "Web crawler — reference",
+  "description": "URLs are checked against a Bloom-filter seen-set and appended to a Kafka frontier partitioned by host; fetchers consume per host with a politeness limiter and a DNS cache.",
+  "nodes": [
+    {
+      "id": "users",
+      "type": "bot",
+      "skin": "crawler",
+      "name": "Discovered URLs",
+      "pos": {
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "id": "frontier-api",
+      "type": "service",
+      "skin": "go-service",
+      "name": "Frontier API",
+      "pos": {
+        "x": 0,
+        "y": 110
+      },
+      "config": {
+        "instances": 2
+      }
+    },
+    {
+      "id": "seen",
+      "type": "cache",
+      "skin": "redis",
+      "name": "Seen-set (Bloom filter)",
+      "pos": {
+        "x": -100,
+        "y": 220
+      },
+      "config": {
+        "capacityKeys": 1024,
+        "ttlSec": 86400
+      }
+    },
+    {
+      "id": "frontier",
+      "type": "log-stream",
+      "skin": "kafka",
+      "name": "URL frontier (by host)",
+      "pos": {
+        "x": 100,
+        "y": 220
+      },
+      "config": {
+        "partitions": 12,
+        "fetchBatch": 100,
+        "maxRecordsPerPartition": 200000
+      }
+    },
+    {
+      "id": "fetchers",
+      "type": "worker",
+      "name": "Fetchers",
+      "pos": {
+        "x": 100,
+        "y": 330
+      },
+      "config": {
+        "instances": 8,
+        "slots": 32,
+        "p50Ms": 2,
+        "p99Ms": 10,
+        "idempotent": true
+      }
+    },
+    {
+      "id": "dns",
+      "type": "cache",
+      "skin": "redis",
+      "name": "DNS cache",
+      "pos": {
+        "x": -100,
+        "y": 440
+      },
+      "config": {
+        "capacityKeys": 1024,
+        "ttlSec": 300
+      }
+    },
+    {
+      "id": "resolver",
+      "type": "external-api",
+      "name": "DNS resolvers",
+      "pos": {
+        "x": -100,
+        "y": 550
+      },
+      "config": {
+        "p50Ms": 20,
+        "p99Ms": 120,
+        "quotaRps": 5000,
+        "slots": 2000
+      }
+    },
+    {
+      "id": "polite",
+      "type": "rate-limiter",
+      "name": "Politeness (per host)",
+      "pos": {
+        "x": 100,
+        "y": 440
+      },
+      "config": {
+        "scope": "per-key",
+        "algorithm": "token-bucket",
+        "limit": 50,
+        "burst": 50
+      }
+    },
+    {
+      "id": "web",
+      "type": "external-api",
+      "name": "The web",
+      "pos": {
+        "x": 100,
+        "y": 550
+      },
+      "config": {
+        "p50Ms": 80,
+        "p99Ms": 400,
+        "quotaRps": 2500,
+        "slots": 5000,
+        "availabilityPct": 99.9
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "users->frontier-api",
+      "from": "users",
+      "to": "frontier-api"
+    },
+    {
+      "id": "frontier-api->seen",
+      "from": "frontier-api",
+      "to": "seen"
+    },
+    {
+      "id": "frontier-api->frontier",
+      "from": "frontier-api",
+      "to": "frontier",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "frontier->fetchers",
+      "from": "frontier",
+      "to": "fetchers"
+    },
+    {
+      "id": "fetchers->dns",
+      "from": "fetchers",
+      "to": "dns"
+    },
+    {
+      "id": "dns->resolver",
+      "from": "dns",
+      "to": "resolver"
+    },
+    {
+      "id": "fetchers->polite",
+      "from": "fetchers",
+      "to": "polite"
+    },
+    {
+      "id": "polite->web",
+      "from": "polite",
+      "to": "web"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 60,
+    "sources": [
+      {
+        "id": "seeds",
+        "node": "users",
+        "shape": {
+          "kind": "constant",
+          "rps": 1500
+        },
+        "readRatio": 1
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "frontier.internal",
+    "read": {
+      "method": "GET",
+      "path": "/v1/urls/{key}",
+      "status": 200,
+      "body": "{\"url\": \"https://site{key}.example/\", \"status\": \"fetched\", \"http\": 200}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/v1/urls",
+      "reqBody": "{\"url\": \"https://site{key}.example/page\"}",
+      "status": 202,
+      "body": "{\"queued\": true}"
+    },
+    "cachePrefix": "seen:",
+    "topic": "frontier"
+  }
+}

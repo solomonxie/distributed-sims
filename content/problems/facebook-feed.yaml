@@ -1,0 +1,54 @@
+id: facebook-feed
+title: Facebook news feed
+icon: layout-list
+category: product
+order: 8
+summary: Build each user's feed from the people they follow, fast.
+requirements:
+  - Post text/photos; see a ranked feed of friends' and pages' posts
+  - Feed load p99 < 300ms even when a celebrity posts
+  - Posts appear in followers' feeds within a minute
+  - 2B users · 500M DAU · 10 feed loads/user/day
+estimates:
+  - Feed reads ~60k/s · posts ~6k/s
+  - Avg 300 followers → 1.8M feed inserts/s on write fan-out
+  - Celebrity: 100M followers × 1 post = 100M inserts
+designs:
+  - { id: v1, title: "Naive: sync fan-out on write into one DB", template: problem-facebook-feed-v1 }
+  - { id: v2, title: "Reference: async fan-out, celebs on read, feed cache", template: problem-facebook-feed-v2 }
+challenges:
+  - id: celebrity-post
+    title: "Celebrity post, p99 feed < 300ms"
+    template: problem-facebook-feed-v2
+    scenario:
+      durationSec: 60
+      sources:
+        - { id: feed-reads, node: users, shape: { kind: constant, rps: 6000 }, readRatio: 1, keys: { kind: zipf, s: 0.9 } }
+        - { id: posts, node: authors, shape: { kind: constant, rps: 200 }, readRatio: 0, keys: { kind: uniform } }
+      events:
+        - { atSec: 30, event: { kind: traffic, source: posts, action: hot-key, params: { hot: 0.8 }, durationSec: 30 } }
+        - { atSec: 30, event: { kind: traffic, source: posts, action: burst, params: { x: 30 }, durationSec: 30 } }
+        - { atSec: 30, event: { kind: traffic, source: feed-reads, action: hot-key, params: { hot: 0.3 }, durationSec: 30 } }
+    pass:
+      - { metric: p99, op: '<', value: 300 }
+      - { metric: availability, op: '>=', value: 99.9 }
+  - id: db-failover
+    title: "Feeds DB failover during evening scroll"
+    template: problem-facebook-feed-v2
+    scenario:
+      durationSec: 60
+      sources:
+        - { id: feed-reads, node: users, shape: { kind: constant, rps: 6000 }, readRatio: 1, keys: { kind: zipf, s: 0.9 } }
+        - { id: posts, node: authors, shape: { kind: constant, rps: 200 }, readRatio: 0, keys: { kind: uniform } }
+      events:
+        - { atSec: 20, event: { kind: traffic, source: feed-reads, action: ramp, params: { x: 2 }, durationSec: 15 } }
+        - { atSec: 35, event: { kind: kill-leader, target: db } }
+    pass:
+      - { metric: p99, op: '<', value: 300 }
+      - { metric: availability, op: '>=', value: 99.9 }
+      - { metric: costMonth, op: '<=', value: 2000 }
+keyIdeas:
+  - { label: Fan-out on write vs on read, link: "lesson:message-queue/fan-out" }
+  - { label: Celebrity = hot key, link: "lesson:sharding/hot-key" }
+  - { label: Precomputed feeds in a cache, link: "lesson:caching/cache-aside" }
+  - { label: Cache rides out a DB failover, link: "lesson:consistency/replication-lag" }

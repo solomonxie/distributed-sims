@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "id": "data-quorum",
+  "name": "Quorum N/R/W under partition",
+  "description": "Cassandra-style store, 3 members, N=3 with R=W=ONE. A split lets both sides accept writes: stale reads and divergence. Set read and write level to QUORUM (R+W>N): the minority side refuses instead, anomalies stay at zero.",
+  "nodes": [
+    { "id": "web", "type": "web-client", "name": "Users", "pos": { "x": 195, "y": 60 } },
+    { "id": "api", "type": "service", "name": "API", "pos": { "x": 195, "y": 200 } },
+    { "id": "kv", "type": "kv-store", "skin": "cassandra", "name": "Cassandra", "pos": { "x": 195, "y": 340 }, "config": { "members": 3, "replicationFactor": 3, "readConsistency": "one", "writeConsistency": "one" } }
+  ],
+  "edges": [
+    { "id": "e1", "from": "web", "to": "api" },
+    { "id": "e2", "from": "api", "to": "kv" }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 60,
+    "sources": [{ "id": "s1", "node": "web", "shape": { "kind": "constant", "rps": 400 }, "readRatio": 0.6 }],
+    "events": [{ "atSec": 15, "event": { "kind": "split-brain", "target": "kv", "durationSec": 20 } }]
+  },
+  "wire": {
+    "host": "api.shop.io",
+    "read": {
+      "method": "GET",
+      "path": "/api/users/{key}/cart",
+      "body": "{\"user_id\": {key}, \"items\": {value}}"
+    },
+    "write": {
+      "method": "PUT",
+      "path": "/api/users/{key}/cart",
+      "reqBody": "{\"items\": {value}}",
+      "status": 200,
+      "body": "{\"user_id\": {key}, \"ok\": true}"
+    },
+    "table": "carts"
+  }
+}

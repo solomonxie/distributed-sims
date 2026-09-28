@@ -1,0 +1,85 @@
+{
+  "schemaVersion": 1,
+  "id": "lesson-crypto-rotation",
+  "name": "Key rotation and re-encryption",
+  "description": "The API calls KMS for every record (no data-key cache) at ~600 calls/s against a 1000/s quota. Rotating the key starts a re-encrypt job that burns half the quota until it has rewrapped every object: live traffic gets 429s until it finishes.",
+  "nodes": [
+    {
+      "id": "web",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 195,
+        "y": 20
+      },
+      "skin": "react-spa"
+    },
+    {
+      "id": "api",
+      "type": "service",
+      "name": "Records API",
+      "pos": {
+        "x": 195,
+        "y": 150
+      },
+      "skin": "go-service",
+      "config": {
+        "instances": 4
+      }
+    },
+    {
+      "id": "kms",
+      "type": "kms",
+      "name": "KMS",
+      "pos": {
+        "x": 195,
+        "y": 290
+      },
+      "skin": "aws-kms",
+      "config": {
+        "quotaRps": 1000
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "web->api",
+      "from": "web",
+      "to": "api"
+    },
+    {
+      "id": "api->kms",
+      "from": "api",
+      "to": "kms"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 90,
+    "sources": [
+      {
+        "id": "s",
+        "node": "web",
+        "shape": {
+          "kind": "constant",
+          "rps": 600
+        },
+        "readRatio": 0.3
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "health.example",
+    "read": {
+      "path": "/api/records/{key}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/records",
+      "reqBody": "{\"patient_id\": {key}, \"note\": \"…\"}",
+      "status": 201,
+      "body": "{\"id\": {key}, \"key_version\": 2}"
+    }
+  }
+}

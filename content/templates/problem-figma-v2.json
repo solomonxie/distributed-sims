@@ -1,0 +1,189 @@
+{
+  "schemaVersion": 1,
+  "id": "problem-figma-v2",
+  "name": "Figma — reference",
+  "description": "Stateless multiplayer servers append every edit to a replicated journal before acking; a checkpointer folds the journal into Postgres, which serves document loads.",
+  "nodes": [
+    {
+      "id": "users",
+      "type": "web-client",
+      "skin": "react-spa",
+      "name": "Editors",
+      "pos": {
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "id": "alb",
+      "type": "load-balancer",
+      "skin": "aws-alb",
+      "name": "Load balancer",
+      "pos": {
+        "x": 0,
+        "y": 110
+      },
+      "config": {
+        "healthIntervalMs": 2000,
+        "algorithm": "least-conn"
+      }
+    },
+    {
+      "id": "mp-a",
+      "type": "service",
+      "skin": "go-service",
+      "name": "Multiplayer A",
+      "pos": {
+        "x": -90,
+        "y": 220
+      },
+      "config": {
+        "instances": 2
+      }
+    },
+    {
+      "id": "mp-b",
+      "type": "service",
+      "skin": "go-service",
+      "name": "Multiplayer B",
+      "pos": {
+        "x": 90,
+        "y": 220
+      },
+      "config": {
+        "instances": 2
+      }
+    },
+    {
+      "id": "journal",
+      "type": "log-stream",
+      "skin": "kafka",
+      "name": "Edit journal",
+      "pos": {
+        "x": 90,
+        "y": 330
+      }
+    },
+    {
+      "id": "checkpointer",
+      "type": "worker",
+      "name": "Checkpointer",
+      "pos": {
+        "x": 90,
+        "y": 440
+      },
+      "config": {
+        "instances": 2,
+        "slots": 32,
+        "p50Ms": 1,
+        "p99Ms": 5,
+        "idempotent": true
+      }
+    },
+    {
+      "id": "db",
+      "type": "relational-db",
+      "skin": "postgres",
+      "name": "Doc checkpoints",
+      "pos": {
+        "x": 0,
+        "y": 550
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "users->alb",
+      "from": "users",
+      "to": "alb"
+    },
+    {
+      "id": "alb->mp-a",
+      "from": "alb",
+      "to": "mp-a"
+    },
+    {
+      "id": "alb->mp-b",
+      "from": "alb",
+      "to": "mp-b"
+    },
+    {
+      "id": "mp-a->db",
+      "from": "mp-a",
+      "to": "db",
+      "config": {
+        "op": "read"
+      }
+    },
+    {
+      "id": "mp-a->journal",
+      "from": "mp-a",
+      "to": "journal",
+      "config": {
+        "op": "write"
+      }
+    },
+    {
+      "id": "mp-b->db",
+      "from": "mp-b",
+      "to": "db",
+      "config": {
+        "op": "read"
+      }
+    },
+    {
+      "id": "mp-b->journal",
+      "from": "mp-b",
+      "to": "journal",
+      "config": {
+        "op": "write"
+      }
+    },
+    {
+      "id": "journal->checkpointer",
+      "from": "journal",
+      "to": "checkpointer"
+    },
+    {
+      "id": "checkpointer->db",
+      "from": "checkpointer",
+      "to": "db"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 60,
+    "sources": [
+      {
+        "id": "editors",
+        "node": "users",
+        "shape": {
+          "kind": "constant",
+          "rps": 1000
+        },
+        "readRatio": 0.3
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "api.figma.example",
+    "read": {
+      "method": "GET",
+      "path": "/v1/files/{code}",
+      "status": 200,
+      "body": "{\"key\": \"{code}\", \"version\": {value}, \"nodes\": 1284}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/v1/files/{code}/ops",
+      "reqBody": "{\"op\": \"set\", \"node\": \"1:{key}\", \"prop\": \"x\", \"value\": {value}}",
+      "status": 200,
+      "body": "{\"ack\": true, \"seq\": {key}}"
+    },
+    "table": "documents",
+    "keyCol": "file_key",
+    "valCol": "snapshot",
+    "topic": "doc-journal"
+  }
+}

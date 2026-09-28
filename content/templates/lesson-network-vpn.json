@@ -1,0 +1,211 @@
+{
+  "schemaVersion": 1,
+  "id": "lesson-network-vpn",
+  "name": "Site-to-site VPN",
+  "description": "The app sits in a private VPC with no public address. Office users reach it through a VPN gateway and an IPsec tunnel: every packet is encrypted, crosses the internet inside the tunnel and is capped by the tunnel's throughput. Tunnel 2 is a standby; dead-peer detection moves traffic to it. Remote users take the public path through a load balancer.",
+  "nodes": [
+    {
+      "id": "office",
+      "type": "web-client",
+      "name": "Office",
+      "pos": {
+        "x": 110,
+        "y": 40
+      }
+    },
+    {
+      "id": "vpn",
+      "type": "vpn-gateway",
+      "name": "Office VPN",
+      "pos": {
+        "x": 110,
+        "y": 160
+      },
+      "config": {
+        "healthIntervalMs": 1000,
+        "unhealthyThreshold": 2
+      }
+    },
+    {
+      "id": "t1",
+      "type": "vpn-tunnel",
+      "name": "Tunnel 1",
+      "pos": {
+        "x": 25,
+        "y": 290
+      },
+      "config": {
+        "slots": 2,
+        "p50Ms": 2,
+        "p99Ms": 6
+      }
+    },
+    {
+      "id": "t2",
+      "type": "vpn-tunnel",
+      "name": "Tunnel 2",
+      "pos": {
+        "x": 195,
+        "y": 290
+      },
+      "config": {
+        "slots": 2,
+        "p50Ms": 2,
+        "p99Ms": 6
+      }
+    },
+    {
+      "id": "remote",
+      "type": "web-client",
+      "name": "Remote users",
+      "pos": {
+        "x": 365,
+        "y": 40
+      }
+    },
+    {
+      "id": "lb",
+      "type": "load-balancer",
+      "name": "Public LB",
+      "pos": {
+        "x": 365,
+        "y": 160
+      },
+      "skin": "aws-alb",
+      "config": {
+        "instances": 2
+      }
+    },
+    {
+      "id": "app",
+      "type": "service",
+      "name": "App",
+      "parent": "vpc",
+      "pos": {
+        "x": 280,
+        "y": 430
+      },
+      "config": {
+        "instances": 3
+      }
+    },
+    {
+      "id": "db",
+      "type": "relational-db",
+      "name": "DB",
+      "parent": "vpc",
+      "pos": {
+        "x": 280,
+        "y": 550
+      },
+      "skin": "postgres"
+    }
+  ],
+  "edges": [
+    {
+      "id": "office->vpn",
+      "from": "office",
+      "to": "vpn",
+      "config": {
+        "timeoutMs": 3000,
+        "latencyMs": 1
+      }
+    },
+    {
+      "id": "vpn->t1",
+      "from": "vpn",
+      "to": "t1",
+      "config": {
+        "timeoutMs": 1500,
+        "latencyMs": 1
+      }
+    },
+    {
+      "id": "vpn->t2",
+      "from": "vpn",
+      "to": "t2",
+      "config": {
+        "timeoutMs": 1500,
+        "latencyMs": 1
+      }
+    },
+    {
+      "id": "t1->app",
+      "from": "t1",
+      "to": "app",
+      "config": {
+        "latencyMs": 30
+      }
+    },
+    {
+      "id": "t2->app",
+      "from": "t2",
+      "to": "app",
+      "config": {
+        "latencyMs": 30
+      }
+    },
+    {
+      "id": "remote->lb",
+      "from": "remote",
+      "to": "lb",
+      "config": {
+        "timeoutMs": 3000
+      }
+    },
+    {
+      "id": "lb->app",
+      "from": "lb",
+      "to": "app"
+    },
+    {
+      "id": "app->db",
+      "from": "app",
+      "to": "db"
+    }
+  ],
+  "containers": [
+    {
+      "id": "vpc",
+      "kind": "vpc",
+      "name": "Private VPC"
+    }
+  ],
+  "scenario": {
+    "durationSec": 120,
+    "sources": [
+      {
+        "id": "office",
+        "node": "office",
+        "shape": {
+          "kind": "constant",
+          "rps": 400
+        }
+      },
+      {
+        "id": "remote",
+        "node": "remote",
+        "shape": {
+          "kind": "constant",
+          "rps": 200
+        }
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "erp.corp.internal",
+    "read": {
+      "path": "/api/invoices/{key}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/invoices",
+      "reqBody": "{\"customer_id\": {key}, \"total\": {value}}",
+      "status": 201,
+      "body": "{\"invoice_id\": {value}}"
+    },
+    "table": "invoices",
+    "valCol": "total"
+  }
+}

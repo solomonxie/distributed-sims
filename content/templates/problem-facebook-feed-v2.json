@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "id": "problem-facebook-feed-v2",
+  "name": "News feed: hybrid fan-out + feed cache",
+  "description": "Posts are acked once on Kafka; a bounded fan-out tier writes to follower feeds in the background, while celebrity posts are merged at read time. Feeds are served from Redis.",
+  "nodes": [
+    {"id":"users","type":"mobile-client","skin":"ios-app","name":"Readers","pos":{"x":-80,"y":0}},
+    {"id":"authors","type":"mobile-client","skin":"android-app","name":"Posters","pos":{"x":80,"y":0}},
+    {"id":"feed-api","type":"service","skin":"go-service","name":"Feed API (merge celebs)","pos":{"x":-80,"y":110},"config":{"instances":2}},
+    {"id":"post-api","type":"service","skin":"go-service","name":"Post API","pos":{"x":80,"y":110},"config":{"instances":2}},
+    {"id":"kafka","type":"log-stream","skin":"kafka","name":"Post log","pos":{"x":80,"y":220}},
+    {"id":"fanout","type":"worker","name":"Fan-out workers","pos":{"x":80,"y":330},"config":{"instances":4,"slots":4,"p50Ms":2,"p99Ms":10,"idempotent":true}},
+    {"id":"redis","type":"cache","skin":"redis","name":"Feed cache","pos":{"x":-80,"y":330},"config":{"capacityKeys":1024,"ttlSec":300,"coalescing":true,"invalidation":"update"}},
+    {"id":"db","type":"relational-db","skin":"postgres","name":"Feeds DB","pos":{"x":0,"y":440},"config":{"writeP50Ms":20,"writeP99Ms":80}}
+  ],
+  "edges": [
+    {"id":"users-feed-api","from":"users","to":"feed-api","config":{"timeoutMs":3000}},
+    {"id":"authors-post-api","from":"authors","to":"post-api","config":{"timeoutMs":3000}},
+    {"id":"feed-api-redis","from":"feed-api","to":"redis"},
+    {"id":"post-api-kafka","from":"post-api","to":"kafka"},
+    {"id":"kafka-fanout","from":"kafka","to":"fanout"},
+    {"id":"fanout-redis","from":"fanout","to":"redis"},
+    {"id":"redis-db","from":"redis","to":"db"}
+  ],
+  "containers": [],
+  "scenario": {"durationSec":60,"sources":[{"id":"feed-reads","node":"users","shape":{"kind":"constant","rps":6000},"readRatio":1,"keys":{"kind":"zipf","s":0.9}},{"id":"posts","node":"authors","shape":{"kind":"constant","rps":200},"readRatio":0,"keys":{"kind":"uniform"}}],"events":[]},
+  "wire": {
+    "host": "api.feed.example",
+    "read": {
+      "method": "GET",
+      "path": "/v1/users/{key}/feed?limit=20",
+      "status": 200,
+      "body": "{\"user_id\": {key}, \"posts\": [{\"id\": 9001, \"text\": \"…\"}], \"cursor\": \"c20\"}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/v1/posts",
+      "reqBody": "{\"author_id\": {key}, \"text\": \"hello world\"}",
+      "status": 201,
+      "body": "{\"post_id\": {key}, \"created_at\": \"2026-09-27T09:00:00Z\"}"
+    },
+    "table": "feed_items",
+    "valCol": "post_id",
+    "cachePrefix": "feed:",
+    "topic": "posts"
+  }
+}

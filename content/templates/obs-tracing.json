@@ -1,0 +1,189 @@
+{
+  "schemaVersion": 1,
+  "id": "obs-tracing",
+  "name": "Tracing & sampling",
+  "description": "Every service ships spans to an OTel collector (async). At 10s Payments starts failing 10%: with head sampling at 10% you keep only ~10% of error traces; switch sampling to tail to keep them all. At 35s a 10x burst overloads the collector: it drops telemetry (droppedPct) without hurting users.",
+  "nodes": [
+    {
+      "id": "web",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 55,
+        "y": 60
+      }
+    },
+    {
+      "id": "gw",
+      "type": "service",
+      "name": "Gateway",
+      "pos": {
+        "x": 195,
+        "y": 60
+      }
+    },
+    {
+      "id": "orders",
+      "type": "service",
+      "name": "Orders",
+      "pos": {
+        "x": 335,
+        "y": 60
+      }
+    },
+    {
+      "id": "pay",
+      "type": "service",
+      "name": "Payments",
+      "pos": {
+        "x": 335,
+        "y": 200
+      }
+    },
+    {
+      "id": "stripe",
+      "type": "external-api",
+      "skin": "stripe",
+      "name": "Stripe",
+      "pos": {
+        "x": 335,
+        "y": 340
+      },
+      "config": {
+        "quotaRps": 5000
+      }
+    },
+    {
+      "id": "otel",
+      "type": "trace-collector",
+      "skin": "otel-collector",
+      "name": "OTel collector",
+      "pos": {
+        "x": 55,
+        "y": 270
+      },
+      "config": {
+        "sampling": "head",
+        "sampleRate": 0.1,
+        "ingestLimit": 2000
+      }
+    },
+    {
+      "id": "prom",
+      "type": "metrics-collector",
+      "skin": "prometheus",
+      "name": "Prometheus",
+      "pos": {
+        "x": 195,
+        "y": 340
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "web-gw",
+      "from": "web",
+      "to": "gw"
+    },
+    {
+      "id": "gw-orders",
+      "from": "gw",
+      "to": "orders"
+    },
+    {
+      "id": "orders-pay",
+      "from": "orders",
+      "to": "pay"
+    },
+    {
+      "id": "pay-stripe",
+      "from": "pay",
+      "to": "stripe"
+    },
+    {
+      "id": "gw-otel",
+      "from": "gw",
+      "to": "otel",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "orders-otel",
+      "from": "orders",
+      "to": "otel",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "pay-otel",
+      "from": "pay",
+      "to": "otel",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "gw-prom",
+      "from": "gw",
+      "to": "prom",
+      "config": {
+        "mode": "async"
+      }
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 60,
+    "sources": [
+      {
+        "id": "s",
+        "node": "web",
+        "shape": {
+          "kind": "constant",
+          "rps": 200
+        }
+      }
+    ],
+    "events": [
+      {
+        "atSec": 10,
+        "event": {
+          "kind": "bad-deploy",
+          "target": "pay",
+          "params": {
+            "errPct": 10
+          },
+          "durationSec": 40
+        }
+      },
+      {
+        "atSec": 35,
+        "event": {
+          "kind": "traffic",
+          "action": "burst",
+          "params": {
+            "x": 10
+          },
+          "durationSec": 8
+        }
+      }
+    ]
+  },
+  "wire": {
+    "host": "shop.acme.io",
+    "read": {
+      "method": "GET",
+      "path": "/api/orders/{key}",
+      "body": "{\"id\": {key}, \"status\": \"paid\"}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/orders/{key}/pay",
+      "reqBody": "{\"amount\": {value}, \"currency\": \"usd\"}",
+      "status": 201,
+      "body": "{\"charge_id\": \"ch_{code}\"}"
+    }
+  }
+}

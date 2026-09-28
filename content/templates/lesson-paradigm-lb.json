@@ -1,0 +1,201 @@
+{
+  "schemaVersion": 1,
+  "id": "lesson-paradigm-lb",
+  "name": "Load balancer: round-robin vs P2C",
+  "description": "Two pools of three backends; one backend in each is 20× slower. Round-robin keeps feeding it a third of the traffic. Power-of-two-choices compares in-flight counts and starves the slow box.",
+  "nodes": [
+    {
+      "id": "w1",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 100,
+        "y": 20
+      },
+      "skin": "react-spa"
+    },
+    {
+      "id": "rr",
+      "type": "load-balancer",
+      "name": "LB round-robin",
+      "pos": {
+        "x": 100,
+        "y": 130
+      },
+      "skin": "nginx-lb",
+      "config": {
+        "algorithm": "round-robin"
+      }
+    },
+    {
+      "id": "a1",
+      "type": "service",
+      "name": "API 1",
+      "pos": {
+        "x": 40,
+        "y": 260
+      }
+    },
+    {
+      "id": "b1",
+      "type": "service",
+      "name": "API 2",
+      "pos": {
+        "x": 110,
+        "y": 330
+      }
+    },
+    {
+      "id": "s1",
+      "type": "service",
+      "name": "API 3 (slow)",
+      "pos": {
+        "x": 170,
+        "y": 260
+      },
+      "config": {
+        "p50Ms": 100,
+        "p99Ms": 300
+      }
+    },
+    {
+      "id": "w2",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 290,
+        "y": 20
+      },
+      "skin": "react-spa"
+    },
+    {
+      "id": "p2c",
+      "type": "load-balancer",
+      "name": "LB P2C",
+      "pos": {
+        "x": 290,
+        "y": 130
+      },
+      "skin": "envoy-lb",
+      "config": {
+        "algorithm": "p2c"
+      }
+    },
+    {
+      "id": "a2",
+      "type": "service",
+      "name": "API 1",
+      "pos": {
+        "x": 230,
+        "y": 260
+      }
+    },
+    {
+      "id": "b2",
+      "type": "service",
+      "name": "API 2",
+      "pos": {
+        "x": 290,
+        "y": 330
+      }
+    },
+    {
+      "id": "s2",
+      "type": "service",
+      "name": "API 3 (slow)",
+      "pos": {
+        "x": 350,
+        "y": 260
+      },
+      "config": {
+        "p50Ms": 100,
+        "p99Ms": 300
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "w1->rr",
+      "from": "w1",
+      "to": "rr"
+    },
+    {
+      "id": "rr->a1",
+      "from": "rr",
+      "to": "a1"
+    },
+    {
+      "id": "rr->b1",
+      "from": "rr",
+      "to": "b1"
+    },
+    {
+      "id": "rr->s1",
+      "from": "rr",
+      "to": "s1",
+      "config": {
+        "timeoutMs": 2000
+      }
+    },
+    {
+      "id": "w2->p2c",
+      "from": "w2",
+      "to": "p2c"
+    },
+    {
+      "id": "p2c->a2",
+      "from": "p2c",
+      "to": "a2"
+    },
+    {
+      "id": "p2c->b2",
+      "from": "p2c",
+      "to": "b2"
+    },
+    {
+      "id": "p2c->s2",
+      "from": "p2c",
+      "to": "s2",
+      "config": {
+        "timeoutMs": 2000
+      }
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 60,
+    "sources": [
+      {
+        "id": "q1",
+        "node": "w1",
+        "shape": {
+          "kind": "constant",
+          "rps": 400
+        }
+      },
+      {
+        "id": "q2",
+        "node": "w2",
+        "shape": {
+          "kind": "constant",
+          "rps": 400
+        }
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "api.example.com",
+    "read": {
+      "path": "/v1/search?q=item{key}",
+      "body": "{\"results\": [{key}], \"count\": 10}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/v1/items",
+      "reqBody": "{\"name\": \"item {value}\"}",
+      "status": 201,
+      "body": "{\"id\": {key}}"
+    }
+  }
+}

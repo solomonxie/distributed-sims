@@ -1,0 +1,136 @@
+{
+  "schemaVersion": 1,
+  "id": "lesson-paradigm-mesh",
+  "name": "Service mesh",
+  "description": "Checkout calls Payments through an Envoy sidecar that adds mTLS, retries and outlier detection. When one Payments instance starts failing, the sidecar retries on another instance and ejects the bad one: users barely notice.",
+  "nodes": [
+    {
+      "id": "web",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 195,
+        "y": 20
+      },
+      "skin": "react-spa"
+    },
+    {
+      "id": "api",
+      "type": "service",
+      "name": "Checkout",
+      "pos": {
+        "x": 195,
+        "y": 130
+      },
+      "skin": "go-service"
+    },
+    {
+      "id": "sc",
+      "type": "service-mesh-sidecar",
+      "name": "Envoy sidecar",
+      "pos": {
+        "x": 195,
+        "y": 240
+      },
+      "skin": "envoy-sidecar",
+      "config": {
+        "baseEjectionMs": 15000,
+        "maxEjectionPct": 50
+      }
+    },
+    {
+      "id": "p1",
+      "type": "service",
+      "name": "Payments 1",
+      "pos": {
+        "x": 60,
+        "y": 370
+      },
+      "skin": "go-service",
+      "config": {
+        "instances": 1
+      }
+    },
+    {
+      "id": "p2",
+      "type": "service",
+      "name": "Payments 2",
+      "pos": {
+        "x": 195,
+        "y": 370
+      },
+      "skin": "go-service",
+      "config": {
+        "instances": 1
+      }
+    },
+    {
+      "id": "p3",
+      "type": "service",
+      "name": "Payments 3",
+      "pos": {
+        "x": 330,
+        "y": 370
+      },
+      "skin": "go-service",
+      "config": {
+        "instances": 1
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "web->api",
+      "from": "web",
+      "to": "api"
+    },
+    {
+      "id": "api->sc",
+      "from": "api",
+      "to": "sc"
+    },
+    {
+      "id": "sc->p1",
+      "from": "sc",
+      "to": "p1"
+    },
+    {
+      "id": "sc->p2",
+      "from": "sc",
+      "to": "p2"
+    },
+    {
+      "id": "sc->p3",
+      "from": "sc",
+      "to": "p3"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 60,
+    "sources": [
+      {
+        "id": "s",
+        "node": "web",
+        "shape": {
+          "kind": "constant",
+          "rps": 300
+        }
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "shop.example",
+    "read": {
+      "path": "/api/checkout/{key}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/checkout",
+      "reqBody": "{\"cart_id\": {key}, \"card\": \"tok_visa\"}",
+      "status": 201,
+      "body": "{\"order_id\": {key}, \"paid\": true}"
+    }
+  }
+}

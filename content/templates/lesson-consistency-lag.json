@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "id": "lesson-consistency-lag",
+  "name": "Lesson: replication lag",
+  "description": "Postgres primary with 2 async replicas. Writes go to the primary; reads go to a replica. Replicas apply the WAL ~30ms behind.",
+  "nodes": [
+    { "id": "web", "type": "web-client", "name": "Users", "pos": { "x": 195, "y": 60 } },
+    { "id": "api", "type": "service", "name": "API", "pos": { "x": 195, "y": 190 } },
+    { "id": "db", "type": "relational-db", "skin": "postgres", "name": "Postgres", "pos": { "x": 195, "y": 330 }, "config": { "replicas": 2, "replication": "async", "readFrom": "replicas", "replicaLagMs": 30, "replicaLagP99Ms": 150 } }
+  ],
+  "edges": [
+    { "id": "e1", "from": "web", "to": "api" },
+    { "id": "e2", "from": "api", "to": "db" }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 300,
+    "sources": [{ "id": "s1", "node": "web", "shape": { "kind": "constant", "rps": 300 }, "readRatio": 0.7, "keys": { "kind": "zipf", "s": 1.1 } }],
+    "events": []
+  },
+  "wire": {
+    "host": "social.example",
+    "read": {
+      "path": "/api/profiles/{key}"
+    },
+    "write": {
+      "method": "PATCH",
+      "path": "/api/profiles/{key}",
+      "reqBody": "{\"display_name\": \"User {value}\"}",
+      "status": 200,
+      "body": "{\"id\": {key}, \"updated\": true}"
+    },
+    "table": "profiles",
+    "valCol": "display_name"
+  }
+}

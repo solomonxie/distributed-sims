@@ -1,0 +1,94 @@
+{
+  "schemaVersion": 1,
+  "id": "tech-spark-speculation",
+  "name": "Spark: speculative execution",
+  "description": "spark.speculation=true: when one executor is slow, the driver launches copies of its straggling tasks elsewhere.",
+  "nodes": [
+    {
+      "id": "driver",
+      "type": "spark-driver",
+      "skin": "spark-driver-std",
+      "name": "Driver",
+      "pos": {
+        "x": 195,
+        "y": 60
+      },
+      "config": {
+        "cronSec": 10,
+        "speculation": true
+      }
+    },
+    {
+      "id": "exec-1",
+      "type": "spark-executor",
+      "skin": "spark-executor-std",
+      "name": "Executor 1",
+      "pos": {
+        "x": 55,
+        "y": 220
+      },
+      "config": {}
+    },
+    {
+      "id": "exec-2",
+      "type": "spark-executor",
+      "skin": "spark-executor-std",
+      "name": "Executor 2",
+      "pos": {
+        "x": 195,
+        "y": 220
+      },
+      "config": {}
+    },
+    {
+      "id": "exec-3",
+      "type": "spark-executor",
+      "skin": "spark-executor-std",
+      "name": "Executor 3",
+      "pos": {
+        "x": 335,
+        "y": 220
+      },
+      "config": {}
+    }
+  ],
+  "edges": [
+    {
+      "id": "d-e1",
+      "from": "driver",
+      "to": "exec-1"
+    },
+    {
+      "id": "d-e2",
+      "from": "driver",
+      "to": "exec-2"
+    },
+    {
+      "id": "d-e3",
+      "from": "driver",
+      "to": "exec-3"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 120,
+    "sources": [],
+    "events": []
+  },
+  "wire": {
+    "host": "spark-master.internal:6066",
+    "read": {
+      "path": "/api/v1/applications/app-{key}/stages/1",
+      "body": "{\"stageId\": 1, \"numKilledTasks\": 3, \"status\": \"COMPLETE\"}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/v1/submissions/create",
+      "reqBody": "{\"mainClass\": \"ml.BuildFeatures\", \"appArgs\": [\"--date\", \"2026-09-27\"]}",
+      "status": 200,
+      "body": "{\"submissionId\": \"driver-{key}\", \"success\": true}"
+    },
+    "table": "user_features",
+    "valCol": "feature_vec"
+  }
+}

@@ -1,0 +1,87 @@
+group: { id: tech, label: Under the hood, order: 14 }
+# Spark internals (technologies.md → Spark). One incoming request (or cron tick) = one job.
+# Driver: DAG scheduler splits a job into stages at shuffle boundaries; task scheduler puts one task per
+# partition on free executor cores. Protocol kinds: spark.task, spark.shuffle.fetch, spark.heartbeat, spark.executor.*
+types:
+  - type: spark-driver
+    label: Spark driver
+    description: DAG scheduler → stages → task scheduler; tracks shuffle outputs, reruns lost ones from lineage
+    icon: brain-circuit
+    costPerInstanceMonth: 150
+    knobs:
+      - { key: stages, label: Stages per job, kind: int, default: 3, min: 1, max: 10, help: Each extra stage = one shuffle boundary (groupBy, join) }
+      - { key: partitions, label: Partitions, kind: int, default: 16, min: 1, max: 400, help: spark.sql.shuffle.partitions; one task per partition }
+      - { key: inputMb, label: Input size, kind: number, default: 2048, min: 1, max: 1000000, unit: MB }
+      - { key: msPerMb, label: Compute per MB, kind: ms, default: 10, min: 0.01, max: 1000 }
+      - { key: taskOverheadMs, label: Task launch overhead, kind: ms, default: 50, min: 0, max: 5000, advanced: true, help: Serialize + schedule + launch; dominates with too many tiny partitions }
+      - { key: skew, label: Skew (partition 0 ×), kind: number, default: 1, min: 1, max: 100, help: After a shuffle one hot key makes partition 0 this many times larger }
+      - { key: speculation, label: Speculation, kind: bool, default: false, help: Launch a duplicate of a task running 1.5× the median once 75% of the stage is done }
+      - { key: speculationMultiplier, label: Speculation multiplier, kind: number, default: 1.5, min: 1, max: 10, advanced: true }
+      - { key: speculationQuantile, label: Speculation quantile, kind: number, default: 0.75, min: 0, max: 1, advanced: true }
+      - { key: dynamicAllocation, label: Dynamic allocation, kind: bool, default: false, help: Start with minExecutors; add executors on backlog, release idle ones }
+      - { key: minExecutors, label: Min executors, kind: int, default: 1, min: 0, max: 100 }
+      - { key: executorIdleSec, label: Executor idle timeout, kind: number, default: 10, min: 1, max: 3600, unit: s, advanced: true }
+      - { key: executorStartMs, label: Executor start time, kind: ms, default: 2000, min: 0, max: 120000, advanced: true }
+      - { key: backlogTimeoutMs, label: Backlog timeout, kind: ms, default: 1000, min: 0, max: 60000, advanced: true }
+      - { key: executorTimeoutMs, label: Executor heartbeat timeout, kind: ms, default: 4000, min: 500, max: 300000, advanced: true, help: Real default 120s (spark.network.timeout); scaled down }
+      - { key: cronSec, label: Run every, kind: number, default: 0, min: 0, max: 86400, unit: s, help: 0 = only when a request arrives }
+      - { key: queueLimit, label: Job queue limit, kind: int, default: 20, min: 0, max: 10000, advanced: true }
+      - { key: costMonth, label: Cost / month, kind: number, default: 150, min: 0, max: 100000, unit: $ }
+  - type: spark-executor
+    label: Spark executor
+    description: JVM with N cores running tasks; unified memory (execution vs storage), spills to disk, serves shuffle blocks
+    icon: cpu
+    costPerInstanceMonth: 250
+    knobs:
+      - { key: slots, label: Cores, kind: int, default: 4, min: 1, max: 64, help: spark.executor.cores; one task per core }
+      - { key: memoryMb, label: Memory, kind: number, default: 4096, min: 256, max: 262144, unit: MB, help: spark.executor.memory }
+      - { key: memoryFraction, label: Memory fraction, kind: number, default: 0.6, min: 0.1, max: 0.9, advanced: true, help: spark.memory.fraction (execution + storage) }
+      - { key: spillPenalty, label: Spill slowdown, kind: number, default: 1.5, min: 0, max: 20, advanced: true, help: Extra time per spilled fraction (disk write + read back) }
+      - { key: heartbeatMs, label: Heartbeat, kind: ms, default: 1000, min: 100, max: 60000, advanced: true }
+      - { key: fetchTimeoutMs, label: Shuffle fetch timeout, kind: ms, default: 1500, min: 100, max: 120000, advanced: true }
+      - { key: queueLimit, label: Queue limit, kind: int, default: 1000, min: 0, max: 100000, advanced: true }
+      - { key: costMonth, label: Cost / month, kind: number, default: 250, min: 0, max: 100000, unit: $ }
+skins:
+  - name: spark-driver-std
+    type: spark-driver
+    label: Spark driver
+    description: Apache Spark application driver
+    icon: brand:spark
+    tags: [batch, open-source]
+    defaults: { costMonth: 150 }
+  - name: spark-executor-std
+    type: spark-executor
+    label: Spark executor
+    description: Executor JVM (4 cores, 4 GB)
+    icon: brand:spark
+    tags: [batch, open-source]
+    defaults: { slots: 4, memoryMb: 4096, costMonth: 250 }   # source: common executor sizing, m5.xlarge-ish
+  - name: databricks-executor
+    type: spark-executor
+    label: Databricks worker
+    description: Managed Spark worker node
+    icon: brand:databricks
+    tags: [batch, managed]
+    defaults: { slots: 8, memoryMb: 16384, costMonth: 600 }
+  - name: spark-cluster
+    type: spark-driver
+    label: Spark cluster
+    description: Driver + 3 executors; drill in to watch stages, shuffle and stragglers
+    icon: brand:spark
+    tags: [batch, composite]
+    defaults: { cronSec: 0, costMonth: 900 }
+    ports: { in: driver }
+    internals:
+      schemaVersion: 1
+      id: spark-cluster
+      name: Spark cluster
+      nodes:
+        - { id: driver, type: spark-driver, skin: spark-driver-std, name: Driver, pos: { x: 0, y: 0 } }
+        - { id: exec-1, type: spark-executor, skin: spark-executor-std, name: Executor 1, pos: { x: -140, y: 140 } }
+        - { id: exec-2, type: spark-executor, skin: spark-executor-std, name: Executor 2, pos: { x: 0, y: 140 } }
+        - { id: exec-3, type: spark-executor, skin: spark-executor-std, name: Executor 3, pos: { x: 140, y: 140 } }
+      edges:
+        - { id: d-e1, from: driver, to: exec-1 }
+        - { id: d-e2, from: driver, to: exec-2 }
+        - { id: d-e3, from: driver, to: exec-3 }
+      containers: []

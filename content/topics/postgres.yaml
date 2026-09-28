@@ -1,0 +1,137 @@
+id: postgres
+title: Postgres
+group: under-the-hood
+icon: database
+order: 15
+summary: A process per connection, a write-ahead log, row versions and a vacuum — where Postgres latency and stale reads come from.
+info: Every connection is a forked backend process, so poolers like PgBouncer matter. COMMIT waits for the WAL fsync, and one fsync covers every commit waiting (group commit). UPDATE leaves dead row versions that autovacuum removes only once no open transaction can see them. Checkpoints flush dirty pages; standbys replay the WAL and lag under heavy writes. Sizes and times are sim-scaled.
+algos: [b-tree, mem-page-cache]
+problems: [kv-store, ticket-booking]
+lessons:
+  - id: anatomy
+    title: Anatomy of Postgres
+    minutes: 4
+    template: tech-pg-anatomy
+    steps:
+      - title: The parts
+        body: The app talks to PgBouncer, which shares a few server connections to the primary. The primary streams its WAL to a standby.
+        check: { metric: time, op: '>=', value: 3 }
+      - title: Shared buffers
+        body: Reads hit 8 KB pages cached in shared_buffers; misses go to disk. The whole working set fits here.
+        check: { metric: gauge:hitRatio, target: pg, op: '>=', value: 99 }
+      - title: WAL before data
+        body: Every COMMIT appends to the write-ahead log and waits for its fsync. Table pages are written later.
+        check: { metric: gauge:commitsPerFsync, target: pg, op: '>=', value: 1 }
+      - title: Autovacuum
+        body: Each UPDATE leaves the old row version behind. Autovacuum removes dead versions once they pass 20% of the table.
+        check: { metric: 'eventMatch:autovacuum: removed', op: '>=', value: 1 }
+      - title: Checkpoints
+        body: Every checkpoint_timeout the checkpointer writes dirty pages to disk, spread over 90% of the interval, so crash recovery only replays WAL since then.
+        check: { metric: eventMatch:checkpoint starting, op: '>=', value: 1 }
+      - title: Standby lag
+        body: The standby replays the WAL it receives. Tap ⚡ Break → Replica lag on the standby.
+        action: { event: { kind: replica-lag, target: standby, params: { ms: 4000 }, durationSec: 20 } }
+        check: { metric: gauge:lagMs, target: standby, op: '>=', value: 3000 }
+
+  - id: wal-group-commit
+    title: WAL fsync and group commit
+    minutes: 4
+    template: tech-pg-wal
+    steps:
+      - title: A slow fsync
+        body: Both primaries sit on a disk with a 10ms fsync. Left waits for it on COMMIT; right has synchronous_commit=off.
+        check: { metric: gauge:commitsPerFsync, target: pg-on, op: '>=', value: 1 }
+      - title: Burst the writes
+        body: Tap Traffic → Burst. While one fsync runs, new commits queue; the next fsync flushes them all at once.
+        action: { event: { kind: traffic, action: burst, params: { x: 4 }, durationSec: 20 } }
+        check: { metric: gauge:commitsPerFsync, target: pg-on, op: '>=', value: 5 }
+      - title: The price of durability
+        body: Each commit on the left waits up to two fsyncs. The right one answers before the WAL is on disk.
+        watch: Compare p99 on the two primaries.
+        check: { metric: p99, target: pg-on, op: '>=', value: 10 }
+      - title: Crash the async one
+        body: Tap ⚡ Break → Kill on "sync commit off". Commits it already confirmed were still in memory.
+        action: { event: { kind: kill, target: pg-off } }
+        check: { metric: anomaly:lost-write, op: '>=', value: 1 }
+      - title: Crash the durable one
+        body: Kill "sync commit on" too. Every confirmed commit was already fsynced, so nothing new is lost; in-flight ones just fail.
+        action: { event: { kind: kill, target: pg-on } }
+        check: { metric: eventMatch:never flushed, op: '=', value: 1 }
+
+  - id: vacuum-bloat
+    title: A long transaction blocks vacuum
+    minutes: 4
+    template: tech-pg-vacuum
+    steps:
+      - title: Vacuum keeps up
+        body: 400 updates/s create dead row versions; autovacuum removes them every few seconds.
+        check: { metric: 'eventMatch:autovacuum: removed', op: '>=', value: 1 }
+      - title: Open a transaction and walk away
+        body: Tap ⚡ Break → Long transaction on the primary. Its snapshot may still need every row version created after it began.
+        action: { event: { kind: long-txn, target: pg } }
+        check: { metric: eventMatch:still visible to an open transaction, op: '>=', value: 1 }
+      - title: Bloat
+        body: Vacuum runs but can't remove anything newer than the oldest open snapshot. Dead versions pile up.
+        watch: bloatPct and xminAgeSec on the primary.
+        check: { metric: gauge:bloatPct, target: pg, op: '>=', value: 100 }
+      - title: Reads slow down
+        body: The same rows now span twice the pages, so the cache hit ratio drops and more reads go to disk. Fix it with idle_in_transaction_session_timeout.
+        check: { metric: p99, target: pg, op: '>=', value: 8 }
+
+  - id: connection-storm
+    title: Connection storm vs PgBouncer
+    minutes: 4
+    template: tech-pg-conn-storm
+    steps:
+      - title: Two setups
+        body: Left, every request opens its own connection and forks a backend (3ms of CPU). Right, PgBouncer reuses 20 server connections.
+        check: { metric: time, op: '>=', value: 5 }
+      - title: Traffic ×5
+        body: Tap Traffic → Burst. On the left the CPU spends its time forking, queries queue, and each one holds a connection longer.
+        action: { event: { kind: traffic, action: burst, params: { x: 5 }, durationSec: 40 } }
+        check: { metric: eventMatch:too many clients, op: '>=', value: 1 }
+      - title: max_connections is hit
+        body: At 100 backends Postgres refuses new connections with FATAL errors.
+        check: { metric: errRate, target: app-direct, op: '>=', value: 10 }
+      - title: The pooler absorbs it
+        body: Clients wait briefly in PgBouncer instead, and primary B never forks. Transaction pooling breaks session state such as SET and advisory locks.
+        watch: PgBouncer's server badge stays at or below 20.
+        check: { metric: availability, target: app-pooled, op: '>=', value: 99 }
+
+  - id: checkpoint-storm
+    title: Checkpoint storm
+    minutes: 3
+    template: tech-pg-checkpoint
+    steps:
+      - title: Calm
+        body: A write-heavy primary with max_wal_size 16 MB. Checkpoints are rare and spread out.
+        check: { metric: gauge:ioUtil, target: pg, op: '<', value: 20 }
+      - title: Heavy writes
+        body: Tap Traffic → Burst. 16 MB of WAL now fills in seconds, so each one forces a checkpoint.
+        action: { event: { kind: traffic, action: burst, params: { x: 4 }, durationSec: 40 } }
+        check: { metric: eventMatch:checkpoints are occurring too frequently, op: '>=', value: 1 }
+      - title: Full-page writes feed it
+        body: The first change to each page after a checkpoint logs the whole 8 KB page, so WAL grows faster and the next checkpoint comes sooner.
+        check: { metric: gauge:ioUtil, target: pg, op: '>=', value: 50 }
+      - title: Every commit pays
+        body: WAL fsyncs and reads now queue behind checkpoint writes. The fix is a larger max_wal_size.
+        check: { metric: p99, target: pg, op: '>=', value: 10 }
+
+  - id: replica-lag
+    title: Standby lag on heavy writes
+    minutes: 3
+    template: tech-pg-replica
+    steps:
+      - title: Reads from the standby
+        body: Writes go to the primary and reads to the standby, which replays WAL in one thread at 1,000 writes/s.
+        check: { metric: time, op: '>=', value: 5 }
+      - title: Write burst
+        body: Tap Traffic → Burst. The primary writes 1,200/s on many cores; the standby can't replay that fast.
+        action: { event: { kind: traffic, action: burst, params: { x: 3 }, durationSec: 30 } }
+        check: { metric: gauge:lagMs, target: standby, op: '>=', value: 2000 }
+      - title: Stale reads
+        body: A user updates a row and reads it back from the standby, where the change hasn't been replayed yet.
+        check: { metric: eventMatch:reads here are stale, op: '>=', value: 1 }
+      - title: It catches up
+        body: When the burst ends the standby drains the backlog. Read your own writes from the primary, or wait for the LSN.
+        check: { metric: gauge:lagMs, target: standby, op: '<', value: 300 }

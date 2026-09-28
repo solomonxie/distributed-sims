@@ -1,0 +1,211 @@
+{
+  "schemaVersion": 1,
+  "id": "lesson-network-geo",
+  "name": "Latency geography",
+  "description": "Users in Europe and Asia. Left pair: everyone talks to a single app in us-east-1. Right pair: geo DNS sends each user to the closest of three regions. Each round trip pays the distance: ~80ms one way to Europe, ~150ms to Asia.",
+  "nodes": [
+    {
+      "id": "eu-single",
+      "type": "web-client",
+      "name": "EU users",
+      "pos": {
+        "x": 25,
+        "y": 40
+      },
+      "parent": "eu"
+    },
+    {
+      "id": "ap-single",
+      "type": "web-client",
+      "name": "Asia users",
+      "pos": {
+        "x": 125,
+        "y": 40
+      },
+      "parent": "ap"
+    },
+    {
+      "id": "eu-geo",
+      "type": "web-client",
+      "name": "EU users",
+      "pos": {
+        "x": 265,
+        "y": 40
+      },
+      "parent": "eu"
+    },
+    {
+      "id": "ap-geo",
+      "type": "web-client",
+      "name": "Asia users",
+      "pos": {
+        "x": 365,
+        "y": 40
+      },
+      "parent": "ap"
+    },
+    {
+      "id": "dns",
+      "type": "dns",
+      "name": "Geo DNS",
+      "pos": {
+        "x": 315,
+        "y": 170
+      },
+      "skin": "route53",
+      "config": {
+        "routing": "geo",
+        "ttlSec": 10,
+        "healthIntervalMs": 2000,
+        "unhealthyThreshold": 2
+      }
+    },
+    {
+      "id": "app-us",
+      "type": "service",
+      "name": "App us-east-1",
+      "pos": {
+        "x": 75,
+        "y": 320
+      },
+      "parent": "us",
+      "config": {
+        "instances": 2
+      }
+    },
+    {
+      "id": "app-eu",
+      "type": "service",
+      "name": "App eu-west-1",
+      "pos": {
+        "x": 215,
+        "y": 320
+      },
+      "parent": "eu"
+    },
+    {
+      "id": "app-ap",
+      "type": "service",
+      "name": "App ap-southeast-1",
+      "pos": {
+        "x": 345,
+        "y": 320
+      },
+      "parent": "ap"
+    }
+  ],
+  "edges": [
+    {
+      "id": "eu-single->app-us",
+      "from": "eu-single",
+      "to": "app-us"
+    },
+    {
+      "id": "ap-single->app-us",
+      "from": "ap-single",
+      "to": "app-us"
+    },
+    {
+      "id": "eu-geo->dns",
+      "from": "eu-geo",
+      "to": "dns"
+    },
+    {
+      "id": "ap-geo->dns",
+      "from": "ap-geo",
+      "to": "dns"
+    },
+    {
+      "id": "dns->app-us",
+      "from": "dns",
+      "to": "app-us",
+      "config": {
+        "timeoutMs": 1000
+      }
+    },
+    {
+      "id": "dns->app-eu",
+      "from": "dns",
+      "to": "app-eu",
+      "config": {
+        "timeoutMs": 1000
+      }
+    },
+    {
+      "id": "dns->app-ap",
+      "from": "dns",
+      "to": "app-ap",
+      "config": {
+        "timeoutMs": 1000
+      }
+    }
+  ],
+  "containers": [
+    {
+      "id": "us",
+      "kind": "region",
+      "name": "us-east-1"
+    },
+    {
+      "id": "eu",
+      "kind": "region",
+      "name": "eu-west-1"
+    },
+    {
+      "id": "ap",
+      "kind": "region",
+      "name": "ap-southeast-1"
+    }
+  ],
+  "scenario": {
+    "durationSec": 120,
+    "sources": [
+      {
+        "id": "s1",
+        "node": "eu-single",
+        "shape": {
+          "kind": "constant",
+          "rps": 50
+        }
+      },
+      {
+        "id": "s2",
+        "node": "ap-single",
+        "shape": {
+          "kind": "constant",
+          "rps": 50
+        }
+      },
+      {
+        "id": "s3",
+        "node": "eu-geo",
+        "shape": {
+          "kind": "constant",
+          "rps": 50
+        }
+      },
+      {
+        "id": "s4",
+        "node": "ap-geo",
+        "shape": {
+          "kind": "constant",
+          "rps": 50
+        }
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "app.photos.example",
+    "read": {
+      "path": "/api/albums/{key}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/albums/{key}/photos",
+      "reqBody": "{\"caption\": \"img {value}\"}",
+      "status": 201,
+      "body": "{\"photo_id\": {key}}"
+    }
+  }
+}

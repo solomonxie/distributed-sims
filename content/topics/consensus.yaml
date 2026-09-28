@@ -1,0 +1,141 @@
+id: consensus
+title: Consensus
+group: topics
+icon: crown
+order: 4
+summary: How a cluster agrees on one value while nodes die and links fail.
+info: Consensus lets a group of machines act like one reliable machine. Raft elects one leader per term and commits a log entry once a majority stores it; Paxos agrees value by value. Both stay safe with any minority down, and stop rather than disagree when no majority can talk.
+algos: [raft-log, clocks, gossip]
+problems: [kv-store, distributed-mq]
+lessons:
+  - id: raft-election
+    title: Raft election
+    minutes: 4
+    template: lesson-consensus-raft
+    steps:
+      - title: A leader emerges
+        body: Five etcd members start as followers. The first whose random election timeout fires asks for votes and wins with 3.
+        watch: One member gets the 👑 badge and sends heartbeats every 100ms. Open the sequence view to see RequestVote and AppendEntries.
+        check: { metric: eventMatch:elected leader, op: '>=', value: 1 }
+      - title: Kill the leader
+        body: Tap ⚡ Break → Kill leader. Heartbeats stop.
+        action: { event: { kind: kill-leader, target: etcd-1, durationSec: 15 } }
+        watch: Followers time out after 1–2s (etcd's defaults); the first candidate to collect 3 votes leads a new, higher term.
+        check: { metric: eventMatch:elected leader, op: '>=', value: 2 }
+      - title: The old leader returns
+        body: After 15s the old leader restarts. It sees a higher term in the first heartbeat and rejoins as a follower.
+        watch: The T badge on every member shows the same term.
+        check: { metric: chaosActive, op: '=', value: 0 }
+
+  - id: log-replication
+    title: Log replication
+    minutes: 4
+    template: lesson-consensus-log
+    steps:
+      - title: Writes become log entries
+        body: The leader appends each write to its log and sends it in AppendEntries. Once 3 of 5 members store it, the entry is committed.
+        watch: The c badge (commit index) climbs on every member.
+        check: { metric: gauge:commitIndex, target: etcd-1, op: '>=', value: 100 }
+      - title: Lose one member
+        body: Tap ⚡ Break → Kill on etcd-5. Four remain, and a majority is still 3.
+        action: { event: { kind: kill, target: etcd-5 } }
+        check: { metric: up, target: etcd-5, op: '=', value: 0 }
+      - title: Lose a second
+        body: Kill etcd-4. Three of five are still a majority, so commits keep flowing.
+        action: { event: { kind: kill, target: etcd-4 } }
+        check: { metric: availability, op: '>=', value: 99 }
+      - title: Lose the majority
+        body: Kill etcd-3. Two members can append entries but never commit them, so every request waits and times out.
+        action: { event: { kind: kill, target: etcd-3 } }
+        check: { metric: availability, op: '<=', value: 10 }
+      - title: Bring one back
+        body: Restart etcd-5. The leader finds where its log diverges, resends the missing entries, and commits resume.
+        action: { event: { kind: restart, target: etcd-5, params: { downSec: 1 } }, label: Restart etcd-5 }
+        watch: etcd-5's commit index jumps to match the leader.
+        check: { metric: availability, op: '>=', value: 99 }
+
+  - id: split-vote
+    title: Split vote
+    minutes: 3
+    template: lesson-consensus-split-vote
+    steps:
+      - title: Everyone times out together
+        body: In cluster A all four members wait exactly 150ms. They become candidates together, vote for themselves, and nobody reaches 3 votes.
+        watch: The term on A's members climbs every 150ms.
+        check: { metric: gauge:term, target: a1, op: '>=', value: 10 }
+      - title: No leader, no writes
+        body: Without a leader nothing commits. Every request to cluster A fails.
+        check: { metric: errRate, target: api-a, op: '>=', value: 90 }
+      - title: Randomized timeouts fix it
+        body: Cluster B picks each timeout at random between 150 and 300ms, so one member usually wakes first and wins. That's why Raft randomizes.
+        check: { metric: availability, target: api-b, op: '>=', value: 99 }
+
+  - id: partition-minority
+    title: Partition minority
+    minutes: 4
+    template: lesson-consensus-raft
+    steps:
+      - title: Three here, two there
+        body: Zone A has 3 members, Zone B has 2. Wait for the 👑 leader.
+        check: { metric: time, op: '>=', value: 4 }
+      - title: Cut the zones apart
+        body: Tap ⚡ Break → Partition between Zone A and Zone B. Only Zone A can form a majority.
+        action: { event: { kind: partition, target: az-a, target2: az-b, durationSec: 15 } }
+        watch: Requests that reach Zone B members fail. Zone A keeps committing.
+        check: { metric: errRate, op: '>=', value: 30 }
+      - title: The minority keeps voting
+        body: Zone B members hear no leader, so they start elections they can never win, raising their term each time.
+        check: { metric: gauge:term, target: etcd-4, op: '>=', value: 4 }
+      - title: Heal
+        body: After 15s the link returns. Zone B's higher term forces the leader to step down; one more election and Zone B's logs are overwritten to match.
+        watch: A short blip on heal. Raft's PreVote extension avoids it.
+        check: { metric: eventMatch:steps down, op: '>=', value: 1 }
+      - title: Back in sync
+        body: All five members share one log and one term again.
+        check: { metric: availability, op: '>=', value: 99 }
+
+  - id: leader-lease
+    title: Leader lease & stale leader
+    minutes: 5
+    template: lesson-consensus-lease
+    steps:
+      - title: Lease reads
+        body: etcd-1 leads. While a majority acked it within the last ~270ms, it answers reads alone, without a round trip.
+        check: { metric: badge:👑, target: etcd-1, op: '>=', value: 1 }
+      - title: Isolate the leader
+        body: Tap ⚡ Break → Partition between Zone A and Zone B. etcd-1 still thinks it leads; the other four elect a new leader and take new writes.
+        action: { event: { kind: partition, target: az-a, target2: az-b, durationSec: 30 } }
+        check: { metric: eventMatch:elected leader, op: '>=', value: 2 }
+      - title: The lease runs out
+        body: With no acks, etcd-1's lease expires by its own clock and it stops answering. Correct so far.
+        check: { metric: errRate, target: etcd-1, op: '>=', value: 50 }
+      - title: Skew its clock back
+        body: Tap ⚡ Break → Clock skew on etcd-1, −60s. By its clock the lease is valid again, so it serves reads from its stale log.
+        action: { event: { kind: clock-skew, target: etcd-1, params: { ms: -60000 } } }
+        watch: Stale reads. Leases assume bounded clock drift; ReadIndex (linearizable reads) doesn't.
+        check: { metric: anomaly:stale-read, op: '>=', value: 1 }
+
+  - id: paxos
+    title: Paxos single-decree
+    minutes: 4
+    template: lesson-consensus-paxos
+    steps:
+      - title: Two proposers race
+        body: A and B each send Prepare(ballot) to all acceptors. An acceptor promises the highest ballot it has seen and rejects lower ones.
+        watch: Open the sequence view for Prepare, Promise, Accept, Accepted.
+        check: { metric: 'eventMatch:slot 1:', op: '>=', value: 1 }
+      - title: One value per slot
+        body: The winner needs Accepted from 2 of 3 acceptors. A proposer that sees an accepted value must propose that value, so both end up with the same one.
+        check: { metric: anomaly:divergence, op: '=', value: 0 }
+      - title: Clients propose
+        body: Now clients send requests; each proposal claims the next free slot.
+        action: { event: { kind: traffic, action: set, params: { rps: 4 } }, label: Start clients }
+        check: { metric: eventMatch:chosen, op: '>=', value: 10 }
+      - title: Lose one acceptor
+        body: Kill Acceptor 3. Two of three is still a majority, so values keep being chosen.
+        action: { event: { kind: kill, target: acc3 } }
+        check: { metric: eventMatch:chosen, op: '>=', value: 20 }
+      - title: Lose the majority
+        body: Kill Acceptor 2. No proposer can collect two promises, so nothing is chosen and client requests time out.
+        action: { event: { kind: kill, target: acc2 } }
+        check: { metric: errRate, op: '>=', value: 50 }

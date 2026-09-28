@@ -1,0 +1,108 @@
+{
+  "schemaVersion": 1,
+  "id": "tech-zk-session",
+  "name": "ZooKeeper: session expiry after a GC pause",
+  "description": "app-a holds the lock (lowest znode); app-b waits on it. Session timeout 4s.",
+  "nodes": [
+    {
+      "id": "zk-1",
+      "type": "zk-server",
+      "skin": "zookeeper-node",
+      "name": "zk-1",
+      "pos": {
+        "x": 90,
+        "y": 360
+      },
+      "config": {},
+      "parent": "ensemble"
+    },
+    {
+      "id": "zk-2",
+      "type": "zk-server",
+      "skin": "zookeeper-node",
+      "name": "zk-2",
+      "pos": {
+        "x": 195,
+        "y": 360
+      },
+      "config": {},
+      "parent": "ensemble"
+    },
+    {
+      "id": "zk-3",
+      "type": "zk-server",
+      "skin": "zookeeper-node",
+      "name": "zk-3",
+      "pos": {
+        "x": 300,
+        "y": 360
+      },
+      "config": {},
+      "parent": "ensemble"
+    },
+    {
+      "id": "app-a",
+      "type": "zk-app",
+      "skin": "election-app",
+      "name": "app-a",
+      "pos": {
+        "x": 120,
+        "y": 150
+      },
+      "config": {
+        "startDelayMs": 1500
+      }
+    },
+    {
+      "id": "app-b",
+      "type": "zk-app",
+      "skin": "election-app",
+      "name": "app-b",
+      "pos": {
+        "x": 270,
+        "y": 150
+      },
+      "config": {
+        "startDelayMs": 2000
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-app-a-zk-1",
+      "from": "app-a",
+      "to": "zk-1"
+    },
+    {
+      "id": "e-app-b-zk-2",
+      "from": "app-b",
+      "to": "zk-2"
+    }
+  ],
+  "containers": [
+    {
+      "id": "ensemble",
+      "kind": "vpc",
+      "name": "Ensemble"
+    }
+  ],
+  "scenario": {
+    "durationSec": 180,
+    "sources": [],
+    "events": []
+  },
+  "wire": {
+    "host": "billing-batch.internal",
+    "read": {
+      "path": "/lock",
+      "body": "{\"holder\": \"app-a\", \"znode\": \"/locks/lock-000000{key}\"}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/lock/acquire",
+      "reqBody": "{\"instance\": \"app-b\"}",
+      "status": 201,
+      "body": "{\"znode\": \"/locks/lock-000000{key}\"}"
+    }
+  }
+}

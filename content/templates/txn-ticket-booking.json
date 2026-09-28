@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "id": "txn-ticket-booking",
+  "name": "Ticket booking: flash crowd",
+  "description": "A hot on-sale draws 100× traffic to a few events. Naive read-check-write double-sells; switch Inventory's concurrency to pessimistic, optimistic or reservation to reach 0.",
+  "nodes": [
+    { "id": "fans", "type": "mobile-client", "name": "Fans", "pos": { "x": 195, "y": 60 } },
+    { "id": "api", "type": "service", "name": "Booking API", "pos": { "x": 195, "y": 200 }, "config": { "instances": 4 } },
+    { "id": "inv", "type": "inventory", "skin": "ticket-inventory", "name": "Seats", "pos": { "x": 195, "y": 340 }, "config": { "mode": "naive", "seatsPerKey": 2000, "holdTtlMs": 10000, "confirmMs": 3000 } }
+  ],
+  "edges": [
+    { "id": "e1", "from": "fans", "to": "api", "config": { "timeoutMs": 5000 } },
+    { "id": "e2", "from": "api", "to": "inv", "config": { "timeoutMs": 3000 } }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 60,
+    "sources": [{ "id": "s1", "node": "fans", "shape": { "kind": "constant", "rps": 50 }, "readRatio": 0.5, "keys": { "kind": "zipf", "s": 1.2, "keys": 8 } }],
+    "events": [{ "atSec": 10, "event": { "kind": "traffic", "action": "flash-crowd", "params": { "x": 100 }, "durationSec": 20 } }],
+    "challenge": {
+      "id": "no-double-sell",
+      "title": "Flash crowd 100×, 0 double-sell",
+      "pass": [{ "metric": "anomalies", "op": "=", "value": 0 }]
+    }
+  },
+  "wire": {
+    "host": "tix.acme.io",
+    "read": {
+      "method": "GET",
+      "path": "/api/events/{key}/seats",
+      "body": "{\"event_id\": {key}, \"available\": {value}}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/events/{key}/bookings",
+      "reqBody": "{\"seat\": \"A12\", \"qty\": 1}",
+      "status": 201,
+      "body": "{\"booking_id\": \"{code}\", \"seat\": \"A12\"}"
+    },
+    "table": "seats",
+    "valCol": "status"
+  }
+}

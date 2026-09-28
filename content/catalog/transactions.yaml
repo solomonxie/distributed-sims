@@ -1,0 +1,99 @@
+group: { id: transactions, label: Transactions, order: 8 }
+# Participants: any node receiving 'txn.*' (prepare/precommit/commit/abort) or 'saga.*' (step/compensate/event)
+# gets generic participant logic; knobs txnFailPct / sagaFailPct / participantTimeoutMs are read from that node's config.
+# Saga choreography: no coordinator; services linked by async edges through a pub-sub, each reacting to the previous event.
+types:
+  - type: txn-coordinator
+    label: Txn coordinator
+    description: Runs a distributed transaction across its out-edge targets (2PC, 3PC or orchestrated saga)
+    icon: git-merge
+    costPerInstanceMonth: 60
+    knobs:
+      - { key: protocol, label: Protocol, kind: enum, default: 2pc, options: [2pc, 3pc, saga-orchestrated] }
+      - { key: timeoutMs, label: Vote timeout, kind: ms, default: 500, min: 10, max: 30000, help: Per-message wait before treating a participant as failed }
+      - { key: retryMs, label: Decision retry, kind: ms, default: 500, min: 10, max: 30000, advanced: true, help: Resend commit/abort/compensate until acked }
+      - { key: participantTimeoutMs, label: Participant timeout (3PC), kind: ms, default: 1500, min: 50, max: 60000, help: 3PC participants decide alone after this silence }
+      - { key: instances, label: Instances, kind: int, default: 1, min: 1, max: 16 }
+      - { key: slots, label: Slots, kind: int, default: 64, min: 1, max: 4096, advanced: true }
+      - { key: p50Ms, label: p50, kind: ms, default: 1, min: 0.1, max: 1000 }
+      - { key: p99Ms, label: p99, kind: ms, default: 5, min: 0.1, max: 5000 }
+      - { key: queueLimit, label: Queue limit, kind: int, default: 1000, min: 0, max: 100000, advanced: true }
+      - { key: costMonth, label: Cost / month, kind: number, default: 60, min: 0, max: 100000, unit: $ }
+  - type: idempotent-service
+    label: Idempotent service
+    description: Side-effecting service that dedupes retries on an idempotency key (TTL store)
+    icon: shield-check
+    costPerInstanceMonth: 80
+    knobs:
+      - { key: dedupe, label: Dedupe on idem key, kind: bool, default: true }
+      - { key: idemTtlMs, label: Key TTL, kind: ms, default: 60000, min: 100, max: 86400000 }
+      - { key: durableStore, label: Keys survive restart, kind: bool, default: true, advanced: true }
+      - { key: instances, label: Instances, kind: int, default: 2, min: 1, max: 64 }
+      - { key: slots, label: Slots, kind: int, default: 16, min: 1, max: 4096, advanced: true }
+      - { key: p50Ms, label: p50, kind: ms, default: 40, min: 0.1, max: 10000 }
+      - { key: p99Ms, label: p99, kind: ms, default: 200, min: 0.1, max: 30000 }
+      - { key: queueLimit, label: Queue limit, kind: int, default: 1000, min: 0, max: 100000, advanced: true }
+      - { key: costMonth, label: Cost / month, kind: number, default: 80, min: 0, max: 100000, unit: $ }
+  - type: payment
+    label: Payment (no idem)
+    description: Charges on every request; retries after a timeout charge twice
+    icon: credit-card
+    costPerInstanceMonth: 80
+    knobs:
+      - { key: dedupe, label: Dedupe on idem key, kind: bool, default: false }
+      - { key: idemTtlMs, label: Key TTL, kind: ms, default: 60000, min: 100, max: 86400000, advanced: true }
+      - { key: instances, label: Instances, kind: int, default: 2, min: 1, max: 64 }
+      - { key: slots, label: Slots, kind: int, default: 16, min: 1, max: 4096, advanced: true }
+      - { key: p50Ms, label: p50, kind: ms, default: 40, min: 0.1, max: 10000 }
+      - { key: p99Ms, label: p99, kind: ms, default: 200, min: 0.1, max: 30000 }
+      - { key: queueLimit, label: Queue limit, kind: int, default: 1000, min: 0, max: 100000, advanced: true }
+      - { key: costMonth, label: Cost / month, kind: number, default: 80, min: 0, max: 100000, unit: $ }
+  - type: inventory
+    label: Inventory
+    description: Seat/stock counts per key; naive, pessimistic, optimistic or reservation booking
+    icon: ticket
+    costPerInstanceMonth: 150
+    knobs:
+      - { key: mode, label: Concurrency, kind: enum, default: naive, options: [naive, pessimistic, optimistic, reservation], help: naive = read-check-write race }
+      - { key: seatsPerKey, label: Seats per key, kind: int, default: 100, min: 1, max: 1000000 }
+      - { key: lockWaitMs, label: Row lock wait, kind: ms, default: 1000, min: 1, max: 60000, advanced: true }
+      - { key: maxRetries, label: Optimistic retries, kind: int, default: 3, min: 0, max: 20, advanced: true }
+      - { key: holdTtlMs, label: Hold TTL, kind: ms, default: 5000, min: 100, max: 3600000, help: reservation mode }
+      - { key: confirmMs, label: Mean time to pay, kind: ms, default: 2000, min: 10, max: 3600000, advanced: true }
+      - { key: confirmPct, label: Holds paid, kind: percent, default: 70, min: 0, max: 100, advanced: true }
+      - { key: restockSec, label: Restock every, kind: number, default: 0, min: 0, max: 3600, unit: s, advanced: true, help: 0 = never }
+      - { key: instances, label: Instances, kind: int, default: 1, min: 1, max: 64 }
+      - { key: slots, label: Slots, kind: int, default: 64, min: 1, max: 4096, advanced: true }
+      - { key: p50Ms, label: p50, kind: ms, default: 3, min: 0.1, max: 5000 }
+      - { key: p99Ms, label: p99, kind: ms, default: 15, min: 0.1, max: 5000 }
+      - { key: queueLimit, label: Queue limit, kind: int, default: 2000, min: 0, max: 100000, advanced: true }
+      - { key: costMonth, label: Cost / month, kind: number, default: 150, min: 0, max: 100000, unit: $ }
+skins:
+  - name: 2pc-coordinator
+    type: txn-coordinator
+    label: 2PC coordinator
+    description: XA-style transaction manager with a durable decision log
+    icon: git-merge
+    tags: [2pc, xa]
+    defaults: { protocol: 2pc, timeoutMs: 500, costMonth: 60 }
+  - name: saga-orchestrator
+    type: txn-coordinator
+    label: Saga orchestrator
+    description: Durable workflow engine (Temporal-like) running steps and compensations
+    icon: workflow
+    tags: [saga, workflow]
+    defaults: { protocol: saga-orchestrated, timeoutMs: 1000, retryMs: 1000, p50Ms: 2, p99Ms: 10, costMonth: 200 }
+  - name: stripe-payments
+    type: idempotent-service
+    label: Stripe payments
+    description: Payments API with Idempotency-Key header (keys kept 24h)
+    icon: credit-card
+    tags: [saas, payments]
+    defaults: { dedupe: true, idemTtlMs: 86400000, p50Ms: 300, p99Ms: 1200, costMonth: 0 }   # source: Stripe docs, idempotency keys pruned after 24h
+  - name: ticket-inventory
+    type: inventory
+    label: Ticket inventory
+    description: Event seat inventory with hold-then-confirm checkout
+    icon: ticket
+    tags: [booking]
+    defaults: { mode: reservation, seatsPerKey: 500, holdTtlMs: 600000, confirmMs: 60000, costMonth: 150 }

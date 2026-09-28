@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "id": "data-stampede",
+  "name": "Cache stampede",
+  "description": "A hot key with a 5 s TTL in front of a slow query. Each expiry sends every concurrent miss to the DB: spikes and queueing. Turn on request coalescing (or TTL jitter) to flatten it.",
+  "nodes": [
+    { "id": "web", "type": "web-client", "name": "Users", "pos": { "x": 195, "y": 60 } },
+    { "id": "api", "type": "service", "name": "API", "pos": { "x": 195, "y": 200 } },
+    { "id": "cache", "type": "cache", "skin": "redis", "name": "Redis", "pos": { "x": 195, "y": 340 }, "config": { "ttlSec": 5, "coalescing": false } },
+    { "id": "db", "type": "relational-db", "skin": "postgres", "name": "Postgres", "pos": { "x": 195, "y": 480 }, "config": { "replicas": 0, "p50Ms": 120, "p99Ms": 300, "slots": 50 } }
+  ],
+  "edges": [
+    { "id": "e1", "from": "web", "to": "api" },
+    { "id": "e2", "from": "api", "to": "cache" },
+    { "id": "e3", "from": "cache", "to": "db", "config": { "timeoutMs": 2000 } }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 60,
+    "sources": [{ "id": "s1", "node": "web", "shape": { "kind": "constant", "rps": 2000 }, "readRatio": 1, "keys": { "kind": "hot", "hot": 0.95 } }],
+    "events": []
+  },
+  "wire": {
+    "host": "news.acme.io",
+    "read": {
+      "method": "GET",
+      "path": "/api/home/trending",
+      "body": "{\"articles\": [{key}, 1822, 977], \"ttl\": 5}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/articles/{key}/views",
+      "reqBody": "{\"views\": {value}}",
+      "status": 202,
+      "body": "{\"ok\": true}"
+    },
+    "table": "articles",
+    "valCol": "views",
+    "cachePrefix": "trending:"
+  }
+}

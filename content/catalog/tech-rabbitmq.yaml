@@ -1,0 +1,110 @@
+group: { id: tech, label: Under the hood, order: 14 }
+# RabbitMQ (technologies.md v1.1): publisher → exchange → queues on broker nodes → consumers.
+# Protocol kinds: rmq.append (replication), rmq.deliver, rmq.ack, rmq.nack, rmq.dead.
+types:
+  - type: rabbitmq-publisher
+    label: RabbitMQ publisher
+    description: App channel doing basic.publish with a routing key; optionally waits for publisher confirms; blocked by memory alarms
+    icon: send
+    costPerInstanceMonth: 40
+    knobs:
+      - { key: routingKeys, label: Routing keys, kind: string, default: "order.created,order.paid,user.signup", help: Comma list; each request picks one }
+      - { key: confirms, label: Publisher confirms, kind: bool, default: true, help: "Wait for basic.ack from the broker; without it failures are silent" }
+      - { key: mandatory, label: mandatory flag, kind: bool, default: false, help: "Unroutable messages come back (basic.return) instead of being dropped" }
+      - { key: instances, label: Instances, kind: int, default: 1, min: 1, max: 64 }
+      - { key: slots, label: Slots, kind: int, default: 64, min: 1, max: 4096, advanced: true }
+      - { key: queueLimit, label: Held while blocked, kind: int, default: 5000, min: 0, max: 1000000, advanced: true }
+      - { key: p50Ms, label: Publish p50, kind: ms, default: 0.5, min: 0.01, max: 1000, advanced: true }
+      - { key: p99Ms, label: Publish p99, kind: ms, default: 3, min: 0.01, max: 5000, advanced: true }
+      - { key: costMonth, label: Cost / month, kind: number, default: 40, min: 0, max: 100000, unit: $ }
+  - type: rabbitmq-exchange
+    label: RabbitMQ exchange
+    description: Routes each message to every bound queue whose binding key matches (direct = equal, topic = * / # patterns, fanout = all)
+    icon: split
+    costPerInstanceMonth: 0
+    knobs:
+      - { key: kind, label: Type, kind: enum, default: topic, options: [direct, topic, fanout] }
+      - { key: slots, label: Slots, kind: int, default: 256, min: 1, max: 100000, advanced: true }
+      - { key: p50Ms, label: Route p50, kind: ms, default: 0.05, min: 0.001, max: 100, advanced: true }
+      - { key: p99Ms, label: Route p99, kind: ms, default: 0.3, min: 0.001, max: 1000, advanced: true }
+      - { key: costMonth, label: Cost / month, kind: number, default: 0, min: 0, max: 100000, unit: $, advanced: true }
+  - type: rabbitmq-queue
+    label: RabbitMQ queue
+    description: FIFO with its leader on one broker node; quorum queues replicate with Raft, classic mirrored queues copy to mirrors
+    icon: inbox
+    costPerInstanceMonth: 0
+    knobs:
+      - { key: bindingKey, label: Binding key(s), kind: string, default: "#", help: "Comma list. topic: order.* or #; direct: exact key; ignored by fanout" }
+      - { key: queueType, label: Queue type, kind: enum, default: quorum, options: [quorum, mirrored, classic], help: "quorum: Raft, needs a majority; mirrored: legacy HA (removed in 4.0); classic: one node" }
+      - { key: replicas, label: Replicas, kind: int, default: 3, min: 1, max: 7, help: Members (quorum) or leader + mirrors }
+      - { key: leader, label: Leader node, kind: string, default: "", help: Broker node id for the leader; empty = first }
+      - { key: deliveryLimit, label: delivery-limit, kind: int, default: 0, min: 0, max: 1000, help: "Quorum only: dead-letter after this many deliveries (0 = off)" }
+      - { key: deadLetter, label: Dead-letter queue, kind: string, default: "", help: Queue node id that receives rejected / over-limit messages (x-dead-letter-exchange) }
+      - { key: consumerTimeoutMs, label: consumer_timeout, kind: ms, default: 30000, min: 1000, max: 86400000, help: "Unacked this long → channel closed, messages requeued (real default 30 min)" }
+      - { key: electionMs, label: Leader election, kind: ms, default: 2000, min: 100, max: 60000, advanced: true }
+      - { key: msgKb, label: Message size, kind: number, default: 16, min: 0.1, max: 100000, unit: KB }
+      - { key: slots, label: Slots, kind: int, default: 64, min: 1, max: 100000, advanced: true }
+      - { key: queueLimit, label: Queue limit, kind: int, default: 100000, min: 1, max: 10000000, advanced: true }
+      - { key: costMonth, label: Cost / month, kind: number, default: 0, min: 0, max: 100000, unit: $, advanced: true }
+  - type: rabbitmq-node
+    label: RabbitMQ node
+    description: Broker machine (Erlang VM) hosting queue leaders and replicas; raises a memory alarm above the high watermark
+    icon: server
+    costPerInstanceMonth: 150
+    knobs:
+      - { key: memoryHighWatermarkMb, label: Memory high watermark, kind: number, default: 400, min: 10, max: 1000000, unit: MB, help: "vm_memory_high_watermark (real: 0.4–0.6 of RAM)" }
+      - { key: baseMemMb, label: Base memory, kind: number, default: 80, min: 0, max: 100000, unit: MB, advanced: true }
+      - { key: costMonth, label: Cost / month, kind: number, default: 150, min: 0, max: 100000, unit: $ }
+  - type: rabbitmq-consumer
+    label: RabbitMQ consumer
+    description: basic.consume with a prefetch window (basic.qos); acks each message after processing, or autoAck
+    icon: hard-hat
+    costPerInstanceMonth: 60
+    knobs:
+      - { key: prefetch, label: Prefetch, kind: int, default: 10, min: 0, max: 10000, help: "Max unacked messages at once (0 = unlimited)" }
+      - { key: ackMode, label: Ack mode, kind: enum, default: manual, options: [manual, auto], help: "auto: broker forgets the message as soon as it is sent" }
+      - { key: requeueOnError, label: Requeue on error, kind: bool, default: true, help: "nack(requeue=true) retries forever; false sends it to the dead-letter queue" }
+      - { key: slots, label: Concurrency, kind: int, default: 4, min: 1, max: 1024 }
+      - { key: p50Ms, label: Handler p50, kind: ms, default: 10, min: 0.1, max: 600000 }
+      - { key: p99Ms, label: Handler p99, kind: ms, default: 40, min: 0.1, max: 600000 }
+      - { key: queueLimit, label: Local buffer, kind: int, default: 10000, min: 1, max: 1000000, advanced: true }
+      - { key: costMonth, label: Cost / month, kind: number, default: 60, min: 0, max: 100000, unit: $ }
+skins:
+  - { name: rabbitmq-app-publisher, type: rabbitmq-publisher, label: Publisher app, description: Service publishing events over AMQP 0-9-1, icon: send, tags: [rabbitmq, amqp], defaults: {} }
+  - { name: rabbitmq-topic-exchange, type: rabbitmq-exchange, label: Topic exchange, description: "Routes by pattern: order.* matches order.paid", icon: brand:rabbitmq, tags: [rabbitmq], defaults: { kind: topic } }
+  - { name: rabbitmq-direct-exchange, type: rabbitmq-exchange, label: Direct exchange, description: Routes by exact routing key, icon: brand:rabbitmq, tags: [rabbitmq], defaults: { kind: direct } }
+  - { name: rabbitmq-fanout-exchange, type: rabbitmq-exchange, label: Fanout exchange, description: Copies every message to every bound queue, icon: brand:rabbitmq, tags: [rabbitmq], defaults: { kind: fanout } }
+  - { name: rabbitmq-quorum-queue, type: rabbitmq-queue, label: Quorum queue, description: "Raft-replicated over 3 nodes; survives losing 1", icon: inbox, tags: [rabbitmq, raft], defaults: { queueType: quorum, replicas: 3 } }
+  - { name: rabbitmq-mirrored-queue, type: rabbitmq-queue, label: Classic mirrored queue, description: "Leader + mirror (ha-mode exactly 2, ha-sync-mode manual); deprecated", icon: inbox, tags: [rabbitmq, legacy], defaults: { queueType: mirrored, replicas: 2 } }
+  - { name: rabbitmq-classic-queue, type: rabbitmq-queue, label: Classic queue, description: Lives on a single node, icon: inbox, tags: [rabbitmq], defaults: { queueType: classic, replicas: 1 } }
+  - { name: rabbitmq-broker-node, type: rabbitmq-node, label: RabbitMQ node, description: Broker node in a 3-node cluster, icon: brand:rabbitmq, tags: [rabbitmq, erlang], defaults: {} }
+  - { name: rabbitmq-worker, type: rabbitmq-consumer, label: Consumer, description: Worker with prefetch 10 and manual acks, icon: hard-hat, tags: [rabbitmq], defaults: { prefetch: 10, ackMode: manual } }
+  - name: rabbitmq-cluster
+    type: rabbitmq-exchange
+    label: RabbitMQ
+    description: 3-node cluster — topic exchange, quorum queues, consumers, dead-letter queue (tap ⤢ to drill in)
+    icon: brand:rabbitmq
+    tags: [rabbitmq, amqp, composite]
+    defaults: { kind: topic }
+    ports: { in: exchange }
+    internals:
+      schemaVersion: 1
+      id: rabbitmq-internals
+      name: RabbitMQ internals
+      nodes:
+        - { id: rmq1, type: rabbitmq-node, skin: rabbitmq-broker-node, name: rmq-1, pos: { x: 55, y: 30 } }
+        - { id: rmq2, type: rabbitmq-node, skin: rabbitmq-broker-node, name: rmq-2, pos: { x: 195, y: 30 } }
+        - { id: rmq3, type: rabbitmq-node, skin: rabbitmq-broker-node, name: rmq-3, pos: { x: 335, y: 30 } }
+        - { id: exchange, type: rabbitmq-exchange, skin: rabbitmq-topic-exchange, name: events (topic), pos: { x: 195, y: 140 } }
+        - { id: orders, type: rabbitmq-queue, skin: rabbitmq-quorum-queue, name: orders, pos: { x: 110, y: 260 }, config: { bindingKey: "order.*", leader: rmq1, deliveryLimit: 5, deadLetter: dlq } }
+        - { id: audit, type: rabbitmq-queue, skin: rabbitmq-quorum-queue, name: audit, pos: { x: 280, y: 260 }, config: { bindingKey: "#", leader: rmq2 } }
+        - { id: c-orders, type: rabbitmq-consumer, skin: rabbitmq-worker, name: order worker, pos: { x: 55, y: 380 } }
+        - { id: c-audit, type: rabbitmq-consumer, skin: rabbitmq-worker, name: audit worker, pos: { x: 280, y: 380 } }
+        - { id: dlq, type: rabbitmq-queue, skin: rabbitmq-quorum-queue, name: orders.dlq, pos: { x: 165, y: 380 }, config: { bindingKey: "", leader: rmq3 } }
+      edges:
+        - { id: x-o, from: exchange, to: orders }
+        - { id: x-a, from: exchange, to: audit }
+        - { id: o-c, from: orders, to: c-orders, config: { mode: async } }
+        - { id: a-c, from: audit, to: c-audit, config: { mode: async } }
+        - { id: o-d, from: orders, to: dlq, config: { mode: async } }
+      containers: []

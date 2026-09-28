@@ -1,0 +1,114 @@
+{
+  "schemaVersion": 1,
+  "id": "lesson-txn-idempotency",
+  "name": "Lesson: idempotency keys",
+  "description": "The Orders API calls payments with a 200ms timeout and 3 retries. Payments usually answer in time; slow ones get retried. Left: a plain payment API. Right: Stripe-style idempotency keys.",
+  "nodes": [
+    {
+      "id": "web",
+      "type": "web-client",
+      "name": "Checkout",
+      "pos": {
+        "x": 195,
+        "y": 60
+      }
+    },
+    {
+      "id": "api",
+      "type": "service",
+      "name": "Orders API",
+      "pos": {
+        "x": 195,
+        "y": 200
+      }
+    },
+    {
+      "id": "legacy",
+      "type": "payment",
+      "name": "Legacy payments",
+      "pos": {
+        "x": 85,
+        "y": 340
+      },
+      "config": {
+        "p50Ms": 60,
+        "p99Ms": 250
+      }
+    },
+    {
+      "id": "stripe",
+      "type": "idempotent-service",
+      "skin": "stripe-payments",
+      "name": "Stripe",
+      "pos": {
+        "x": 305,
+        "y": 340
+      },
+      "config": {
+        "p50Ms": 60,
+        "p99Ms": 250
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "web",
+      "to": "api",
+      "config": {
+        "timeoutMs": 5000
+      }
+    },
+    {
+      "id": "e2",
+      "from": "api",
+      "to": "legacy",
+      "config": {
+        "timeoutMs": 200,
+        "retries": 3,
+        "backoffMs": 50,
+        "ratio": 0.5
+      }
+    },
+    {
+      "id": "e3",
+      "from": "api",
+      "to": "stripe",
+      "config": {
+        "timeoutMs": 200,
+        "retries": 3,
+        "backoffMs": 50,
+        "ratio": 0.5
+      }
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 300,
+    "sources": [
+      {
+        "id": "s1",
+        "node": "web",
+        "shape": {
+          "kind": "constant",
+          "rps": 100
+        },
+        "readRatio": 0
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "shop.example",
+    "read": {
+      "path": "/api/orders/{key}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/v1/charges",
+      "reqBody": "{\"amount\": {value}, \"currency\": \"usd\"}",
+      "status": 201,
+      "body": "{\"id\": \"ch_{code}\", \"status\": \"succeeded\"}"
+    }
+  }
+}

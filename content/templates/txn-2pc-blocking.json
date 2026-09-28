@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "id": "txn-2pc-blocking",
+  "name": "2PC blocking",
+  "description": "Coordinator crashes right after prepare. Participants keep their locks (lockedKeys) until it restarts and recovers from its log.",
+  "nodes": [
+    { "id": "web", "type": "web-client", "name": "Checkout", "pos": { "x": 195, "y": 60 } },
+    { "id": "tm", "type": "txn-coordinator", "skin": "2pc-coordinator", "name": "Coordinator", "pos": { "x": 195, "y": 200 } },
+    { "id": "orders", "type": "relational-db", "skin": "postgres", "name": "Orders DB", "pos": { "x": 55, "y": 340 } },
+    { "id": "payments", "type": "relational-db", "skin": "postgres", "name": "Payments DB", "pos": { "x": 195, "y": 340 } },
+    { "id": "stock", "type": "relational-db", "skin": "postgres", "name": "Stock DB", "pos": { "x": 335, "y": 340 } }
+  ],
+  "edges": [
+    { "id": "e1", "from": "web", "to": "tm", "config": { "timeoutMs": 3000 } },
+    { "id": "e2", "from": "tm", "to": "orders" },
+    { "id": "e3", "from": "tm", "to": "payments" },
+    { "id": "e4", "from": "tm", "to": "stock" }
+  ],
+  "containers": [],
+  "alerts": [{ "id": "a1", "target": "orders", "metric": "lockedKeys", "op": ">", "threshold": 0, "forSec": 3 }],
+  "scenario": {
+    "durationSec": 60,
+    "sources": [{ "id": "s1", "node": "web", "shape": { "kind": "constant", "rps": 30 }, "readRatio": 0 }],
+    "events": [{ "atSec": 10, "event": { "kind": "kill-coordinator", "target": "tm", "durationSec": 20 } }]
+  },
+  "wire": {
+    "host": "shop.acme.io",
+    "read": {
+      "method": "GET",
+      "path": "/api/orders/{key}",
+      "body": "{\"id\": {key}, \"status\": \"committed\"}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/checkout",
+      "reqBody": "{\"cart_id\": {key}, \"amount\": {value}}",
+      "status": 201,
+      "body": "{\"order_id\": {key}, \"status\": \"committed\"}"
+    },
+    "table": "orders",
+    "valCol": "status"
+  }
+}

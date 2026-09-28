@@ -1,0 +1,127 @@
+id: redis-cluster
+title: Redis Cluster
+group: under-the-hood
+icon: network
+order: 10
+summary: Redis sharded over 16384 hash slots — how clients find the right node, how slots move live, and what a failover can lose.
+info: Every key hashes (CRC16 mod 16384) to a slot, and each primary owns a set of slots. Smart clients cache the slot map and follow MOVED / ASK redirects when it changes. Nodes gossip PING/PONG over a cluster bus; when a majority of primaries agree a primary has failed, its replica wins an election and takes over its slots. Replication is asynchronous, so a failover can lose acknowledged writes.
+problems: [kv-store]
+lessons:
+  - id: anatomy
+    title: Anatomy of Redis Cluster
+    minutes: 3
+    template: tech-rediscluster-anatomy
+    steps:
+      - title: Slots over primaries
+        body: Three primaries split the 16384 hash slots, e.g. rc-1 owns 0–5460. Each has one async replica below it.
+        watch: The 👑 badge on each primary shows its slot range.
+        check: { metric: gauge:slots, target: rc1, op: '>=', value: 5000 }
+      - title: The client routes
+        body: The app's cluster client keeps its own copy of the slot map and sends each command straight to the owner, in one hop.
+        check: { metric: gauge:opsPerSec, target: rc2, op: '>=', value: 100 }
+      - title: Replicas trail behind
+        body: Primaries stream writes to their replica every 100ms. The replica's offset follows the primary's, slightly behind.
+        check: { metric: gauge:offset, target: rc4, op: '>=', value: 200 }
+      - title: The gossip bus
+        body: Every node PINGs a random peer every 100ms and learns the others' slots, epochs and failure suspicions from the PONG.
+        watch: Sequence view — cluster.PING between all six nodes.
+        check: { metric: time, op: '>=', value: 5 }
+
+  - id: lifecycle
+    title: "One command, end to end"
+    minutes: 3
+    template: tech-rediscluster-anatomy
+    steps:
+      - title: Key → slot
+        body: The client hashes the key with CRC16, takes it mod 16384, and looks the slot up in its cached map.
+        check: { metric: eventMatch:crc16 mod 16384, op: '>=', value: 1 }
+      - title: One hop to the owner
+        body: The owner runs the command on its single thread and replies. No proxy and no coordinator sit in between.
+        check: { metric: eventMatch:ran it on its single thread, op: '>=', value: 1 }
+      - title: Writes replicate later
+        body: A write is acknowledged before the replica has it. That gap is what a failover can lose.
+        check: { metric: gauge:offset, target: rc5, op: '>=', value: 100 }
+
+  - id: resharding
+    title: "Resharding live: MOVED and ASK"
+    minutes: 4
+    template: tech-rediscluster-reshard
+    steps:
+      - title: A new, empty primary
+        body: rc-7 joined the cluster with no slots, so it gets no traffic yet.
+        check: { metric: gauge:slots, target: rc7, op: '=', value: 0 }
+      - title: Rebalance
+        body: Tap ⚡ Break → Rebalance on rc-7. Slot by slot, the source marks it MIGRATING, rc-7 marks it IMPORTING, and keys move with MIGRATE.
+        action: { event: { kind: rebalance, target: rc7, params: { sec: 20 } } }
+        check: { metric: gauge:slots, target: rc7, op: '>=', value: 500 }
+      - title: MOVED
+        body: Once a slot has moved, the old owner answers MOVED. The client updates its map and retries, costing one extra hop.
+        check: { metric: gauge:moved, target: app, op: '>=', value: 20 }
+      - title: ASK
+        body: While a slot is mid-migration, keys already copied get ASK. The client sends ASKING to rc-7 for that one command but keeps its map.
+        check: { metric: gauge:ask, target: app, op: '>=', value: 1 }
+      - title: Done, zero errors
+        body: rc-7 ends up with a quarter of the slots. Traffic never stopped; it just took extra hops.
+        check: { metric: gauge:slots, target: rc7, op: '>=', value: 4000 }
+
+  - id: failover
+    title: Primary dies → replica promoted
+    minutes: 4
+    template: tech-rediscluster-anatomy
+    steps:
+      - title: Kill rc-1
+        body: Tap ⚡ Break → Kill on rc-1. Commands for slots 0–5460 now time out.
+        action: { event: { kind: kill, target: rc1 } }
+        check: { metric: availability, op: '<', value: 90 }
+      - title: PFAIL
+        body: After cluster-node-timeout (3s here, 15s by default) with no PONG, each node marks rc-1 PFAIL, a private suspicion.
+        check: { metric: eventMatch:marks rc-1 pfail, op: '>=', value: 1 }
+      - title: FAIL by majority
+        body: PFAIL reports spread by gossip. When a majority of primaries agree, rc-1 is flagged FAIL cluster-wide.
+        check: { metric: eventMatch:rc-1 is fail, op: '>=', value: 1 }
+      - title: Replica election
+        body: rc-4 waits a short random delay, then asks the primaries for votes. With a majority it takes rc-1's slots under a new configEpoch.
+        watch: Writes rc-1 hadn't streamed to rc-4 yet are lost.
+        check: { metric: eventMatch:promoted to primary, op: '>=', value: 1 }
+      - title: Back to normal
+        body: Clients get errors, refresh their slot map, and find rc-4. The outage lasted about node-timeout plus the election.
+        check: { metric: availability, op: '>=', value: 99 }
+
+  - id: minority-split
+    title: "Split: the minority primary loses writes"
+    minutes: 4
+    template: tech-rediscluster-split
+    steps:
+      - title: Two AZs
+        body: rc-1 (primary) and rc-5 sit in AZ a; the other two primaries and rc-1's replica rc-4 are in AZ b. The app reaches both.
+        check: { metric: time, op: '>=', value: 3 }
+      - title: Split the AZs
+        body: Tap ⚡ Break → Partition AZ a ⟂ AZ b for 15s. rc-1 can't see the other primaries, but the app can still write to it.
+        action: { event: { kind: partition, target: az-a, target2: az-b, durationSec: 15 } }
+        check: { metric: eventMatch:can't reach a majority, op: '>=', value: 1 }
+      - title: Majority fails over
+        body: AZ b holds 2 of 3 primaries, so they flag rc-1 FAIL and promote rc-4. rc-1 took writes for a full node-timeout before it stopped itself.
+        check: { metric: eventMatch:promoted to primary, op: '>=', value: 1 }
+      - title: Heal → writes lost
+        body: When the partition heals, rc-1 sees rc-4's newer configEpoch, becomes its replica and throws away what it accepted alone. Lower node-timeout shrinks the window.
+        check: { metric: anomaly:lost-write, op: '>=', value: 1 }
+
+  - id: key-design
+    title: "Key design: CROSSSLOT and hot slots"
+    minutes: 4
+    template: tech-rediscluster-keys
+    steps:
+      - title: CROSSSLOT
+        body: cart-v1 does MGET user:N:cart user:N:profile. The two keys hash to different slots, so the node refuses with CROSSSLOT.
+        watch: cart-v1 fails about 30% of requests; cart-v2 stays green.
+        check: { metric: gauge:crossSlot, target: app-a, op: '>=', value: 50 }
+      - title: Hash tags fix it
+        body: cart-v2 uses {user:N}:cart and {user:N}:profile. Only the part inside {} is hashed, so both keys land in one slot.
+        check: { metric: availability, target: app-b, op: '>=', value: 99 }
+      - title: One key goes viral
+        body: Tap ⚡ Traffic → Hot key. 70% of requests now hit user:0, which lives in one slot on rc-3.
+        action: { event: { kind: traffic, action: hot-key, params: { hot: 0.7 }, durationSec: 30 } }
+        check: { metric: util, target: rc3, op: '>=', value: 95 }
+      - title: Resharding can't help
+        body: rc-3's single thread is saturated while rc-1 and rc-2 idle, and a slot can't be split. Read from replicas, cache the key client-side, or split the key.
+        check: { metric: p99, target: rc3, op: '>=', value: 50 }

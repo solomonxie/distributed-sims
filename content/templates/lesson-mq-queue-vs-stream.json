@@ -1,0 +1,150 @@
+{
+  "schemaVersion": 1,
+  "id": "lesson-mq-queue-vs-stream",
+  "name": "Queue vs stream",
+  "description": "Every order goes to SQS and to Kafka. SQS gives each message to one mailer and deletes it on ack. Kafka keeps the log: Billing and Analytics are separate consumer groups that each read every event at their own pace, and can rewind (replay) to re-read.",
+  "nodes": [
+    {
+      "id": "users",
+      "type": "web-client",
+      "name": "Shoppers",
+      "pos": {
+        "x": 195,
+        "y": 40
+      }
+    },
+    {
+      "id": "api",
+      "type": "service",
+      "name": "Orders API",
+      "pos": {
+        "x": 195,
+        "y": 150
+      }
+    },
+    {
+      "id": "sqs",
+      "type": "queue",
+      "name": "Emails queue",
+      "pos": {
+        "x": 75,
+        "y": 280
+      },
+      "skin": "sqs"
+    },
+    {
+      "id": "mailer",
+      "type": "worker",
+      "name": "Mailer",
+      "pos": {
+        "x": 75,
+        "y": 420
+      },
+      "skin": "celery-worker",
+      "config": {
+        "instances": 2
+      }
+    },
+    {
+      "id": "kafka",
+      "type": "log-stream",
+      "name": "orders topic",
+      "pos": {
+        "x": 285,
+        "y": 280
+      },
+      "skin": "kafka",
+      "config": {
+        "partitions": 3,
+        "fetchBatch": 20
+      }
+    },
+    {
+      "id": "billing",
+      "type": "worker",
+      "name": "Billing",
+      "pos": {
+        "x": 225,
+        "y": 420
+      },
+      "config": {
+        "group": "billing",
+        "idempotent": true
+      }
+    },
+    {
+      "id": "analytics",
+      "type": "worker",
+      "name": "Analytics",
+      "pos": {
+        "x": 345,
+        "y": 420
+      },
+      "config": {
+        "group": "analytics"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "users->api",
+      "from": "users",
+      "to": "api"
+    },
+    {
+      "id": "api->sqs",
+      "from": "api",
+      "to": "sqs"
+    },
+    {
+      "id": "api->kafka",
+      "from": "api",
+      "to": "kafka"
+    },
+    {
+      "id": "sqs->mailer",
+      "from": "sqs",
+      "to": "mailer"
+    },
+    {
+      "id": "kafka->billing",
+      "from": "kafka",
+      "to": "billing"
+    },
+    {
+      "id": "kafka->analytics",
+      "from": "kafka",
+      "to": "analytics"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 120,
+    "sources": [
+      {
+        "id": "s1",
+        "node": "users",
+        "shape": {
+          "kind": "constant",
+          "rps": 100
+        },
+        "readRatio": 0
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "shop.example",
+    "read": {
+      "path": "/api/orders/{key}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/orders",
+      "reqBody": "{\"sku\": \"SKU-{key}\", \"email\": \"a@mail.example\"}",
+      "status": 201,
+      "body": "{\"order_id\": {key}, \"status\": \"placed\"}"
+    },
+    "topic": "orders"
+  }
+}

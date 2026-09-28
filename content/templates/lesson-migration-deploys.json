@@ -1,0 +1,183 @@
+{
+  "schemaVersion": 1,
+  "id": "lesson-migration-deploys",
+  "name": "Blue/green vs canary",
+  "description": "Left: blue/green. Green (the new version) already takes 100% of traffic and blue idles, ready for rollback. Right: canary. The new version takes 5% next to the stable fleet. Ship the same bad build to both and compare how many users see errors.",
+  "nodes": [
+    {
+      "id": "users-bg",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 75,
+        "y": 40
+      }
+    },
+    {
+      "id": "router-bg",
+      "type": "api-gateway",
+      "name": "Router",
+      "pos": {
+        "x": 75,
+        "y": 170
+      },
+      "config": {
+        "authCheck": false,
+        "instances": 2
+      }
+    },
+    {
+      "id": "blue",
+      "type": "service",
+      "name": "Blue (v1, idle)",
+      "pos": {
+        "x": 25,
+        "y": 310
+      },
+      "config": {
+        "instances": 2
+      }
+    },
+    {
+      "id": "green",
+      "type": "service",
+      "name": "Green (v2)",
+      "pos": {
+        "x": 125,
+        "y": 310
+      },
+      "config": {
+        "instances": 2
+      }
+    },
+    {
+      "id": "users-c",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 315,
+        "y": 40
+      }
+    },
+    {
+      "id": "router-c",
+      "type": "api-gateway",
+      "name": "Router",
+      "pos": {
+        "x": 315,
+        "y": 170
+      },
+      "config": {
+        "authCheck": false,
+        "instances": 2
+      }
+    },
+    {
+      "id": "stable",
+      "type": "service",
+      "name": "Stable (v1)",
+      "pos": {
+        "x": 265,
+        "y": 310
+      },
+      "config": {
+        "instances": 2
+      }
+    },
+    {
+      "id": "canary",
+      "type": "service",
+      "name": "Canary (v2)",
+      "pos": {
+        "x": 365,
+        "y": 310
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "users-bg->router-bg",
+      "from": "users-bg",
+      "to": "router-bg",
+      "config": {
+        "timeoutMs": 3000
+      }
+    },
+    {
+      "id": "router-bg->blue",
+      "from": "router-bg",
+      "to": "blue",
+      "config": {
+        "ratio": 0
+      }
+    },
+    {
+      "id": "router-bg->green",
+      "from": "router-bg",
+      "to": "green",
+      "config": {
+        "ratio": 1
+      }
+    },
+    {
+      "id": "users-c->router-c",
+      "from": "users-c",
+      "to": "router-c",
+      "config": {
+        "timeoutMs": 3000
+      }
+    },
+    {
+      "id": "router-c->stable",
+      "from": "router-c",
+      "to": "stable",
+      "config": {
+        "ratio": 0.95
+      }
+    },
+    {
+      "id": "router-c->canary",
+      "from": "router-c",
+      "to": "canary",
+      "config": {
+        "ratio": 0.05
+      }
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 120,
+    "sources": [
+      {
+        "id": "s1",
+        "node": "users-bg",
+        "shape": {
+          "kind": "constant",
+          "rps": 200
+        }
+      },
+      {
+        "id": "s2",
+        "node": "users-c",
+        "shape": {
+          "kind": "constant",
+          "rps": 200
+        }
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "shop.example",
+    "read": {
+      "path": "/api/products/{key}"
+    },
+    "write": {
+      "method": "PUT",
+      "path": "/api/cart/{key}",
+      "reqBody": "{\"sku\": \"SKU-{value}\", \"qty\": 1}",
+      "status": 200,
+      "body": "{\"cart\": {key}, \"items\": 2}"
+    }
+  }
+}

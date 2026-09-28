@@ -1,0 +1,74 @@
+group: { id: observability, label: Observability, order: 10 }
+# Collectors never error their callers: overload drops telemetry (gauge droppedPct).
+# Wire them with async edges from services.
+types:
+  - type: metrics-collector
+    label: Metrics collector
+    description: Scrapes/receives metrics; drops samples when over its ingest limit
+    icon: activity
+    costPerInstanceMonth: 80
+    knobs:
+      - { key: ingestLimit, label: Ingest limit, kind: int, default: 50000, min: 1, max: 10000000, unit: /s }
+      - { key: instances, label: Instances, kind: int, default: 1, min: 1, max: 64 }
+      - { key: slots, label: Slots, kind: int, default: 64, min: 1, max: 4096, advanced: true }
+      - { key: p50Ms, label: p50, kind: ms, default: 0.5, min: 0.01, max: 1000 }
+      - { key: p99Ms, label: p99, kind: ms, default: 3, min: 0.01, max: 5000 }
+      - { key: queueLimit, label: Buffer, kind: int, default: 1000, min: 0, max: 1000000, advanced: true }
+      - { key: costMonth, label: Cost / month, kind: number, default: 80, min: 0, max: 100000, unit: $ }
+  - type: log-pipeline
+    label: Log pipeline
+    description: Ships and indexes logs; drops lines on overload
+    icon: scroll-text
+    costPerInstanceMonth: 120
+    knobs:
+      - { key: ingestLimit, label: Ingest limit, kind: int, default: 20000, min: 1, max: 10000000, unit: /s }
+      - { key: instances, label: Instances, kind: int, default: 1, min: 1, max: 64 }
+      - { key: slots, label: Slots, kind: int, default: 64, min: 1, max: 4096, advanced: true }
+      - { key: p50Ms, label: p50, kind: ms, default: 1, min: 0.01, max: 1000 }
+      - { key: p99Ms, label: p99, kind: ms, default: 8, min: 0.01, max: 5000 }
+      - { key: queueLimit, label: Buffer, kind: int, default: 1000, min: 0, max: 1000000, advanced: true }
+      - { key: costMonth, label: Cost / month, kind: number, default: 120, min: 0, max: 100000, unit: $ }
+  - type: trace-collector
+    label: Trace collector
+    description: Receives spans; head vs tail sampling decides which traces (and errors) you keep
+    icon: waypoints
+    costPerInstanceMonth: 100
+    knobs:
+      - { key: sampling, label: Sampling, kind: enum, default: head, options: [head, tail, none], help: "head: random at ingest; tail: keep every error trace + a sample of the rest (buffers whole traces)" }
+      - { key: sampleRate, label: Sample rate, kind: number, default: 0.1, min: 0, max: 1, step: 0.01 }
+      - { key: ingestLimit, label: Ingest limit, kind: int, default: 50000, min: 1, max: 10000000, unit: spans/s }
+      - { key: instances, label: Instances, kind: int, default: 1, min: 1, max: 64 }
+      - { key: slots, label: Slots, kind: int, default: 64, min: 1, max: 4096, advanced: true }
+      - { key: p50Ms, label: p50, kind: ms, default: 0.5, min: 0.01, max: 1000 }
+      - { key: p99Ms, label: p99, kind: ms, default: 3, min: 0.01, max: 5000 }
+      - { key: queueLimit, label: Buffer, kind: int, default: 1000, min: 0, max: 1000000, advanced: true }
+      - { key: costMonth, label: Cost / month, kind: number, default: 100, min: 0, max: 100000, unit: $ }
+skins:
+  - name: prometheus
+    type: metrics-collector
+    label: Prometheus
+    description: Pull-based metrics server
+    icon: activity
+    tags: [self-hosted, cncf]
+    defaults: { ingestLimit: 100000, costMonth: 80 }
+  - name: loki
+    type: log-pipeline
+    label: Grafana Loki
+    description: Label-indexed log aggregation
+    icon: scroll-text
+    tags: [self-hosted, grafana]
+    defaults: { ingestLimit: 30000, costMonth: 100 }
+  - name: jaeger
+    type: trace-collector
+    label: Jaeger
+    description: Distributed tracing backend
+    icon: waypoints
+    tags: [self-hosted, cncf]
+    defaults: { sampling: head, sampleRate: 0.001, costMonth: 100 }   # source: Jaeger client default probabilistic 0.001
+  - name: otel-collector
+    type: trace-collector
+    label: OpenTelemetry Collector
+    description: Vendor-neutral pipeline; tail_sampling processor
+    icon: waypoints
+    tags: [self-hosted, cncf]
+    defaults: { sampling: tail, sampleRate: 0.1, costMonth: 90 }

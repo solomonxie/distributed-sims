@@ -1,0 +1,128 @@
+{
+  "schemaVersion": 1,
+  "id": "tech-airflow-catchup",
+  "name": "Airflow: catchup backfill flood",
+  "description": "catchup=True with 40 missed intervals: 40 DagRuns appear at once, 16 run (max_active_runs) and flood 8 worker slots.",
+  "nodes": [
+    {
+      "id": "scheduler",
+      "type": "airflow-scheduler",
+      "skin": "airflow-scheduler-std",
+      "name": "Scheduler",
+      "pos": {
+        "x": 110,
+        "y": 60
+      },
+      "config": {
+        "scheduleSec": 10,
+        "catchup": true,
+        "backfillRuns": 40,
+        "maxActiveRuns": 16
+      }
+    },
+    {
+      "id": "meta-db",
+      "type": "airflow-metadata-db",
+      "skin": "airflow-postgres-db",
+      "name": "Metadata DB",
+      "pos": {
+        "x": 290,
+        "y": 60
+      },
+      "config": {}
+    },
+    {
+      "id": "executor",
+      "type": "airflow-executor",
+      "skin": "airflow-celery-executor",
+      "name": "CeleryExecutor",
+      "pos": {
+        "x": 110,
+        "y": 200
+      },
+      "config": {}
+    },
+    {
+      "id": "worker-1",
+      "type": "airflow-worker",
+      "skin": "airflow-worker-std",
+      "name": "Worker 1",
+      "pos": {
+        "x": 80,
+        "y": 340
+      },
+      "config": {
+        "slots": 4
+      }
+    },
+    {
+      "id": "worker-2",
+      "type": "airflow-worker",
+      "skin": "airflow-worker-std",
+      "name": "Worker 2",
+      "pos": {
+        "x": 310,
+        "y": 340
+      },
+      "config": {
+        "slots": 4
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "scheduler-db",
+      "from": "scheduler",
+      "to": "meta-db"
+    },
+    {
+      "id": "scheduler-ex",
+      "from": "scheduler",
+      "to": "executor"
+    },
+    {
+      "id": "ex-worker-1",
+      "from": "executor",
+      "to": "worker-1"
+    },
+    {
+      "id": "worker-1-db",
+      "from": "worker-1",
+      "to": "meta-db"
+    },
+    {
+      "id": "ex-worker-2",
+      "from": "executor",
+      "to": "worker-2"
+    },
+    {
+      "id": "worker-2-db",
+      "from": "worker-2",
+      "to": "meta-db"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 120,
+    "sources": [],
+    "events": []
+  },
+  "wire": {
+    "host": "airflow.acme.io",
+    "read": {
+      "method": "GET",
+      "path": "/api/v1/dags/daily_sales_rollup/dagRuns/run_{key}",
+      "status": 200,
+      "body": "{\"dag_run_id\": \"run_{key}\", \"state\": \"running\"}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/v1/dags/daily_sales_rollup/dagRuns",
+      "reqBody": "{\"dag_run_id\": \"run_{key}\", \"conf\": {\"batch\": {value}}}",
+      "status": 200,
+      "body": "{\"dag_run_id\": \"run_{key}\", \"state\": \"queued\"}"
+    },
+    "table": "dag_run",
+    "valCol": "logical_date"
+  }
+}

@@ -1,0 +1,196 @@
+{
+  "schemaVersion": 1,
+  "id": "lesson-crypto-mtls",
+  "name": "TLS at the edge vs mTLS everywhere",
+  "description": "Same three-service chain twice. Left: TLS terminates at the load balancer, hops inside are plaintext. Right: every hop goes through an Envoy sidecar doing mTLS; each adds record crypto plus a handshake on every new connection. The right side also churns connections (70% reuse), so handshakes show up in p99.",
+  "nodes": [
+    {
+      "id": "web",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 100,
+        "y": 20
+      },
+      "skin": "react-spa"
+    },
+    {
+      "id": "lb",
+      "type": "load-balancer",
+      "name": "ALB (TLS)",
+      "pos": {
+        "x": 100,
+        "y": 120
+      },
+      "skin": "aws-alb"
+    },
+    {
+      "id": "a",
+      "type": "service",
+      "name": "Orders",
+      "pos": {
+        "x": 100,
+        "y": 220
+      },
+      "skin": "go-service"
+    },
+    {
+      "id": "b",
+      "type": "service",
+      "name": "Payments",
+      "pos": {
+        "x": 100,
+        "y": 320
+      },
+      "skin": "go-service"
+    },
+    {
+      "id": "web2",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 290,
+        "y": 20
+      },
+      "skin": "react-spa"
+    },
+    {
+      "id": "lb2",
+      "type": "load-balancer",
+      "name": "ALB (TLS)",
+      "pos": {
+        "x": 290,
+        "y": 120
+      },
+      "skin": "aws-alb"
+    },
+    {
+      "id": "sa",
+      "type": "service-mesh-sidecar",
+      "name": "Envoy",
+      "pos": {
+        "x": 290,
+        "y": 200
+      },
+      "skin": "envoy-sidecar",
+      "config": {
+        "connReusePct": 70,
+        "handshakeMs": 8,
+        "retries": 0
+      }
+    },
+    {
+      "id": "a2",
+      "type": "service",
+      "name": "Orders",
+      "pos": {
+        "x": 290,
+        "y": 280
+      },
+      "skin": "go-service"
+    },
+    {
+      "id": "sb",
+      "type": "service-mesh-sidecar",
+      "name": "Envoy",
+      "pos": {
+        "x": 290,
+        "y": 360
+      },
+      "skin": "envoy-sidecar",
+      "config": {
+        "connReusePct": 70,
+        "handshakeMs": 8,
+        "retries": 0
+      }
+    },
+    {
+      "id": "b2",
+      "type": "service",
+      "name": "Payments",
+      "pos": {
+        "x": 290,
+        "y": 440
+      },
+      "skin": "go-service"
+    }
+  ],
+  "edges": [
+    {
+      "id": "web->lb",
+      "from": "web",
+      "to": "lb"
+    },
+    {
+      "id": "lb->a",
+      "from": "lb",
+      "to": "a"
+    },
+    {
+      "id": "a->b",
+      "from": "a",
+      "to": "b"
+    },
+    {
+      "id": "web2->lb2",
+      "from": "web2",
+      "to": "lb2"
+    },
+    {
+      "id": "lb2->sa",
+      "from": "lb2",
+      "to": "sa"
+    },
+    {
+      "id": "sa->a2",
+      "from": "sa",
+      "to": "a2"
+    },
+    {
+      "id": "a2->sb",
+      "from": "a2",
+      "to": "sb"
+    },
+    {
+      "id": "sb->b2",
+      "from": "sb",
+      "to": "b2"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 60,
+    "sources": [
+      {
+        "id": "s1",
+        "node": "web",
+        "shape": {
+          "kind": "constant",
+          "rps": 300
+        }
+      },
+      {
+        "id": "s2",
+        "node": "web2",
+        "shape": {
+          "kind": "constant",
+          "rps": 300
+        }
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "shop.example",
+    "read": {
+      "path": "/api/orders/{key}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/orders",
+      "reqBody": "{\"sku\": \"SKU-{key}\", \"card\": \"tok_visa\"}",
+      "status": 201,
+      "body": "{\"order_id\": {key}, \"status\": \"placed\"}"
+    }
+  }
+}
