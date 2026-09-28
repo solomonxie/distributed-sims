@@ -14,6 +14,7 @@ import { InfoButton } from '../ui/Info';
 import { haptic } from '../lib/haptics';
 import { bus } from '../debug/bus';
 import { AlgoLesson } from '../learn/AlgoLesson';
+import { useProgress } from '../state/progress';
 import { DetailSheet, detailAt } from '../ui/DetailSheet';
 
 const SPEEDS = [0.5, 1, 2, 4];
@@ -35,6 +36,12 @@ export function AlgorithmPlayerScreen() {
   const input = custom ?? demo?.inputs[presetIdx]?.data;
   const frames = useMemo(() => (demo ? algo.frames(demo, input) : []), [demo, input]);
   const prevRef = useRef<algo.Frame | undefined>(undefined);
+
+  const slug = route.params.slug;
+  const inLesson = !!route.params.lesson;
+  useEffect(() => {
+    if (!inLesson) useProgress.getState().visit({ kind: 'demo', slug });
+  }, [slug, inLesson]);
 
   useLayoutEffect(() => {
     nav.setOptions({

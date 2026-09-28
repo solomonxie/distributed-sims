@@ -3,42 +3,44 @@
 ## Home — `HomeScreen` (single page, no tab bar)
 
 ```
- Distributed Sims                     ⚙
+ Distributed Sims                          ⚙
  🔍 Search lessons, problems, animations
- ╭──────────────────────────────────────╮
- │ ▶  Continue · Consensus              │
- │    Split vote     ██████░░░░         │
- ╰──────────────────────────────────────╯
- SYSTEM DESIGN 16              See all ›
- ╭─────────────────╮ ╭─────────────────╮
- │ [◈]             │ │ [◈]          ✓  │  ← uniform tile:
- │ Caching         │ │ Sharding        │    icon · 2-line title ·
- │ ████░░  2/6     │ │ ██████  5/5     │    one meta line
- ╰─────────────────╯ ╰─────────────────╯
- ╭─────────────────╮ ╭─────────────────╮   max 2 rows (4 tiles)
- │ Consistency     │ │ Consensus       │   per section
- ╰─────────────────╯ ╰─────────────────╯
- UNDER THE HOOD · MACHINE LEVEL · C++      (same pattern)
- PROBLEMS 21        tiles: 1/3 ★ · classic
- ANIMATIONS 180     tiles = demo groups: "12 animations"
- MY SYSTEMS 3       [+ New system] then systems (parts · edited)
+ CONTINUE                 ← recent visits, newest first
+ ╭─────────╮ ╭─────────╮ ╭─────────╮
+ │ [▶]     │ │ [◈]     │ │ [◇]     │   lesson · topic · problem ·
+ │ Split   │ │ Caching │ │ Dijkstra│   animation · language
+ │ vote    │ │         │ │         │
+ │Consensus│ │ Topic   │ │Animation│
+ ╰─────────╯ ╰─────────╯ ╰─────────╯
+ TOPICS 16                          See all ›
+ ╭─────────╮ ╭─────────╮ ╭─────────╮   uniform tile: icon ·
+ │ [◈]   ✓ │ │ [◈]     │ │ [◈]     │   2-line title · meta line
+ │ Caching │ │Sharding │ │Consist… │   3 per row, max 2 rows
+ │ ███ 6/6 │ │ █░░ 1/5 │ │ ░░░ 0/6 │   (6 tiles) per section
+ ╰─────────╯ ╰─────────╯ ╰─────────╯
+ TECH STACK · NETWORK · MACHINE LEVEL      (topic tiles, same pattern)
+ LANGUAGES 6     C++ · Go · Python · Java · Rust · C#  → language page
+ PROBLEMS        tiles: 1/3 ★
+ ANIMATIONS      tiles = demo groups: "12 animations"
+ MY SYSTEMS      [+ New system] then systems (parts · edited)
 ```
 
-- "See all ›" pushes a page with the full grid (header title = section).
-  Pages: `TopicsScreen` (group), `ProblemsScreen` (category filter),
-  `AlgorithmsScreen` (all groups by Algorithms / Machine level / C++;
-  a group tile → its animation list), `MySystemsScreen` (`+` in header).
-- Search replaces the sections with one result list: lessons, problems,
-  animations (max 40).
+- Continue = `progress.recent` (max 12 stored, 6 shown): recorded on
+  opening a lesson, topic, problem, standalone animation or language.
+- "See all ›" pushes a full grid (header = section title):
+  `TopicsScreen` (group), `LanguageScreen` (one language's topics),
+  `ProblemsScreen`, `AlgorithmsScreen` (groups by Algorithms · Network ·
+  Machine level · Languages; group tile → its list), `MySystemsScreen`.
+- Search replaces the sections with one result list (max 40).
 - Tile colours: topics accent (ok when complete), problems warn,
   animations protocol, systems write, create tiles ok.
 
 States:
 ```
-first-run   Continue card replaced by
-            "New here? Start with Caching › Cache-aside"  ( ✕ ) [[ Start ]]
+first-run   no recents → "New here? Start with Caching › Cache-aside" ( ✕ ) [[ Start ]]
 search      no match → "Nothing matches "raft2"" + ( Clear )
 no systems  MY SYSTEMS: [+ New system] [From a template]
+language    no topics yet → "Lessons for this language are on the way."
 ```
 
 ## Topic page — `TopicScreen`
