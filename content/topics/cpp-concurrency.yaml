@@ -1,0 +1,194 @@
+id: cpp-concurrency
+title: Concurrency
+group: cpp
+icon: git-fork
+order: 6
+summary: Threads, locks, condition variables, futures, pools and atomics, and how to design code that stays correct under them.
+info: A multithreaded program is correct only if every interleaving is correct. The tools are few (threads, mutexes, condition variables, atomics, futures) and the failure modes are well known (data races, deadlocks, lost wakeups, contention, false sharing). The best designs share as little mutable state as possible and put the remaining locks in one small, well-tested place.
+algos: [conc-threads, conc-race, conc-deadlock, conc-condvar, conc-futures, conc-pool, conc-atomics, conc-rw, conc-design]
+lessons:
+  - id: threads
+    title: Threads & lifetime
+    minutes: 4
+    algo: conc-threads
+    steps:
+      - title: Start and join
+        body: A std::thread starts running when constructed. join() waits for it; output order is up to the scheduler.
+        input: join
+        check: { metric: manual }
+      - title: Every thread must be joined or detached
+        body: A joinable std::thread destroyed without join calls std::terminate.
+        check: { metric: manual }
+      - title: Detach and dangling references
+        body: A detached thread that captured locals by reference reads freed memory once the function returns.
+        watch: name dies at the closing brace while the thread still uses it.
+        input: detach
+        check: { metric: manual }
+      - title: std::jthread
+        body: C++20. Joins in its destructor and passes a stop_token for cooperative cancellation. Prefer it.
+        input: jthread
+        check: { metric: manual }
+
+  - id: races
+    title: Data races & mutexes
+    minutes: 5
+    algo: conc-race
+    steps:
+      - title: counter++ loses updates
+        body: Load, add, store. Two threads interleave and one increment vanishes. Formally it's undefined behaviour.
+        input: race
+        check: { metric: manual }
+      - title: lock_guard
+        body: An RAII guard locks a std::mutex and unlocks at scope exit, even on exceptions. Keep critical sections short.
+        input: mutex
+        check: { metric: manual }
+      - title: std::atomic for one variable
+        body: fetch_add is a single indivisible instruction. Use a mutex once several variables must change together.
+        watch: See C++ under the hood → atomics for the MESI view.
+        input: atomic
+        check: { metric: manual }
+      - title: Find races with TSan
+        body: Build tests with -fsanitize=thread. It reports each racy pair of accesses with both stack traces.
+        check: { metric: manual }
+
+  - id: deadlock
+    title: Deadlock & lock ordering
+    minutes: 4
+    algo: conc-deadlock
+    steps:
+      - title: The cycle
+        body: Thread A holds m1 and wants m2; B holds m2 and wants m1. Both wait forever at 0% CPU.
+        input: deadlock
+        check: { metric: manual }
+      - title: One global order
+        body: Always lock in the same order (by id, by address, by layer). A cycle can't form.
+        input: order
+        check: { metric: manual }
+      - title: std::scoped_lock
+        body: Locks several mutexes at once without deadlock. Better still, never hold two locks.
+        input: scoped
+        check: { metric: manual }
+      - title: Never call out while locked
+        body: Calling a callback or another component's API under your lock is how hidden lock-order cycles start.
+        check: { metric: manual }
+
+  - id: condvar
+    title: Condition variables & queues
+    minutes: 5
+    algo: conc-condvar
+    steps:
+      - title: Don't spin
+        body: A loop that polls the queue burns a whole core and steals the mutex from the producer.
+        input: busy
+        check: { metric: manual }
+      - title: wait and notify
+        body: cv.wait(lk, pred) unlocks and sleeps; notify_one wakes a waiter, which relocks and rechecks.
+        input: cv
+        check: { metric: manual }
+      - title: Always use a predicate
+        body: Spurious wakeups and notifies sent before anyone waits are both handled by waiting on state.
+        input: spurious
+        check: { metric: manual }
+      - title: Bound the queue
+        body: A capped queue makes a fast producer wait for a slow consumer. That's backpressure.
+        input: bounded
+        check: { metric: manual }
+
+  - id: futures
+    title: Futures, promises & async
+    minutes: 4
+    algo: conc-futures
+    steps:
+      - title: promise → future
+        body: A one-shot channel for a value or an exception. get() blocks, then returns or rethrows.
+        input: promise
+        check: { metric: manual }
+      - title: std::async
+        body: Pass std::launch::async for real parallelism. A discarded async future blocks in its destructor.
+        input: async
+        check: { metric: manual }
+      - title: packaged_task
+        body: Wraps a callable so that running it fills a future. Thread pools use it to return results.
+        input: packaged
+        check: { metric: manual }
+
+  - id: pools
+    title: Thread pools
+    minutes: 5
+    algo: conc-pool
+    steps:
+      - title: N workers, one queue
+        body: Start one worker per core once. Tasks queue up; free workers pull the next one.
+        input: pool
+        check: { metric: manual }
+      - title: Thread per task doesn't scale
+        body: Thousands of runnable threads mean stack memory, context switches and cold caches.
+        input: oversub
+        check: { metric: manual }
+      - title: Clean shutdown
+        body: Set stop under the lock, notify_all, join every worker. Decide whether queued tasks drain or drop.
+        input: shutdown
+        check: { metric: manual }
+
+  - id: atomics
+    title: Atomics & memory order
+    minutes: 5
+    algo: conc-atomics
+    steps:
+      - title: Publishing data
+        body: Write the data, then store a flag with release. A reader that loads the flag with acquire sees the data.
+        input: publish
+        check: { metric: manual }
+      - title: Compare-exchange loops
+        body: Read, compute, CAS; on failure the current value is reloaded and you retry. Lock-free, not wait-free.
+        input: cas
+        check: { metric: manual }
+      - title: Default to seq_cst
+        body: Plain atomic operations are sequentially consistent. Weaken the order only with a measured reason and a comment.
+        check: { metric: manual }
+
+  - id: false-sharing
+    title: False sharing
+    minutes: 3
+    algo: conc-atomics
+    steps:
+      - title: Independent data, shared line
+        body: Two counters in one 64-byte cache line make two cores fight over it though they never share a variable.
+        input: falseshare
+        check: { metric: manual }
+      - title: Pad hot per-thread data
+        body: alignas(64), or std::hardware_destructive_interference_size, gives each its own line.
+        watch: Line transfers drop to zero.
+        check: { metric: manual }
+
+  - id: readers-writers
+    title: Readers, writers & snapshots
+    minutes: 4
+    algo: conc-rw
+    steps:
+      - title: std::shared_mutex
+        body: Many readers or one writer. Good for read-mostly data, but the reader count is itself a contended line.
+        input: shared
+        check: { metric: manual }
+      - title: Immutable snapshots
+        body: Readers take a shared_ptr<const T> with no lock; a writer copies, edits and swaps the pointer.
+        input: snapshot
+        check: { metric: manual }
+
+  - id: design
+    title: Designing thread-safe code
+    minutes: 5
+    algo: conc-design
+    steps:
+      - title: Shared state, encapsulated
+        body: If data must be shared, hide it with its mutex inside one class. Callers never see the lock.
+        input: shared
+        check: { metric: manual }
+      - title: Message passing
+        body: One owner thread per piece of state; others send messages. No data races by construction.
+        watch: Event-loop servers (Network servers) are built this way.
+        input: message
+        check: { metric: manual }
+      - title: Checklist
+        body: Minimise sharing, prefer immutable data, keep locks short, never call out under a lock, run TSan in CI.
+        check: { metric: manual }

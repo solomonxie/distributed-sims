@@ -17,6 +17,7 @@ const GROUPS: { id: TopicDef['group']; title: string }[] = [
   { id: 'topics', title: 'TOPICS' },
   { id: 'under-the-hood', title: 'UNDER THE HOOD' },
   { id: 'machine', title: 'MACHINE LEVEL' },
+  { id: 'cpp', title: 'C++' },
 ];
 
 export function LearnScreen() {

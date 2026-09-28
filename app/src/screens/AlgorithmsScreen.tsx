@@ -22,21 +22,41 @@ const GROUP_ICON: Record<string, string> = {
   'machine-bus': 'circuit-board',
   'machine-asm': 'binary',
   'machine-cpp': 'braces',
+  'cpp-basics': 'braces',
+  'cpp-oop': 'boxes',
+  'cpp-stl': 'library',
+  'cpp-modern': 'sparkles',
+  'cpp-concurrency': 'git-fork',
+  'cpp-cmake': 'hammer',
+  'cpp-projects': 'network',
+  'cpp-patterns': 'shapes',
+  'cpp-network': 'server',
 };
-const GROUP_LABEL: Record<string, string> = { 'machine-cpu': 'CPU', 'machine-memory': 'Memory', 'machine-bus': 'Chips, buses & I/O', 'machine-asm': 'Assembly', 'machine-cpp': 'C++' };
+const GROUP_LABEL: Record<string, string> = { 'machine-cpu': 'CPU', 'machine-memory': 'Memory', 'machine-bus': 'Chips, buses & I/O', 'machine-asm': 'Assembly', 'machine-cpp': 'C++ under the hood',
+  'cpp-basics': 'Basics',
+  'cpp-oop': 'Classes & OOP',
+  'cpp-stl': 'STL',
+  'cpp-modern': 'Modern C++',
+  'cpp-concurrency': 'Concurrency',
+  'cpp-cmake': 'CMake',
+  'cpp-projects': 'Large projects',
+  'cpp-patterns': 'Design patterns',
+  'cpp-network': 'Network servers',
+};
+const kindOf = (g: string) => (g === 'machine-cpp' || g.startsWith('cpp-') ? 'cpp' : g.startsWith('machine') ? 'machine' : 'algorithms');
 
 export function AlgorithmsScreen() {
   const { c } = useTheme();
   const nav = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [q, setQ] = useState('');
-  const [kind, setKind] = useState<'algorithms' | 'machine'>('algorithms');
+  const [kind, setKind] = useState<'algorithms' | 'machine' | 'cpp'>('algorithms');
   const all = useMemo(() => algo.allDemos(), []);
   const query = q.trim().toLowerCase();
-  const list = all.filter(d => (kind === 'machine') === d.group.startsWith('machine') && (!query || `${d.title} ${d.summary} ${d.group}`.toLowerCase().includes(query)));
+  const list = all.filter(d => kindOf(d.group) === kind && (!query || `${d.title} ${d.summary} ${d.group}`.toLowerCase().includes(query)));
   const groups = [...new Set(list.map(d => d.group))];
   return (
     <Screen title="Algorithms" subtitle="Step through the ideas systems are built on.">
-      <Segmented options={['algorithms', 'machine'] as const} value={kind} onChange={setKind} labels={{ algorithms: 'Algorithms', machine: 'Machine level' }} />
+      <Segmented options={['algorithms', 'machine', 'cpp'] as const} value={kind} onChange={setKind} labels={{ algorithms: 'Algorithms', machine: 'Machine', cpp: 'C++' }} />
       <View style={[styles.search, { backgroundColor: c.surface1, borderColor: c.hairline }]}>
         <Icon name="search" size={16} color={c.text3} />
         <TextInput value={q} onChangeText={setQ} placeholder={`Search ${all.length} animations`} placeholderTextColor={c.text3} style={[typo.body, { flex: 1, color: c.text, paddingVertical: 10 }]} clearButtonMode="while-editing" autoCorrect={false} />
@@ -48,7 +68,7 @@ export function AlgorithmsScreen() {
             {list
               .filter(d => d.group === g)
               .map((d, i, arr) => (
-                <Row key={d.slug} left={<Icon name={GROUP_ICON[g] ?? 'diamond'} size={18} color={g.startsWith('machine') ? c.write : c.protocol} />} title={d.title} subtitle={d.summary} chevron last={i === arr.length - 1} onPress={() => nav.navigate('AlgorithmPlayer', { slug: d.slug })} />
+                <Row key={d.slug} left={<Icon name={GROUP_ICON[g] ?? 'diamond'} size={18} color={kindOf(g) === 'algorithms' ? c.protocol : c.write} />} title={d.title} subtitle={d.summary} chevron last={i === arr.length - 1} onPress={() => nav.navigate('AlgorithmPlayer', { slug: d.slug })} />
               ))}
           </Card>
         </View>

@@ -1,0 +1,254 @@
+id: cpp-network
+title: Network servers & C10K
+group: cpp
+icon: server
+order: 10
+summary: Build a server from raw sockets up to 10,000 concurrent connections. TCP streams, HTTP, epoll, backpressure and benchmarking.
+info: A server starts as socket, bind, listen, accept and a loop. It gets hard when you want thousands of connections at once on a small box. Threads per connection stop scaling, so you switch to non-blocking sockets and an epoll event loop, and you have to handle partial reads and writes, slow clients, connection churn, OS limits and clean shutdown. These lessons follow that path, ending with the C10K acceptance criteria.
+algos: [net-socket, net-stream, net-http, net-threads, net-nonblock, net-epoll, net-conn, net-backpressure, net-lifecycle, net-scale]
+lessons:
+  - id: sockets
+    title: Sockets & file descriptors
+    minutes: 5
+    algo: net-socket
+    steps:
+      - title: Five calls
+        body: socket, bind, listen, accept, then recv/send on the new fd. The listening fd never carries data.
+        input: lifecycle
+        check: { metric: manual }
+      - title: The code
+        body: The smallest echo server, line by line. Every call returns an int you must check.
+        input: code
+        check: { metric: manual }
+      - title: Everything is an fd
+        body: Sockets, files and pipes are small ints in the process's fd table. Each connection costs one.
+        check: { metric: manual }
+
+  - id: backlog
+    title: Listen backlog
+    minutes: 3
+    algo: net-socket
+    steps:
+      - title: Two queues
+        body: The kernel completes handshakes by itself and parks finished connections in the accept queue.
+        input: backlog
+        check: { metric: manual }
+      - title: Size it
+        body: listen(fd, SOMAXCONN), raise net.core.somaxconn, and accept until EAGAIN. Check drops with ss -lnt.
+        check: { metric: manual }
+
+  - id: byte-stream
+    title: TCP is a byte stream
+    minutes: 5
+    algo: net-stream
+    steps:
+      - title: Sends coalesce
+        body: Two send() calls can arrive in one recv(). TCP has no message boundaries.
+        input: coalesce
+        check: { metric: manual }
+      - title: Messages split
+        body: One large send() can take several recv() calls. Short reads are normal.
+        input: split
+        check: { metric: manual }
+      - title: Framing
+        body: Length-prefix or delimiter, plus a per-connection buffer. Extract every complete message, keep the partial one.
+        input: framing
+        check: { metric: manual }
+
+  - id: http
+    title: HTTP by hand
+    minutes: 5
+    algo: net-http
+    steps:
+      - title: Anatomy
+        body: Request line, headers, blank line, body. The response mirrors it with a status line.
+        input: anatomy
+        check: { metric: manual }
+      - title: Parsing
+        body: Wait for \r\n\r\n, split the request line, parse headers, honour Content-Length. Reject bad input with 400.
+        input: parse
+        check: { metric: manual }
+
+  - id: routing-files
+    title: Routing & static files
+    minutes: 4
+    algo: net-http
+    steps:
+      - title: A routing table
+        body: method + path → handler returning a Response. Handlers never touch sockets.
+        input: route
+        check: { metric: manual }
+      - title: Serving files safely
+        body: Normalise the path, reject .. escapes, set Content-Type and Content-Length, and use sendfile.
+        input: static
+        check: { metric: manual }
+
+  - id: thread-per-conn
+    title: Thread per connection & keep-alive
+    minutes: 5
+    algo: net-threads
+    steps:
+      - title: One at a time
+        body: A single-threaded blocking server lets one slow client stall everyone.
+        input: iterative
+        check: { metric: manual }
+      - title: A thread each
+        body: Simple blocking code per client, fine for hundreds of connections.
+        input: perthread
+        check: { metric: manual }
+      - title: Keep-alive
+        body: Reusing connections saves handshakes but leaves threads idle in recv(). Add idle timeouts.
+        input: keepalive
+        check: { metric: manual }
+
+  - id: c10k-problem
+    title: The C10K problem
+    minutes: 3
+    algo: net-threads
+    steps:
+      - title: Costs that scale with connections
+        body: Stacks, context switches, cold caches and lock contention all grow with thread count, not traffic.
+        input: limits
+        check: { metric: manual }
+      - title: The way out
+        body: Few threads, many sockets. Non-blocking I/O plus a readiness API (epoll on Linux, kqueue on macOS).
+        check: { metric: manual }
+
+  - id: nonblocking
+    title: Non-blocking I/O
+    minutes: 4
+    algo: net-nonblock
+    steps:
+      - title: Blocking stalls the thread
+        body: recv() on an idle socket sleeps while other sockets have data.
+        input: blocking
+        check: { metric: manual }
+      - title: EAGAIN
+        body: With O_NONBLOCK, recv/send/accept return -1 and EAGAIN instead of sleeping. It means try later.
+        input: eagain
+        check: { metric: manual }
+      - title: Don't poll everything
+        body: Looping over 10,000 sockets burns CPU on EAGAIN. Ask the kernel which ones are ready.
+        input: polling
+        check: { metric: manual }
+
+  - id: epoll
+    title: The epoll event loop
+    minutes: 6
+    algo: net-epoll
+    steps:
+      - title: Register, wait, handle
+        body: epoll_ctl adds fds once; epoll_wait sleeps and returns only ready ones. Cost follows activity.
+        input: loop
+        check: { metric: manual }
+      - title: Accepting
+        body: Put the listening fd in epoll and accept4 in a loop until EAGAIN, with SOCK_NONBLOCK | SOCK_CLOEXEC.
+        input: accept
+        check: { metric: manual }
+      - title: Handlers must not block
+        body: One slow call (disk, DNS, a mutex) freezes every connection on the loop. Offload it to a pool.
+        check: { metric: manual }
+
+  - id: lt-et
+    title: Level- vs edge-triggered
+    minutes: 4
+    algo: net-epoll
+    steps:
+      - title: Level-triggered
+        body: Reported while data remains. Forgiving; the default.
+        input: lt
+        check: { metric: manual }
+      - title: Edge-triggered
+        body: Reported once per change. You must drain to EAGAIN, or the connection stalls forever.
+        input: et
+        check: { metric: manual }
+
+  - id: state-machines
+    title: Connection state machines & partial I/O
+    minutes: 6
+    algo: net-conn
+    steps:
+      - title: State lives in Conn
+        body: read headers → read body → handle → write → keep-alive or close. Each event advances one step.
+        input: states
+        check: { metric: manual }
+      - title: Partial writes
+        body: send() may take only part of the buffer. Track an offset and continue on EPOLLOUT.
+        input: partialwrite
+        check: { metric: manual }
+      - title: Timeouts
+        body: Track last activity per Conn and close idle or stuck ones from a timer (timerfd or a timer wheel).
+        check: { metric: manual }
+
+  - id: backpressure
+    title: Backpressure & slow clients
+    minutes: 5
+    algo: net-backpressure
+    steps:
+      - title: The slow reader
+        body: If you keep queuing output for a client that can't keep up, memory grows until OOM.
+        input: slow
+        check: { metric: manual }
+      - title: EPOLLOUT re-arm
+        body: On EAGAIN, keep the remainder and ask for EPOLLOUT; drop it again once the buffer is empty.
+        input: epollout
+        check: { metric: manual }
+      - title: Cap and decide
+        body: Bound pending output per connection and apply a documented policy when it's exceeded.
+        input: bounded
+        check: { metric: manual }
+
+  - id: churn-limits
+    title: Churn, fd hygiene & OS limits
+    minutes: 5
+    algo: net-lifecycle
+    steps:
+      - title: Clean teardown
+        body: On recv() == 0, EPOLLHUP or EPOLLERR, remove from epoll, close, free the Conn. The fd count must return to baseline.
+        input: churn
+        check: { metric: manual }
+      - title: Limits to tune
+        body: ulimit -n, somaxconn, SO_REUSEADDR, SO_REUSEPORT, and ephemeral ports on the client. Raise them explicitly and document it.
+        input: limits
+        check: { metric: manual }
+
+  - id: shutdown
+    title: Graceful shutdown
+    minutes: 3
+    algo: net-lifecycle
+    steps:
+      - title: Signals as events
+        body: signalfd (or a self-pipe) turns SIGTERM into an epoll event.
+        input: shutdown
+        check: { metric: manual }
+      - title: Order matters
+        body: Close the listener first, flush or drop in-flight output, close clients, exit 0 within the deadline.
+        check: { metric: manual }
+
+  - id: benchmark
+    title: Benchmarking C10K
+    minutes: 5
+    algo: net-scale
+    steps:
+      - title: Measure honestly
+        body: Load generator on another host; ramp 1K → 10K, hold, churn. Watch p99, RSS, fds and CPU together.
+        input: bench
+        check: { metric: manual }
+      - title: Memory per connection
+        body: Kernel socket plus your Conn. Allocate buffers lazily so idle connections cost a few KB.
+        input: memory
+        check: { metric: manual }
+
+  - id: scale-out
+    title: Using every core
+    minutes: 5
+    algo: net-scale
+    steps:
+      - title: One loop per core
+        body: SO_REUSEPORT listeners, one epoll loop each, connections pinned to a loop. No locks on the hot path.
+        input: multiloop
+        check: { metric: manual }
+      - title: Fewer copies and syscalls
+        body: sendfile, writev and batching. Profile with perf and strace -c before tuning.
+        input: zerocopy
+        check: { metric: manual }

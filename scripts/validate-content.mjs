@@ -25,7 +25,7 @@ const LUCIDE = (() => {
 })();
 export const lucideName = (kebab) => String(kebab).split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('');
 
-const TOPIC_GROUPS = ['topics', 'under-the-hood', 'machine'];
+const TOPIC_GROUPS = ['topics', 'under-the-hood', 'machine', 'cpp'];
 const PROBLEM_CATEGORIES = ['classic', 'product', 'infra'];
 
 const list = (dir, ext) =>

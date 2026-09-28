@@ -1,0 +1,284 @@
+id: cpp-projects
+title: Large C++ projects
+group: cpp
+icon: network
+order: 8
+summary: Structure, test, debug, profile and ship big C++ codebases. Architecture, build times, sanitizers, error policy, libraries, versioning, ABI and legacy code.
+info: Past a few hundred files, C++ problems stop being about syntax. They are about the library graph, how long a rebuild takes, which symbols a shared library exports, and whether an upgrade silently breaks binaries built last month. These lessons cover the techniques real codebases use to stay buildable and upgradable.
+algos: [cpp-architecture, cpp-codebase, cpp-rebuild, cpp-testing, cpp-sanitizers, cpp-debugging, cpp-profiling, cpp-errors, cpp-observability, cpp-libs, cpp-versioning, cpp-abi]
+lessons:
+  - id: architecture
+    title: Structuring a large codebase
+    minutes: 6
+    algo: cpp-architecture
+    steps:
+      - title: A layered library graph
+        body: core (logic, no I/O) at the bottom, services in the middle, app on top wiring them. Arrows only point down.
+        input: layers
+        check: { metric: manual }
+      - title: Cycles
+        body: One stray #include makes two libraries one. Break it by inversion; the lower one declares an interface, the upper implements it.
+        watch: After the fix, a net change no longer rebuilds core.
+        input: cycle
+        check: { metric: manual }
+      - title: Tests per library
+        body: One test binary per library, with fakes at the interface seams. ctest runs them in parallel.
+        input: tests
+        check: { metric: manual }
+
+  - id: codebase-layout
+    title: Headers, sources & namespaces
+    minutes: 4
+    algo: cpp-codebase
+    steps:
+      - title: Public vs private
+        body: include/<project>/ is installed and public; src/ is private. Tap each box for an example.
+        input: layout
+        check: { metric: manual }
+      - title: Namespaces
+        body: One project namespace, a detail namespace for header-only internals, anonymous namespaces for file-local helpers.
+        check: { metric: manual }
+      - title: Self-contained headers
+        body: Include your own header first in its .cpp, so a missing include fails right there.
+        check: { metric: manual }
+
+  - id: build-times
+    title: Build times at scale
+    minutes: 6
+    algo: cpp-rebuild
+    steps:
+      - title: Header fan-out
+        body: A header included by every file makes every edit to it a full rebuild. Keep such headers small and stable.
+        input: fanout
+        check: { metric: manual }
+      - title: Forward declarations
+        body: class Engine; is enough for pointers and references. Include the full header only in the .cpp that needs it.
+        watch: 20 rebuilds become 3.
+        input: fwd
+        check: { metric: manual }
+      - title: Pimpl
+        body: Private members behind a unique_ptr<Impl> in the .cpp. A compilation firewall and a stable ABI, for one allocation.
+        input: pimpl
+        check: { metric: manual }
+      - title: Faster tools
+        body: ccache for repeat builds, precompiled headers, unity builds, and C++20 modules as the long-term fix.
+        input: cache
+        check: { metric: manual }
+
+  - id: testing
+    title: Testing at scale
+    minutes: 6
+    algo: cpp-testing
+    steps:
+      - title: GoogleTest
+        body: TEST for single cases, TEST_F with a fixture for shared setup, gtest_discover_tests to feed CTest.
+        input: gtest
+        check: { metric: manual }
+      - title: Fakes behind interfaces
+        body: Pass clocks, networks and storage in as interfaces. Tests pass fakes they control.
+        input: mock
+        check: { metric: manual }
+      - title: The test pyramid
+        body: Many unit tests, fewer integration tests, a handful end to end. Flaky tests are bugs.
+        input: pyramid
+        check: { metric: manual }
+
+  - id: sanitizers
+    title: Sanitizers in depth
+    minutes: 6
+    algo: cpp-sanitizers
+    steps:
+      - title: AddressSanitizer
+        body: Use-after-free, buffer overflows, leaks. About 2x slower; run all tests under it.
+        input: asan
+        check: { metric: manual }
+      - title: UBSan
+        body: Signed overflow, bad shifts, out-of-bounds indexes. Cheap enough to leave on in test builds.
+        input: ubsan
+        check: { metric: manual }
+      - title: ThreadSanitizer
+        body: Finds data races even when the output looks right. Needs its own build.
+        input: tsan
+        check: { metric: manual }
+      - title: Wiring them up
+        body: One CMake option, one preset per sanitizer, all required in CI.
+        input: setup
+        check: { metric: manual }
+
+  - id: debugging
+    title: Debugging & post-mortem
+    minutes: 6
+    algo: cpp-debugging
+    steps:
+      - title: gdb and lldb
+        body: break, run, bt, print, up/down. Build with symbols.
+        input: gdb
+        check: { metric: manual }
+      - title: Core dumps
+        body: A crashed process's memory, opened later with the same binary to find where and why it died.
+        input: core
+        check: { metric: manual }
+      - title: Symbols for release builds
+        body: Ship stripped binaries, keep debug info by build-id, symbolize crash addresses with addr2line.
+        input: symbols
+        check: { metric: manual }
+
+  - id: profiling
+    title: Profiling
+    minutes: 6
+    algo: cpp-profiling
+    steps:
+      - title: Sampling
+        body: perf or Instruments record stacks about 1000 times a second. Where samples land is where time goes.
+        input: sampling
+        check: { metric: manual }
+      - title: Flame graphs
+        body: Width is time. Fix the widest plateau first.
+        input: flame
+        check: { metric: manual }
+      - title: Instrumentation
+        body: RAII timers on chosen scopes, drawn per thread by Tracy or Perfetto.
+        input: instrument
+        check: { metric: manual }
+      - title: Micro-benchmarks
+        body: Google Benchmark, DoNotOptimize, Release builds, repeated runs.
+        input: bench
+        check: { metric: manual }
+
+  - id: errors
+    title: Error-handling strategy
+    minutes: 6
+    algo: cpp-errors
+    steps:
+      - title: Exceptions
+        body: Can't be ignored, unwind through RAII, free when not thrown, slow when thrown.
+        input: exceptions
+        check: { metric: manual }
+      - title: Error codes
+        body: Cheap and explicit but easy to ignore; add [[nodiscard]].
+        input: codes
+        check: { metric: manual }
+      - title: std::expected
+        body: A value or an error in the return type, chained with and_then and transform.
+        input: expected
+        check: { metric: manual }
+      - title: One policy
+        body: Translate foreign errors at the edge, assert on bugs, catch everything at the top.
+        input: policy
+        check: { metric: manual }
+
+  - id: observability
+    title: Logging & observability
+    minutes: 5
+    algo: cpp-observability
+    steps:
+      - title: Logging
+        body: Levels, structured fields, async sinks, rotation, a request id on every line.
+        input: logging
+        check: { metric: manual }
+      - title: Metrics
+        body: Counters, gauges and histograms on /metrics, scraped and alerted on p99.
+        input: metrics
+        check: { metric: manual }
+      - title: Crash reporting
+        body: Minidumps from user machines, symbolized on a server, grouped by stack.
+        input: crash
+        check: { metric: manual }
+
+  - id: libraries
+    title: Static vs shared libraries
+    minutes: 6
+    algo: cpp-libs
+    steps:
+      - title: Static
+        body: An archive of objects, copied into each executable at link time. No runtime deps, but every app must relink for a fix.
+        input: static
+        check: { metric: manual }
+      - title: Shared
+        body: Loaded by ld.so at startup and shared between processes. Upgradable in place, if its ABI stays compatible.
+        input: shared
+        check: { metric: manual }
+      - title: Finding it at run time
+        body: RUNPATH, LD_LIBRARY_PATH, then system dirs. Set INSTALL_RPATH to $ORIGIN/../lib.
+        input: notfound
+        check: { metric: manual }
+      - title: Visibility
+        body: Hide everything by default and export the public API with a macro. The export list is your ABI.
+        input: visibility
+        check: { metric: manual }
+
+  - id: versioning
+    title: Versioning & SONAME
+    minutes: 5
+    algo: cpp-versioning
+    steps:
+      - title: Semantic versioning
+        body: MAJOR breaks, MINOR adds, PATCH fixes. A version file tells find_package what's compatible.
+        input: semver
+        check: { metric: manual }
+      - title: SONAME
+        body: SOVERSION is the ABI version. Apps record it and keep working across compatible upgrades.
+        input: soname
+        check: { metric: manual }
+
+  - id: cross-platform
+    title: Cross-platform libraries
+    minutes: 5
+    algo: cpp-versioning
+    steps:
+      - title: Windows DLLs
+        body: Export explicitly with a generated macro. Link the import library; the DLL loads from the exe dir or PATH.
+        input: windows
+        check: { metric: manual }
+      - title: macOS dylibs
+        body: Install names, @rpath and LC_RPATH, bundles, code signing, universal binaries.
+        input: macos
+        check: { metric: manual }
+
+  - id: abi
+    title: ABI & binary compatibility
+    minutes: 6
+    algo: cpp-abi
+    steps:
+      - title: Layouts are baked in
+        body: Callers compile in sizeof and field offsets. Changing an exposed struct breaks every binary built against the old one.
+        input: layout
+        check: { metric: manual }
+      - title: Vtable slots
+        body: Callers compile in slot numbers. Inserting a virtual shifts the rest; append only.
+        input: vtable
+        check: { metric: manual }
+      - title: "std:: types at the boundary"
+        body: The standard library's own ABI (string ABI flag, Debug runtime, libc++ vs libstdc++) must match on both sides.
+        input: stdlib
+        check: { metric: manual }
+      - title: ODR violations
+        body: Two versions of one header-only library in one program link silently and corrupt memory. One version per build graph.
+        input: odr
+        check: { metric: manual }
+
+  - id: review-gates
+    title: Code review & static analysis
+    minutes: 4
+    algo: cpp-codebase
+    steps:
+      - title: Automatic gates first
+        body: clang-format, clang-tidy, a build matrix and sanitizer tests run before any human review.
+        input: gates
+        check: { metric: manual }
+      - title: What humans review
+        body: Design, API shape, naming and ownership. CODEOWNERS routes each change to the right people.
+        check: { metric: manual }
+
+  - id: legacy
+    title: Working in legacy code
+    minutes: 5
+    algo: cpp-codebase
+    steps:
+      - title: Tests before changes
+        body: Characterization tests pin today's behaviour so refactors can't change it silently.
+        input: legacy
+        check: { metric: manual }
+      - title: Seams and small steps
+        body: Interfaces around globals, clang-tidy modernize fixes, then strangle old parts behind the same API.
+        check: { metric: manual }

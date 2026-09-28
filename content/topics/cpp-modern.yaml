@@ -1,0 +1,213 @@
+id: cpp-modern
+title: Modern C++
+group: cpp
+icon: sparkles
+order: 5
+summary: C++11 to C++23 in practice. auto, lambdas, smart pointers, move, templates, concepts, constexpr, variant, ranges, coroutines and exception safety.
+info: Modern C++ is less about new syntax than about expressing ownership, intent and constraints in types. unique_ptr says who deletes, optional says a result may be missing, concepts say what a template needs, and moves make value semantics cheap. Each lesson shows what the feature compiles to or how it lays out memory, plus the mistakes it invites. Tap any box marked i for a short explanation and sample.
+algos: [mod-auto, mod-lambda, mod-function, mod-smart, mod-move, mod-templates, mod-variadic, mod-concepts, mod-constexpr, mod-sumtypes, mod-ranges, mod-coroutines, mod-exceptions, mod-filesystem]
+lessons:
+  - id: auto
+    title: auto & type deduction
+    minutes: 4
+    algo: mod-auto
+    steps:
+      - title: The rules
+        body: auto copies and drops const and references. auto& and const auto& keep them; auto&& forwards.
+        input: deduce
+        check: { metric: manual }
+      - title: Surprises
+        body: vector<bool> proxies, braces giving initializer_list, and decltype(auto) returning references.
+        input: pitfalls
+        check: { metric: manual }
+
+  - id: lambdas
+    title: Lambdas & captures
+    minutes: 5
+    algo: mod-lambda
+    steps:
+      - title: Closure objects
+        body: A lambda is a struct whose members are its captures. [=] copies at creation, [&] refers to the originals.
+        input: capture
+        check: { metric: manual }
+      - title: Dangling captures
+        body: A lambda that escapes its scope must not capture locals by reference.
+        watch: The frame is gone but the closure still points into it.
+        input: dangling
+        check: { metric: manual }
+      - title: mutable & init-capture
+        body: "[x = expr] adds members; mutable lets the call change them; move-only values can be moved in."
+        input: mutable
+        check: { metric: manual }
+
+  - id: function
+    title: std::function vs templates
+    minutes: 4
+    algo: mod-function
+    steps:
+      - title: Type erasure
+        body: std::function holds any callable behind one type, paying an indirect call and maybe an allocation.
+        input: compare
+        check: { metric: manual }
+      - title: Choosing
+        body: Store callbacks as std::function; accept them in hot code as a template or std::invocable.
+        check: { metric: manual }
+
+  - id: smart-pointers
+    title: Smart pointers in depth
+    minutes: 6
+    algo: mod-smart
+    steps:
+      - title: unique_ptr
+        body: One owner, moved not copied, zero overhead. The default for heap objects.
+        input: unique
+        check: { metric: manual }
+      - title: shared_ptr
+        body: A control block counts owners with atomic operations. make_shared allocates it together with the object.
+        input: shared
+        check: { metric: manual }
+      - title: weak_ptr
+        body: Observes without owning. Use it for back-links and caches to break reference cycles.
+        input: weak
+        check: { metric: manual }
+
+  - id: move
+    title: Move semantics & forwarding
+    minutes: 6
+    algo: mod-move
+    steps:
+      - title: lvalues and rvalues
+        body: Temporaries bind to &&, so their resources can be stolen. std::move is only a cast.
+        input: rvalue
+        check: { metric: manual }
+      - title: Rule of five, rule of zero
+        body: Own raw resources in one small class with all five members; everywhere else, write none.
+        input: rule5
+        check: { metric: manual }
+      - title: Perfect forwarding
+        body: Args&& plus std::forward passes arguments on with their original value category.
+        input: forward
+        check: { metric: manual }
+
+  - id: templates
+    title: Templates
+    minutes: 5
+    algo: mod-templates
+    steps:
+      - title: Instantiation
+        body: One function per type actually used. Definitions live in headers so callers can instantiate them.
+        input: instantiate
+        check: { metric: manual }
+      - title: Specialization & CTAD
+        body: Full and partial specializations customise behaviour per type; CTAD deduces class template arguments.
+        input: specialize
+        check: { metric: manual }
+
+  - id: variadic
+    title: Variadic templates & folds
+    minutes: 4
+    algo: mod-variadic
+    steps:
+      - title: Packs and folds
+        body: Ts... takes any number of types. Fold expressions apply an operator across the pack at compile time.
+        input: fold
+        check: { metric: manual }
+
+  - id: concepts
+    title: SFINAE & concepts
+    minutes: 5
+    algo: mod-concepts
+    steps:
+      - title: Constrain templates
+        body: requires clauses and concepts state what a type must support, and errors say which rule failed.
+        input: concepts
+        check: { metric: manual }
+      - title: Reading old code
+        body: enable_if and SFINAE did the same before C++20. You will meet them in older libraries.
+        check: { metric: manual }
+
+  - id: constexpr
+    title: constexpr & consteval
+    minutes: 4
+    algo: mod-constexpr
+    steps:
+      - title: Compile-time evaluation
+        body: With constant inputs, a constexpr function runs inside the compiler and leaves only the answer.
+        input: fib
+        check: { metric: manual }
+      - title: consteval
+        body: Must run at compile time. Handy for hashing string constants and validating formats.
+        input: consteval
+        check: { metric: manual }
+
+  - id: sum-types
+    title: optional, variant & expected
+    minutes: 6
+    algo: mod-sumtypes
+    steps:
+      - title: optional
+        body: A value or nothing, stored inline. Replaces -1, nullptr and out-parameters.
+        input: optional
+        check: { metric: manual }
+      - title: variant
+        body: One of a closed set of types. std::visit dispatches and fails to compile on a missing case.
+        input: variant
+        check: { metric: manual }
+      - title: expected
+        body: A value or an error in the return type. Chain fallible steps with and_then.
+        input: expected
+        check: { metric: manual }
+
+  - id: ranges
+    title: Ranges & views
+    minutes: 4
+    algo: mod-ranges
+    steps:
+      - title: Lazy pipelines
+        body: Views describe steps; elements are computed only as the loop pulls them.
+        watch: take(2) stops the pipeline early.
+        input: lazy
+        check: { metric: manual }
+      - title: Watch lifetimes
+        body: A view of a temporary container dangles, just like a string_view.
+        check: { metric: manual }
+
+  - id: coroutines
+    title: Coroutines
+    minutes: 5
+    algo: mod-coroutines
+    steps:
+      - title: Suspend and resume
+        body: A coroutine keeps its locals in a heap frame and resumes where it left off.
+        input: generator
+        check: { metric: manual }
+      - title: Async code
+        body: co_await suspends on I/O, so event-loop servers read like sequential code.
+        check: { metric: manual }
+
+  - id: exceptions
+    title: Exception safety
+    minutes: 5
+    algo: mod-exceptions
+    steps:
+      - title: Unwinding
+        body: A throw runs every destructor on the way out. With RAII, nothing leaks.
+        input: unwind
+        check: { metric: manual }
+      - title: The guarantees
+        body: Basic (valid, no leaks), strong (all or nothing), nothrow. Copy-and-swap gives strong assignment.
+        input: strong
+        check: { metric: manual }
+      - title: noexcept
+        body: Mark moves, swaps and destructors noexcept; vector only uses moves it knows can't throw.
+        check: { metric: manual }
+
+  - id: filesystem
+    title: std::filesystem
+    minutes: 3
+    algo: mod-filesystem
+    steps:
+      - title: Paths and walks
+        body: fs::path joins with /, recursive_directory_iterator walks trees, error_code overloads avoid throws.
+        input: walk
+        check: { metric: manual }

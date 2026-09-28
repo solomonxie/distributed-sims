@@ -1,0 +1,179 @@
+id: cpp-oop
+title: Classes & OOP
+group: cpp
+icon: boxes
+order: 3
+summary: Classes that keep their invariants. Constructors, lifetime order, copy and move, inheritance, virtual dispatch, interfaces and operators.
+info: A C++ class is data plus the rules for changing it, and its constructors and destructor decide exactly when resources are acquired and released. These lessons trace object lifetimes step by step and draw object layouts, so inheritance, slicing, virtual calls and the rule of 0/3/5 become things you can see rather than rules to memorise.
+algos: [oop-class, oop-ctors, oop-lifetime, oop-copy, oop-inherit, oop-virtual, oop-multiple, oop-rtti, oop-operators]
+lessons:
+  - id: classes
+    title: Classes, this & static
+    minutes: 5
+    algo: oop-class
+    steps:
+      - title: Encapsulation
+        body: Private data, public functions that enforce the invariant. const member functions promise not to modify.
+        input: encaps
+        check: { metric: manual }
+      - title: this
+        body: Every member function gets a hidden pointer to its object. Returning *this enables chaining.
+        input: this
+        check: { metric: manual }
+      - title: static members
+        body: One variable for the whole class, and functions called without an object.
+        input: static
+        check: { metric: manual }
+
+  - id: constructors
+    title: Constructors
+    minutes: 5
+    algo: oop-ctors
+    steps:
+      - title: Initialiser lists
+        body: Members are built in declaration order, whatever order you list them. -Wreorder catches mismatches.
+        input: initlist
+        check: { metric: manual }
+      - title: Delegating constructors
+        body: One constructor forwards to another so setup lives in one place.
+        input: delegate
+        check: { metric: manual }
+      - title: explicit
+        body: Single-argument constructors convert implicitly unless marked explicit. Mark them.
+        input: explicit
+        check: { metric: manual }
+
+  - id: lifetime
+    title: Object lifetime & order
+    minutes: 5
+    algo: oop-lifetime
+    steps:
+      - title: Base, members, body
+        body: Construction goes base → members → body; destruction is the exact reverse.
+        input: order
+        check: { metric: manual }
+      - title: Scopes
+        body: Stack objects die at the end of their block, last constructed first destroyed.
+        input: scopes
+        check: { metric: manual }
+      - title: Temporaries
+        body: A temporary dies at the semicolon. Pointers or views into it dangle.
+        input: temps
+        check: { metric: manual }
+
+  - id: copy-control
+    title: Copying & the rule of 0/3/5
+    minutes: 6
+    algo: oop-copy
+    steps:
+      - title: The shallow-copy bug
+        body: A class owning a raw pointer gets a copy that shares it, and both destructors free it.
+        input: shallow
+        check: { metric: manual }
+      - title: Rule of three/five
+        body: Write the destructor, copy and move operations together. Copy-and-swap makes assignment safe.
+        input: deep
+        check: { metric: manual }
+      - title: Rule of zero
+        body: Store resources in vector, string or unique_ptr and write none of the five.
+        input: rule0
+        check: { metric: manual }
+
+  - id: inheritance
+    title: Inheritance & object layout
+    minutes: 5
+    algo: oop-inherit
+    steps:
+      - title: A derived object contains its base
+        body: Base members come first, derived members after, so upcasting is free.
+        input: layout
+        check: { metric: manual }
+      - title: Slicing
+        body: Passing a derived object to a base by value copies only the base part. Pass by reference.
+        input: slicing
+        check: { metric: manual }
+      - title: Access levels
+        body: public for everyone, protected for subclasses, private for the class only.
+        input: access
+        check: { metric: manual }
+
+  - id: polymorphism
+    title: Virtual functions & polymorphism
+    minutes: 6
+    algo: oop-virtual
+    steps:
+      - title: Dynamic dispatch
+        body: A virtual call through a base pointer runs the derived version, chosen at run time.
+        watch: See C++ under the hood → Virtual dispatch for the vtable.
+        input: dispatch
+        check: { metric: manual }
+      - title: override and final
+        body: override makes signature mistakes compile errors. final stops further overriding.
+        input: override
+        check: { metric: manual }
+      - title: Virtual destructors
+        body: Deleting through a base pointer needs a virtual destructor, or the derived part leaks.
+        input: vdtor
+        check: { metric: manual }
+
+  - id: interfaces
+    title: Abstract classes & interfaces
+    minutes: 4
+    algo: oop-virtual
+    steps:
+      - title: Pure virtual
+        body: "= 0 declares a function without a body; the class can't be instantiated."
+        input: interface
+        check: { metric: manual }
+      - title: Program to the interface
+        body: Code that takes Logger& works with any logger, including a fake in tests.
+        check: { metric: manual }
+
+  - id: multiple
+    title: Multiple & virtual inheritance
+    minutes: 5
+    algo: oop-multiple
+    steps:
+      - title: Two bases
+        body: Each base is a subobject at its own offset; converting pointers adjusts the address.
+        input: multi
+        check: { metric: manual }
+      - title: The diamond
+        body: Two paths to one base give two copies and ambiguous names.
+        input: diamond
+        check: { metric: manual }
+      - title: Virtual bases
+        body: virtual inheritance shares one base subobject, at the cost of indirect access.
+        input: virtualbase
+        check: { metric: manual }
+
+  - id: rtti
+    title: RTTI & dynamic_cast
+    minutes: 3
+    algo: oop-rtti
+    steps:
+      - title: Checked downcasts
+        body: dynamic_cast returns nullptr (pointers) or throws (references) when the type doesn't match.
+        input: cast
+        check: { metric: manual }
+      - title: Prefer virtual functions
+        body: Many dynamic_casts usually mean behaviour that belongs in a virtual method.
+        check: { metric: manual }
+
+  - id: operators
+    title: Operator overloading & friends
+    minutes: 4
+    algo: oop-operators
+    steps:
+      - title: Arithmetic
+        body: Implement += as a member, + as a free function using it.
+        input: arith
+        check: { metric: manual }
+      - title: Printing
+        body: operator<< is a free function, often a friend so it can read private members.
+        input: stream
+        check: { metric: manual }
+      - title: Comparisons
+        body: C++20 auto operator<=>(const T&) const = default gives all six comparisons.
+        input: compare
+        check: { metric: manual }
