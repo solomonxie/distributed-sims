@@ -4,6 +4,11 @@ Companion to [DESIGN.md](DESIGN.md) — that doc covers architecture and data
 schemas, this one covers the editor's screens, states, and interactions.
 Mockup: [Topology Editor Mockup](https://claude.ai/code/artifact/2f2e1468-4a05-407e-b87a-d3bd721d7e53).
 
+**Every region and state is drawn in [`docs/uiux/`](docs/uiux/)** —
+`editor.md` for the five regions and their states, `inspector.md` for the
+inspector, cost drawer and preset gallery. Where a description here and a
+drawing there disagree, the drawing is current.
+
 ## Layout
 
 Desktop-first, one screen (see "Non-goals"). Five regions, top to bottom /
