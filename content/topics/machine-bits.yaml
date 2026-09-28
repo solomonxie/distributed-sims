@@ -1,0 +1,340 @@
+id: machine-bits
+title: Bit manipulation
+group: machine
+icon: binary
+order: 8
+summary: Every bit trick interviews and real code use. Masks, XOR, lowest-bit tricks, popcount, subsets and bitmask DP, each tied to its LeetCode problems.
+info: An integer is a row of bits, and the CPU operates on all of them in one instruction. A small toolbox (AND, OR, XOR, NOT, shifts, n & (n − 1), n & −n) solves a surprising range of problems in O(1) space. Each lesson shows the bits changing step by step and names the LeetCode problems the technique cracks. Tap a row label for the C++ snippet.
+algos: [bits-binary, bits-ops, bits-single, bits-lowest, bits-popcount, bits-xor, bits-single2, bits-reverse, bits-arith, bits-range, bits-subsets, bits-dp, bits-encode, bits-maxxor, bits-bitset]
+lessons:
+  - id: binary
+    title: Binary, two's complement & shifts
+    minutes: 5
+    algo: bits-binary
+    steps:
+      - title: Place values
+        body: Bit i is worth 2^i. Hex is just bits in groups of four.
+        input: unsigned
+        check: { metric: manual }
+      - title: Negative numbers
+        body: "−x == ~x + 1. The top bit carries weight −2^(n−1), so int8 spans −128…127."
+        watch: ~5 then +1 gives 11111011.
+        input: twos
+        check: { metric: manual }
+      - title: Overflow
+        body: Unsigned wraps by definition; signed overflow is undefined in C++. Check a > INT_MAX − b first (LC 7, LC 8).
+        input: overflow
+        check: { metric: manual }
+      - title: Shifts
+        body: "<< k multiplies by 2^k, >> k divides. Signed >> is arithmetic, unsigned >> is logical. Shifting by ≥ the width is UB: use 1ULL << k."
+        input: shifts
+        check: { metric: manual }
+
+  - id: operators
+    title: AND, OR, XOR, NOT
+    minutes: 4
+    algo: bits-ops
+    steps:
+      - title: AND tests and masks
+        body: x & 1 is odd/even, x & 0xFF keeps the low byte, x & (1 << i) tests bit i.
+        input: and
+        check: { metric: manual }
+      - title: OR sets
+        body: x | mask switches bits on, as in flags |= READ | WRITE.
+        input: or
+        check: { metric: manual }
+      - title: XOR identities
+        body: x ^ x = 0, x ^ 0 = x, and order doesn't matter. Half of all bit tricks follow from these three facts.
+        input: xor
+        check: { metric: manual }
+      - title: NOT
+        body: ~x == −x − 1. Used mostly to build clear masks.
+        input: not
+        check: { metric: manual }
+
+  - id: single-bits
+    title: Get, set, clear, toggle & fields
+    minutes: 4
+    algo: bits-single
+    steps:
+      - title: Get
+        body: (n >> i) & 1, or n & (1 << i) as a boolean.
+        input: get
+        check: { metric: manual }
+      - title: Set
+        body: n |= 1 << i. Setting a set bit is a no-op.
+        input: set
+        check: { metric: manual }
+      - title: Clear
+        body: AND with the inverted one-bit mask.
+        input: clear
+        check: { metric: manual }
+      - title: Toggle
+        body: n ^= 1 << i. Toggling twice restores the value.
+        input: toggle
+        check: { metric: manual }
+      - title: Bit fields
+        body: (1 << k) − 1 is k ones. Read with (n >> pos) & mask, write by clearing then ORing (packed flags, headers, LC 190 masks).
+        input: field
+        check: { metric: manual }
+
+  - id: lowest-bit
+    title: Lowest set bit tricks
+    minutes: 5
+    algo: bits-lowest
+    steps:
+      - title: n & (n − 1)
+        body: Clears the lowest set bit. The engine of Kernighan's popcount (LC 191).
+        input: clear
+        check: { metric: manual }
+      - title: Power of two
+        body: n > 0 && (n & (n − 1)) == 0 is LC 231 Power of Two.
+        input: pow2
+        check: { metric: manual }
+      - title: Power of four
+        body: A power of two whose bit is at an even index, so also n & 0x55555555 (LC 342). Power of three (LC 326) has no bit trick.
+        input: pow4
+        check: { metric: manual }
+      - title: n & −n
+        body: Isolates the lowest set bit. Fenwick trees step with it; LC 260 splits numbers with it.
+        input: isolate
+        check: { metric: manual }
+      - title: Lowest zero
+        body: ~n & (n + 1) isolates the lowest 0, n | (n + 1) sets it.
+        input: zero
+        check: { metric: manual }
+
+  - id: popcount
+    title: Counting bits & Hamming distance
+    minutes: 5
+    algo: bits-popcount
+    steps:
+      - title: Kernighan's loop
+        body: Loop n &= n − 1 until 0; one round per set bit (LC 191). In C++20 use std::popcount, one POPCNT instruction.
+        input: kernighan
+        check: { metric: manual }
+      - title: Counting Bits DP
+        body: bits[i] = bits[i >> 1] + (i & 1) fills 0..n in O(n) (LC 338).
+        input: dp
+        check: { metric: manual }
+      - title: Hamming distance
+        body: popcount(x ^ y) (LC 461).
+        input: hamming
+        check: { metric: manual }
+      - title: Total Hamming distance
+        body: Per bit column, k ones and n − k zeros give k·(n − k) pairs. O(32n) instead of O(n²) (LC 477).
+        input: total
+        check: { metric: manual }
+
+  - id: xor-tricks
+    title: XOR tricks
+    minutes: 6
+    algo: bits-xor
+    steps:
+      - title: Single Number
+        body: XOR everything; pairs cancel (LC 136).
+        input: single
+        check: { metric: manual }
+      - title: Missing Number
+        body: XOR indices 0..n with values; the missing one remains (LC 268). LC 389 Find the Difference is the same with chars.
+        input: missing
+        check: { metric: manual }
+      - title: XOR swap
+        body: a ^= b; b ^= a; a ^= b. A classic, but std::swap is as fast and safe when a and b alias.
+        input: swap
+        check: { metric: manual }
+      - title: XOR of 0..n
+        body: Period 4 (n, 1, n+1, 0), so XOR of any range is O(1) (LC 1486).
+        input: range
+        check: { metric: manual }
+      - title: Prefix XOR
+        body: XOR of a[l..r] = p[r+1] ^ p[l] (LC 1310). Equal prefixes mean a zero-XOR stretch (LC 1442 Count Triplets).
+        input: prefix
+        check: { metric: manual }
+
+  - id: single-number
+    title: Single Number II & III
+    minutes: 5
+    algo: bits-single2
+    steps:
+      - title: Two singles
+        body: a ^ b ≠ 0; split every number by its lowest set bit and XOR each group (LC 260).
+        input: partition
+        check: { metric: manual }
+      - title: Triples, counted mod 3
+        body: With every other number appearing three times, each bit column's count mod 3 is the answer's bit (LC 137).
+        input: mod3
+        check: { metric: manual }
+      - title: ones / twos
+        body: The same in O(1) space with two masks acting as a mod-3 counter per bit.
+        input: fsm
+        check: { metric: manual }
+
+  - id: reverse
+    title: Reverse, complement & patterns
+    minutes: 5
+    algo: bits-reverse
+    steps:
+      - title: Reverse by loop
+        body: r = (r << 1) | (n & 1); n >>= 1, 32 times (LC 190).
+        input: loop
+        check: { metric: manual }
+      - title: Reverse by masks
+        body: Swap halves, bytes, nibbles, pairs and bits with 0xFF00FF00, 0xF0F0F0F0, 0xCCCCCCCC, 0xAAAAAAAA. Five steps, no loop.
+        input: dc
+        check: { metric: manual }
+      - title: Number complement
+        body: XOR with a mask as wide as n (LC 476, LC 1009).
+        input: complement
+        check: { metric: manual }
+      - title: Alternating bits
+        body: x = n ^ (n >> 1) is all ones exactly when bits alternate (LC 693). LC 868 Binary Gap walks set-bit positions.
+        input: alternating
+        check: { metric: manual }
+
+  - id: arithmetic
+    title: Arithmetic with bits
+    minutes: 5
+    algo: bits-arith
+    steps:
+      - title: Add without +
+        body: a ^ b is the sum without carries, (a & b) << 1 the carries; repeat (LC 371).
+        input: sum
+        check: { metric: manual }
+      - title: Divide without /
+        body: Subtract the largest divisor << k that fits, add 1 << k (LC 29). Clamp INT_MIN / −1.
+        input: divide
+        check: { metric: manual }
+      - title: Multiply by shifts
+        body: x · 10 = (x << 3) + (x << 1). Compilers do this for you.
+        input: mul
+        check: { metric: manual }
+      - title: Branchless abs, min, max
+        body: mask = x >> 31; |x| = (x + mask) ^ mask. min = y ^ ((x ^ y) & −(x < y)).
+        input: abs
+        check: { metric: manual }
+
+  - id: per-bit
+    title: Reason per bit
+    minutes: 5
+    algo: bits-range
+    steps:
+      - title: Range AND
+        body: Every bit that flips inside [m, n] ends up 0, so the answer is the common prefix (LC 201).
+        input: rangeand
+        check: { metric: manual }
+      - title: Minimum flips
+        body: Decide each bit independently to make a | b == c (LC 1318).
+        input: flips
+        check: { metric: manual }
+      - title: Subarray ORs
+        body: ORs ending at i only gain bits, so at most 32 distinct values per position (LC 898). Same idea for AND.
+        input: orsub
+        check: { metric: manual }
+
+  - id: subsets
+    title: Masks as subsets
+    minutes: 6
+    algo: bits-subsets
+    steps:
+      - title: All subsets
+        body: Masks 0..2^n − 1 are the subsets; bit i = item i (LC 78, LC 90 with dedupe).
+        input: all
+        check: { metric: manual }
+      - title: Submasks
+        body: for (s = m; s; s = (s − 1) & m) visits every submask; over all masks it's 3^n.
+        input: submask
+        check: { metric: manual }
+      - title: Gosper's hack
+        body: Next number with the same popcount, to enumerate k-combinations (LC 77).
+        input: gosper
+        check: { metric: manual }
+      - title: Gray code
+        body: i ^ (i >> 1) changes one bit per step (LC 89).
+        input: gray
+        check: { metric: manual }
+
+  - id: bitmask-dp
+    title: Bitmask DP
+    minutes: 7
+    algo: bits-dp
+    steps:
+      - title: BFS over (node, mask)
+        body: The visited set is a mask; done when it's all ones (LC 847). TSP is the same DP with costs.
+        input: visitall
+        check: { metric: manual }
+      - title: Partition into k subsets
+        body: dp[mask] = how full the current bucket is (LC 698, LC 473 Matchsticks).
+        input: partition
+        check: { metric: manual }
+      - title: Assignment
+        body: popcount(mask) picks the next row, the mask the used columns (LC 1879, LC 1947).
+        input: assign
+        check: { metric: manual }
+      - title: Games on masks
+        body: The used-number set is the whole game state; memoise win/lose (LC 464).
+        input: caniwin
+        check: { metric: manual }
+
+  - id: encodings
+    title: Masks as sets & encodings
+    minutes: 6
+    algo: bits-encode
+    steps:
+      - title: Letter sets
+        body: 26 bits per word; disjoint letters means mask AND is 0 (LC 318, LC 1178).
+        input: words
+        check: { metric: manual }
+      - title: 2-bit DNA
+        body: ACGT in 2 bits each, a 20-bit rolling window (LC 187).
+        input: dna
+        check: { metric: manual }
+      - title: UTF-8 headers
+        body: Leading 1s give the length; continuations are 10xxxxxx (LC 393).
+        input: utf8
+        check: { metric: manual }
+      - title: Binary watch
+        body: Enumerate times and compare popcounts (LC 401).
+        input: watch
+        check: { metric: manual }
+      - title: The case bit
+        body: ASCII case is bit 5; c ^ 0x20 flips it (LC 784).
+        input: case
+        check: { metric: manual }
+
+  - id: max-xor
+    title: Maximum XOR
+    minutes: 5
+    algo: bits-maxxor
+    steps:
+      - title: Greedy by prefix
+        body: Fix answer bits from the top; a ^ b == c iff a ^ c == b, so a set of prefixes tests each bit (LC 421).
+        input: greedy
+        check: { metric: manual }
+      - title: Binary trie
+        body: Walk the trie choosing the opposite bit when you can. Sort queries offline to add a limit (LC 1707).
+        watch: The path for 5 ends at 25.
+        input: trie
+        check: { metric: manual }
+
+  - id: bitsets
+    title: Bitsets, parity & hardware
+    minutes: 5
+    algo: bits-bitset
+    steps:
+      - title: Parity
+        body: Fold with x ^= x >> 16, >> 8 … >> 1; or __builtin_parity.
+        input: parity
+        check: { metric: manual }
+      - title: std::bitset
+        body: 64 set elements per instruction. can |= can << x solves subset sum (LC 416) fast.
+        input: bitset
+        check: { metric: manual }
+      - title: Bloom filters
+        body: k bits per item; a 0 means absent, all 1s means maybe. See Algorithms → Probabilistic.
+        input: bloom
+        check: { metric: manual }
+      - title: The hardware view
+        body: CF and OF are these same carries, set by the ALU. See Assembly → Arithmetic & flags.
+        input: flags
+        check: { metric: manual }
