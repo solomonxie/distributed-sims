@@ -1,82 +1,49 @@
-import React, { useMemo, useState } from 'react';
-import { StyleSheet, TextInput, View } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import React, { useMemo } from 'react';
+import { View } from 'react-native';
+import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { algo } from '@dsims/engine';
 import type { RootStackParamList } from '../navigation/types';
-import { useTheme, type as typo } from '../theme';
+import { useTheme, space } from '../theme';
 import { Screen } from '../ui/Screen';
-import { Card, Row, SectionHeader, Segmented } from '../ui/primitives';
+import { Card, Row, SectionHeader } from '../ui/primitives';
 import { Icon } from '../ui/Icon';
+import { Tile, TileGrid } from '../ui/Tile';
+import { demoGroups, KIND_LABEL, type DemoKind } from '../lib/demoGroups';
 
-const GROUP_ICON: Record<string, string> = {
-  Graph: 'route',
-  Partitioning: 'circle-dashed',
-  Geo: 'map-pin',
-  Probabilistic: 'dices',
-  Storage: 'database',
-  Distributed: 'network',
-  'Rate limit': 'gauge',
-  'machine-cpu': 'cpu',
-  'machine-memory': 'memory-stick',
-  'machine-bus': 'circuit-board',
-  'machine-asm': 'binary',
-  'machine-cpp': 'braces',
-  'cpp-basics': 'braces',
-  'cpp-oop': 'boxes',
-  'cpp-stl': 'library',
-  'cpp-modern': 'sparkles',
-  'cpp-concurrency': 'git-fork',
-  'cpp-cmake': 'hammer',
-  'cpp-projects': 'network',
-  'cpp-patterns': 'shapes',
-  'cpp-network': 'server',
-};
-const GROUP_LABEL: Record<string, string> = { 'machine-cpu': 'CPU', 'machine-memory': 'Memory', 'machine-bus': 'Chips, buses & I/O', 'machine-asm': 'Assembly', 'machine-cpp': 'C++ under the hood',
-  'cpp-basics': 'Basics',
-  'cpp-oop': 'Classes & OOP',
-  'cpp-stl': 'STL',
-  'cpp-modern': 'Modern C++',
-  'cpp-concurrency': 'Concurrency',
-  'cpp-cmake': 'CMake',
-  'cpp-projects': 'Large projects',
-  'cpp-patterns': 'Design patterns',
-  'cpp-network': 'Network servers',
-};
-const kindOf = (g: string) => (g === 'machine-cpp' || g.startsWith('cpp-') ? 'cpp' : g.startsWith('machine') ? 'machine' : 'algorithms');
-
+/** Without `group`: every animation group as tiles, by kind. With `group`: that group's animations. */
 export function AlgorithmsScreen() {
   const { c } = useTheme();
   const nav = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const [q, setQ] = useState('');
-  const [kind, setKind] = useState<'algorithms' | 'machine' | 'cpp'>('algorithms');
-  const all = useMemo(() => algo.allDemos(), []);
-  const query = q.trim().toLowerCase();
-  const list = all.filter(d => kindOf(d.group) === kind && (!query || `${d.title} ${d.summary} ${d.group}`.toLowerCase().includes(query)));
-  const groups = [...new Set(list.map(d => d.group))];
+  const group = useRoute<RouteProp<RootStackParamList, 'Algorithms'>>().params?.group;
+  const groups = useMemo(demoGroups, []);
+
+  const one = group ? groups.find(g => g.id === group) : undefined;
+  if (one)
+    return (
+      <Screen>
+        <Card>
+          {one.demos.map((d, i, arr) => (
+            <Row key={d.slug} left={<Icon name={one.icon} size={18} color={c.protocol} />} title={d.title} subtitle={d.summary} chevron last={i === arr.length - 1} onPress={() => nav.navigate('AlgorithmPlayer', { slug: d.slug })} />
+          ))}
+        </Card>
+      </Screen>
+    );
+
+  const kinds = [...new Set(groups.map(g => g.kind))] as DemoKind[];
   return (
-    <Screen title="Algorithms" subtitle="Step through the ideas systems are built on.">
-      <Segmented options={['algorithms', 'machine', 'cpp'] as const} value={kind} onChange={setKind} labels={{ algorithms: 'Algorithms', machine: 'Machine', cpp: 'C++' }} />
-      <View style={[styles.search, { backgroundColor: c.surface1, borderColor: c.hairline }]}>
-        <Icon name="search" size={16} color={c.text3} />
-        <TextInput value={q} onChangeText={setQ} placeholder={`Search ${all.length} animations`} placeholderTextColor={c.text3} style={[typo.body, { flex: 1, color: c.text, paddingVertical: 10 }]} clearButtonMode="while-editing" autoCorrect={false} />
-      </View>
-      {groups.map(g => (
-        <View key={g}>
-          <SectionHeader title={(GROUP_LABEL[g] ?? g).toUpperCase()} />
-          <Card>
-            {list
-              .filter(d => d.group === g)
-              .map((d, i, arr) => (
-                <Row key={d.slug} left={<Icon name={GROUP_ICON[g] ?? 'diamond'} size={18} color={kindOf(g) === 'algorithms' ? c.protocol : c.write} />} title={d.title} subtitle={d.summary} chevron last={i === arr.length - 1} onPress={() => nav.navigate('AlgorithmPlayer', { slug: d.slug })} />
+    <Screen>
+      {kinds.map((k, i) => (
+        <View key={k} style={{ marginTop: i ? space.l : 0 }}>
+          <SectionHeader title={KIND_LABEL[k].toUpperCase()} />
+          <TileGrid>
+            {groups
+              .filter(g => g.kind === k)
+              .map(g => (
+                <Tile key={g.id} icon={g.icon} title={g.label} meta={`${g.demos.length} animations`} tint={c.protocol} onPress={() => nav.push('Algorithms', { group: g.id })} />
               ))}
-          </Card>
+          </TileGrid>
         </View>
       ))}
     </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  search: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, marginTop: 12 },
-});

@@ -9,7 +9,11 @@ export interface GuideSpec {
 }
 
 export type RootStackParamList = {
-  Tabs: undefined;
+  Home: undefined;
+  Topics: { group: 'topics' | 'under-the-hood' | 'machine' | 'cpp' };
+  Problems: undefined;
+  Algorithms: { group?: string };
+  Mine: undefined;
   Topic: { topicId: string };
   TechTopic: { techId: string };
   Problem: { problemId: string };
@@ -19,13 +23,6 @@ export type RootStackParamList = {
   Settings: undefined;
   Feedback: undefined;
   Tour: undefined;
-};
-
-export type TabParamList = {
-  Learn: undefined;
-  Problems: undefined;
-  Algorithms: undefined;
-  Mine: undefined;
 };
 
 declare global {
