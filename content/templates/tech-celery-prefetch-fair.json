@@ -1,0 +1,156 @@
+{
+  "schemaVersion": 1,
+  "id": "tech-celery-prefetch-fair",
+  "name": "Celery: fair dispatch (prefetch 1 + acks_late)",
+  "description": "Same mix of short and 10s tasks, but workers reserve one task per slot and ack late, so nothing waits behind a long task.",
+  "nodes": [
+    {
+      "id": "users",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 195,
+        "y": 40
+      }
+    },
+    {
+      "id": "app",
+      "type": "celery-producer",
+      "skin": "celery-app",
+      "name": "app (.delay)",
+      "pos": {
+        "x": 195,
+        "y": 150
+      },
+      "config": {
+        "taskMs": 200,
+        "taskP99Ms": 500,
+        "longTaskPct": 6,
+        "longTaskMs": 10000
+      }
+    },
+    {
+      "id": "broker",
+      "type": "celery-broker",
+      "skin": "celery-rabbitmq-broker",
+      "name": "broker",
+      "pos": {
+        "x": 195,
+        "y": 280
+      },
+      "config": {}
+    },
+    {
+      "id": "w1",
+      "type": "celery-worker",
+      "skin": "celery-prefork",
+      "name": "worker-1",
+      "pos": {
+        "x": 100,
+        "y": 410
+      },
+      "config": {
+        "slots": 1,
+        "prefetchMultiplier": 1,
+        "acksLate": true
+      }
+    },
+    {
+      "id": "w2",
+      "type": "celery-worker",
+      "skin": "celery-prefork",
+      "name": "worker-2",
+      "pos": {
+        "x": 290,
+        "y": 410
+      },
+      "config": {
+        "slots": 1,
+        "prefetchMultiplier": 1,
+        "acksLate": true
+      }
+    },
+    {
+      "id": "results",
+      "type": "celery-result-backend",
+      "skin": "celery-redis-results",
+      "name": "result backend",
+      "pos": {
+        "x": 195,
+        "y": 540
+      },
+      "config": {}
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-users-app",
+      "from": "users",
+      "to": "app"
+    },
+    {
+      "id": "e-app-broker",
+      "from": "app",
+      "to": "broker"
+    },
+    {
+      "id": "e-broker-w1",
+      "from": "broker",
+      "to": "w1",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "e-broker-w2",
+      "from": "broker",
+      "to": "w2",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "e-w1-results",
+      "from": "w1",
+      "to": "results"
+    },
+    {
+      "id": "e-w2-results",
+      "from": "w2",
+      "to": "results"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 120,
+    "sources": [
+      {
+        "id": "s1",
+        "node": "users",
+        "shape": {
+          "kind": "constant",
+          "rps": 1
+        },
+        "readRatio": 0
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "reports.example.com",
+    "read": {
+      "method": "GET",
+      "path": "/api/tasks/{code}",
+      "status": 200,
+      "body": "{\"task_id\": \"{code}\", \"status\": \"SUCCESS\"}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/reports",
+      "reqBody": "{\"account_id\": {key}, \"rows\": {value}}",
+      "status": 202,
+      "body": "{\"task_id\": \"{code}\", \"status\": \"PENDING\"}"
+    },
+    "topic": "reports"
+  }
+}

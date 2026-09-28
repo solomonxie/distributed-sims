@@ -1,0 +1,688 @@
+# Destructive / fault events (chaos.md). kind = engine chaos kind (engine/src/chaos.ts or behaviour onChaos).
+# target: node | edge | pair | container | source | none. defaultDurationSec: null = until healed.
+# Events with `traffic:` fire as an engine TrafficEvent {action, params, durationSec} on a source instead
+# (whenTarget: source = only when the target is a client; scale multiplies params, e.g. % -> fraction).
+anchors:
+  data: &data [relational-db, document-db, kv-store, cache, graph-db, time-series-db, search-index, object-store]
+  queues: &queues [queue, pub-sub, log-stream, rabbitmq-queue]
+events:
+  # ---- Node
+  - kind: kill
+    label: Kill
+    description: Process dies; in-flight requests fail until restarted
+    group: Node
+    icon: skull
+    emoji: "💀"
+    target: node
+    appliesTo: any
+    params: []
+    defaultDurationSec: null
+  - kind: restart
+    label: Restart
+    description: Down for a few seconds, then back with cold state
+    group: Node
+    icon: rotate-ccw
+    emoji: "🔄"
+    target: node
+    appliesTo: any
+    params:
+      - { key: downSec, label: Down for, kind: number, default: 5, min: 1, max: 120, unit: s }
+    defaultDurationSec: 0
+  - kind: crash-loop
+    label: Crash-loop
+    description: Keeps dying a few seconds after every restart
+    group: Node
+    icon: repeat
+    emoji: "🔁"
+    target: node
+    appliesTo: any
+    params: []
+    defaultDurationSec: null
+  - kind: slow
+    label: Slow
+    description: Every request takes N times longer
+    group: Node
+    icon: snail
+    emoji: "🐌"
+    target: node
+    appliesTo: any
+    params:
+      - { key: x, label: Slowdown, kind: number, default: 10, min: 1, max: 100, unit: "×" }
+    defaultDurationSec: 30
+  - kind: slow-command
+    label: Slow command
+    description: One O(N) command (KEYS *, big DEL) blocks the single thread
+    group: Data
+    icon: hourglass
+    emoji: "⌛"
+    target: node
+    appliesTo: [redis-server]
+    params:
+      - { key: ms, label: Blocks for, kind: ms, default: 800, min: 10, max: 10000, unit: ms }
+    defaultDurationSec: 20
+  - kind: bgsave
+    label: BGSAVE (fork)
+    description: fork() for a snapshot; copy-on-write page copies stall writes
+    group: Data
+    icon: git-fork
+    emoji: "🍴"
+    target: node
+    appliesTo: [redis-server]
+    params: []
+    defaultDurationSec: 20
+  - kind: slow-disk
+    label: Slow disk
+    description: fsync takes N times longer
+    group: Data
+    icon: hard-drive
+    emoji: "💽"
+    target: node
+    appliesTo: [redis-server]
+    params:
+      - { key: x, label: Slowdown, kind: number, default: 50, min: 2, max: 500, unit: "×" }
+    defaultDurationSec: 30
+  - kind: slowloris
+    label: Slowloris
+    description: Slow clients hold connections open, starving the server
+    group: Traffic
+    icon: turtle
+    emoji: "🐢"
+    target: node
+    appliesTo: [nginx-server, apache-prefork]
+    params:
+      - { key: conns, label: Slow connections, kind: int, default: 5000, min: 100, max: 50000 }
+    defaultDurationSec: 30
+  - kind: blocking-call
+    label: Blocking call
+    description: A blocking module stalls one worker's whole event loop
+    group: Node
+    icon: octagon-pause
+    emoji: "⛔"
+    target: node
+    appliesTo: [nginx-server]
+    params:
+      - { key: ms, label: Blocks for, kind: ms, default: 200, min: 10, max: 5000, unit: ms }
+    defaultDurationSec: 20
+  - kind: long-txn
+    label: Long transaction
+    description: An idle-in-transaction session pins old rows; vacuum can't clean up
+    group: Data
+    icon: timer
+    emoji: "⏳"
+    target: node
+    appliesTo: [pg-primary]
+    params: []
+    defaultDurationSec: null
+  - kind: huge-query
+    label: Huge query
+    description: An unpruned multi-TB ad-hoc scan takes every slot; everyone queues behind it
+    group: Data
+    icon: scan-search
+    emoji: "🐘"
+    target: node
+    appliesTo: [data-warehouse]
+    params:
+      - { key: sec, label: Runs for, kind: number, default: 30, min: 1, max: 600, unit: s }
+      - { key: tb, label: Scans, kind: number, default: 5, min: 0.1, max: 1000, unit: TB }
+    defaultDurationSec: 0
+  - kind: warehouse-suspend
+    label: Suspend warehouse
+    description: Suspended now; the next query waits for resume and a cold cache
+    group: Infra
+    icon: circle-pause
+    emoji: "⏸️"
+    target: node
+    appliesTo: [data-warehouse]
+    params: []
+    defaultDurationSec: 0
+  - kind: small-files
+    label: Small-files explosion
+    description: Thousands of tiny files; every query opens far more files
+    group: Data
+    icon: files
+    emoji: "🗂️"
+    target: node
+    appliesTo: [lakehouse]
+    params:
+      - { key: files, label: Files, kind: int, default: 20000, min: 100, max: 1000000 }
+    defaultDurationSec: 0
+  - kind: spot-loss
+    label: Spot instance loss
+    description: Cloud reclaims spot workers; tasks retry, replacements boot later
+    group: Infra
+    icon: cloud-off
+    emoji: "☁️"
+    target: node
+    appliesTo: [lakehouse]
+    params:
+      - { key: workers, label: Workers lost, kind: int, default: 1, min: 1, max: 100 }
+    defaultDurationSec: 0
+  - kind: cpu-hog
+    label: CPU hog
+    description: A noisy process eats most of the CPU; capacity drops
+    group: Node
+    icon: cpu
+    emoji: "🔥"
+    target: node
+    appliesTo: any
+    params:
+      - { key: x, label: Capacity left, kind: number, default: 0.3, min: 0.05, max: 1 }
+    defaultDurationSec: 30
+  - kind: gc-pause
+    label: GC pause
+    description: Stop-the-world pause; nothing is served, queues build up
+    group: Node
+    icon: pause-circle
+    emoji: "⏸"
+    target: node
+    appliesTo: any
+    params:
+      - { key: sec, label: Pause, kind: number, default: 2, min: 0.1, max: 30, unit: s }
+    defaultDurationSec: 0
+  - kind: memory-leak
+    label: Memory leak
+    description: Memory grows until the process is OOM-killed
+    group: Node
+    icon: droplets
+    emoji: "💧"
+    target: node
+    appliesTo: any
+    params:
+      - { key: mbPerSec, label: Leak rate, kind: number, default: 100, min: 1, max: 5000, unit: MB/s }
+    defaultDurationSec: null
+  - kind: disk-full
+    label: Disk full
+    description: Writes fail; reads still work
+    group: Node
+    icon: hard-drive
+    emoji: "💾"
+    target: node
+    appliesTo: any
+    params: []
+    defaultDurationSec: null
+  - kind: conn-exhaustion
+    label: Conn-pool exhaustion
+    description: File descriptors or DB connections run out; most requests queue
+    group: Node
+    icon: plug-zap
+    emoji: "🔌"
+    target: node
+    appliesTo: any
+    params: []
+    defaultDurationSec: 30
+  - kind: bad-deploy
+    label: Bad deploy
+    description: New version returns errors for a share of requests
+    group: Node
+    icon: package-x
+    emoji: "📦"
+    target: node
+    appliesTo: any
+    params:
+      - { key: errPct, label: Error rate, kind: percent, default: 30, min: 1, max: 100, unit: "%" }
+    defaultDurationSec: null
+  - kind: config-push
+    label: Config push
+    description: New config restarts all instances at once
+    group: Node
+    icon: settings
+    emoji: "⚙️"
+    target: node
+    appliesTo: any
+    params: []
+    defaultDurationSec: 0
+  # ---- Network
+  - kind: partition
+    label: Partition
+    description: A and B can't reach each other (optionally one way)
+    group: Network
+    icon: unlink
+    emoji: "⟂"
+    target: pair
+    appliesTo: any
+    params:
+      - { key: oneWay, label: One way, kind: bool, default: false }
+    defaultDurationSec: null
+  - kind: latency
+    label: Latency
+    description: Adds fixed delay to every hop on the link
+    group: Network
+    icon: timer
+    emoji: "🐢"
+    target: edge
+    appliesTo: any
+    params:
+      - { key: ms, label: Added, kind: ms, default: 200, min: 1, max: 10000, unit: ms }
+    defaultDurationSec: 30
+  - kind: jitter
+    label: Jitter
+    description: Random extra delay; tail latency grows
+    group: Network
+    icon: activity
+    emoji: "〰️"
+    target: edge
+    appliesTo: any
+    params:
+      - { key: ms, label: Jitter, kind: ms, default: 100, min: 1, max: 5000, unit: ms }
+    defaultDurationSec: 30
+  - kind: loss
+    label: Packet loss
+    description: A share of messages vanish; callers time out and retry
+    group: Network
+    icon: wifi-off
+    emoji: "📉"
+    target: edge
+    appliesTo: any
+    params:
+      - { key: pct, label: Loss, kind: percent, default: 5, min: 1, max: 100, unit: "%" }
+    defaultDurationSec: 30
+  - kind: bandwidth
+    label: Bandwidth cap
+    description: Link is saturated; large payloads crawl
+    group: Network
+    icon: gauge
+    emoji: "🚰"
+    target: edge
+    appliesTo: any
+    params:
+      - { key: ms, label: Added delay, kind: ms, default: 50, min: 1, max: 5000, unit: ms }
+    defaultDurationSec: 30
+  - kind: dns-failure
+    label: DNS failure
+    description: Name doesn't resolve; new connections fail
+    group: Network
+    icon: circle-help
+    emoji: "❓"
+    target: node
+    appliesTo: any
+    params: []
+    defaultDurationSec: null
+  - kind: cert-expired
+    label: TLS cert expired
+    description: Handshakes fail until the cert is renewed
+    group: Network
+    icon: shield-off
+    emoji: "📜"
+    target: node
+    appliesTo: any
+    params: []
+    defaultDurationSec: null
+  - kind: partition-members
+    label: Partition members
+    description: Splits the store's replica members into a majority and a minority side
+    group: Network
+    icon: unplug
+    emoji: "✂️"
+    target: node
+    appliesTo: [kv-store]
+    params:
+      - { key: minority, label: Minority size, kind: int, default: 1, min: 1, max: 32 }
+    defaultDurationSec: null
+  # ---- Data
+  - kind: hot-key
+    label: Hot key
+    description: One key gets a large share of traffic; its shard melts
+    group: Data
+    icon: flame
+    emoji: "🔑"
+    target: node
+    appliesTo: [relational-db, document-db, kv-store, cache, graph-db, time-series-db, search-index, object-store, geo-index, shard-router, web-client, mobile-client, iot-device, bot, spark-driver]
+    params:
+      - { key: hot, label: Hot share, kind: percent, default: 40, min: 1, max: 100, unit: "%" }
+    defaultDurationSec: 30
+    traffic: { action: hot-key, whenTarget: source, scale: { hot: 0.01 } }
+  - kind: replica-lag
+    label: Replica lag
+    description: Replicas fall behind; reads go stale
+    group: Data
+    icon: hourglass
+    emoji: "⏳"
+    target: node
+    appliesTo: [*data, pg-replica]
+    params:
+      - { key: ms, label: Added lag, kind: ms, default: 5000, min: 100, max: 600000, unit: ms }
+    defaultDurationSec: 60
+  - kind: cache-flush
+    label: Cache flush
+    description: Cache emptied; every read misses and hits the DB
+    group: Data
+    icon: eraser
+    emoji: "🧹"
+    target: node
+    appliesTo: [cache, cdn, data-warehouse]
+    params: []
+    defaultDurationSec: 0
+  - kind: corrupt-write
+    label: Corrupt write
+    description: A write stores garbage; later reads return bad data
+    group: Data
+    icon: file-warning
+    emoji: "🧨"
+    target: node
+    appliesTo: *data
+    params: []
+    defaultDurationSec: 0
+  - kind: lost-write
+    label: Lost write
+    description: Write is acked, then the node crashes before persisting it
+    group: Data
+    icon: file-x
+    emoji: "🕳"
+    target: node
+    appliesTo: *data
+    params: []
+    defaultDurationSec: 0
+  - kind: split-brain
+    label: Split brain
+    description: Two primaries accept writes; data diverges
+    group: Data
+    icon: split
+    emoji: "🧠"
+    target: node
+    appliesTo: [relational-db, document-db, kv-store, consensus-member, log-stream, lock-service, celery-beat, es-master]
+    params: []
+    defaultDurationSec: null
+  - kind: rebalance
+    label: Shard rebalance
+    description: Shards move between nodes; extra load and misrouted requests
+    group: Data
+    icon: shuffle
+    emoji: "⚖️"
+    target: node
+    appliesTo: [shard-router, search-index, document-db, kv-store, cache, log-stream, redis-cluster-node]
+    params:
+      - { key: sec, label: Moving for, kind: number, default: 5, min: 1, max: 600, unit: s }
+    defaultDurationSec: 30
+  - kind: schema-lock
+    label: Schema migration lock
+    description: ALTER TABLE takes a lock; writes block
+    group: Data
+    icon: table-2
+    emoji: "🔒"
+    target: node
+    appliesTo: [relational-db]
+    params: []
+    defaultDurationSec: 20
+  - kind: kill-replica
+    label: Kill replica
+    description: One read replica dies; it resyncs from the primary when healed
+    group: Data
+    icon: copy-x
+    emoji: "🪦"
+    target: node
+    appliesTo: [relational-db, document-db]
+    params:
+      - { key: member, label: Replica index, kind: int, default: 0, min: 0, max: 15 }
+    defaultDurationSec: null
+  - kind: add-shard
+    label: Add shard
+    description: One more shard joins; keys move depending on the partitioning scheme
+    group: Data
+    icon: grid-2x2-plus
+    emoji: "➕"
+    target: node
+    appliesTo: [shard-router]
+    params: []
+    defaultDurationSec: 0
+  - kind: purge
+    label: CDN purge
+    description: Every edge cache is emptied; requests stampede to the origin
+    group: Data
+    icon: trash-2
+    emoji: "🗑"
+    target: node
+    appliesTo: [cdn]
+    params: []
+    defaultDurationSec: 0
+  - kind: replay
+    label: Replay
+    description: Consumer offsets rewind; old records are processed again
+    group: Data
+    icon: rewind
+    emoji: "⏪"
+    target: node
+    appliesTo: [log-stream]
+    params:
+      - { key: group, label: Consumer group, kind: string, default: "", help: Empty = all groups }
+      - { key: sec, label: Rewind by, kind: number, default: 60, min: 1, max: 86400, unit: s }
+    defaultDurationSec: 0
+  - kind: cardinality-burst
+    label: Cardinality burst
+    description: A new high-cardinality label multiplies series; memory climbs toward OOM
+    group: Data
+    icon: tags
+    emoji: "🏷"
+    target: node
+    appliesTo: [time-series-db, es-app]
+    params:
+      - { key: x, label: Series multiplier, kind: number, default: 20, min: 1, max: 1000, unit: "×" }
+    defaultDurationSec: 60
+  - kind: hot-cell
+    label: Hot cell
+    description: One map cell draws a crowd; its partition overloads
+    group: Data
+    icon: map-pinned
+    emoji: "📍"
+    target: node
+    appliesTo: [geo-index]
+    params:
+      - { key: hot, label: Hot share, kind: percent, default: 50, min: 1, max: 100, unit: "%" }
+      - { key: x, label: Density, kind: number, default: 20, min: 1, max: 1000, unit: "×" }
+    defaultDurationSec: 30
+  - kind: map-update
+    label: Map update
+    description: Road graph changes; routing falls back to slow search while it rebuilds
+    group: Data
+    icon: map
+    emoji: "🗺"
+    target: node
+    appliesTo: [routing-engine]
+    params: []
+    defaultDurationSec: 0
+  # ---- Time
+  - kind: clock-skew
+    label: Clock skew
+    description: Node's clock drifts ahead or behind
+    group: Time
+    icon: clock
+    emoji: "🕰"
+    target: node
+    appliesTo: any
+    params:
+      - { key: ms, label: Offset, kind: ms, default: 500, min: -60000, max: 60000, unit: ms }
+    defaultDurationSec: null
+  - kind: clock-jump
+    label: Clock jump
+    description: Clock leaps forward (NTP step); leases and TTLs misfire
+    group: Time
+    icon: fast-forward
+    emoji: "⏭"
+    target: node
+    appliesTo: any
+    params:
+      - { key: ms, label: Jump, kind: ms, default: 60000, min: -3600000, max: 3600000, unit: ms }
+    defaultDurationSec: 0
+  # ---- Traffic
+  - kind: herd
+    label: Thundering herd
+    description: Many clients retry at the same instant
+    group: Traffic
+    icon: users
+    emoji: "🐃"
+    target: source
+    appliesTo: [web-client, mobile-client, iot-device, bot]
+    params:
+      - { key: x, label: Spike, kind: number, default: 30, min: 2, max: 1000, unit: "×" }
+    defaultDurationSec: 2
+    traffic: { action: herd }
+  - kind: retry-storm
+    label: Retry storm
+    description: Clients retry failures aggressively; load multiplies
+    group: Traffic
+    icon: refresh-cw
+    emoji: "🌪"
+    target: source
+    appliesTo: [web-client, mobile-client, iot-device, bot]
+    params:
+      - { key: x, label: Multiplier, kind: number, default: 4, min: 2, max: 50, unit: "×" }
+    defaultDurationSec: 20
+    traffic: { action: burst }
+  - kind: bots
+    label: Bot / DDoS
+    description: Extra abusive traffic on top of real users
+    group: Traffic
+    icon: bot
+    emoji: "🤖"
+    target: source
+    appliesTo: [web-client, mobile-client, iot-device, bot]
+    params:
+      - { key: rps, label: Bot rps, kind: number, default: 5000, min: 10, max: 1000000, unit: rps }
+    defaultDurationSec: 15
+    traffic: { action: bots }
+  - kind: poison-message
+    label: Poison message
+    description: A message that always fails the consumer and gets redelivered
+    group: Traffic
+    icon: biohazard
+    emoji: "☠️"
+    target: node
+    appliesTo: *queues
+    params:
+      - { key: pct, label: Poison share (0-1), kind: number, default: 0.02, min: 0.001, max: 1 }
+    defaultDurationSec: null
+  # ---- Infra
+  - kind: az-down
+    label: AZ down
+    description: Everything in the availability zone dies
+    group: Infra
+    icon: cloud-off
+    emoji: "🌩"
+    target: container
+    appliesTo: [availability-zone]
+    params: []
+    defaultDurationSec: null
+  - kind: region-down
+    label: Region down
+    description: Whole region is lost
+    group: Infra
+    icon: globe
+    emoji: "🌋"
+    target: container
+    appliesTo: [region]
+    params: []
+    defaultDurationSec: null
+  - kind: cell-down
+    label: Cell down
+    description: One cell fails; only its users are affected
+    group: Infra
+    icon: grid-3x3
+    emoji: "▦"
+    target: container
+    appliesTo: [cell]
+    params: []
+    defaultDurationSec: null
+  - kind: external-outage
+    label: Dependency outage
+    description: Third-party API is down
+    group: Infra
+    icon: plug
+    emoji: "🧱"
+    target: node
+    appliesTo: [external-api]
+    params: []
+    defaultDurationSec: null
+  # ---- Security
+  - kind: key-rotation
+    label: Signing key rotated
+    description: Tokens signed with the old key are rejected
+    group: Security
+    icon: key-round
+    emoji: "🔐"
+    target: node
+    appliesTo: [identity-provider, kms, secrets-store]
+    params: []
+    defaultDurationSec: null
+  - kind: credential-leak
+    label: Credential leak
+    description: A leaked key lets an abusive client in
+    group: Security
+    icon: key
+    emoji: "🕵️"
+    target: node
+    appliesTo: [identity-provider, secrets-store, web-client, mobile-client, iot-device, bot]
+    params: []
+    defaultDurationSec: null
+  - kind: secret-rotation
+    label: Secret rotation
+    description: Secret changes; consumers holding the old value get auth errors briefly
+    group: Security
+    icon: key-square
+    emoji: "🔄"
+    target: node
+    appliesTo: [secrets-store]
+    params: []
+    defaultDurationSec: 0
+  - kind: revoke-tokens
+    label: Revoke tokens
+    description: A share of issued tokens is revoked; stateless JWT checks miss it
+    group: Security
+    icon: ticket-x
+    emoji: "🚫"
+    target: node
+    appliesTo: [identity-provider]
+    params:
+      - { key: pct, label: Revoked share (0-1), kind: number, default: 0.05, min: 0.01, max: 1 }
+    defaultDurationSec: null
+  # ---- Protocol
+  - kind: kill-leader
+    label: Kill leader
+    description: Current leader dies; watch the election
+    group: Protocol
+    icon: crown
+    emoji: "👑"
+    target: node
+    appliesTo: [consensus-member, lock-service, relational-db, document-db, kv-store, log-stream, kafka-broker, kraft-controller, redis-server, redis-cluster-node, zk-server]
+    params: []
+    defaultDurationSec: null
+  - kind: kill-coordinator
+    label: Kill 2PC coordinator
+    description: Coordinator dies after prepare; participants block
+    group: Protocol
+    icon: user-x
+    emoji: "🧑‍⚖️"
+    target: node
+    appliesTo: [txn-coordinator]
+    params: []
+    defaultDurationSec: null
+  - kind: drop-votes
+    label: Drop votes
+    description: Vote messages are lost; elections stall
+    group: Protocol
+    icon: vote
+    emoji: "🗳"
+    target: node
+    appliesTo: [consensus-member, lock-service]
+    params:
+      - { key: pct, label: Dropped, kind: percent, default: 100, min: 1, max: 100, unit: "%" }
+    defaultDurationSec: 30
+  - kind: failover
+    label: Failover
+    description: Primary steps down; a replica is promoted after the failover time
+    group: Protocol
+    icon: arrow-left-right
+    emoji: "🔀"
+    target: node
+    appliesTo: [relational-db, document-db]
+    params: []
+    defaultDurationSec: null
+  - kind: kill-member
+    label: Kill member
+    description: One replica member dies; quorums shrink
+    group: Protocol
+    icon: server-off
+    emoji: "🪫"
+    target: node
+    appliesTo: [kv-store, relational-db, document-db]
+    params:
+      - { key: member, label: Member index, kind: int, default: 0, min: 0, max: 31 }
+    defaultDurationSec: null

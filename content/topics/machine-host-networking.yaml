@@ -1,0 +1,61 @@
+id: machine-host-networking
+title: Host networking
+group: machine
+icon: network
+order: 6
+summary: What happens between a packet hitting the NIC and your code seeing it.
+info: A packet is DMA'd into a ring buffer, interrupts the CPU, runs through the kernel's TCP/IP stack and wakes your thread via epoll. Each step costs microseconds, and an idle host adds tens more waking up. Syscalls and context switches are why event loops and batching win at high connection counts.
+algos: [bus-host-net, cpu-interrupts, bus-event-loop]
+lessons:
+  - id: packet-path
+    title: The packet path
+    minutes: 4
+    algo: bus-host-net
+    steps:
+      - title: NIC to app
+        body: Wire, DMA to the ring, interrupt, softirq TCP/IP, socket buffer, epoll wakeup, read(). ~9 µs of host time on a busy server.
+        watch: Elapsed grows at each hop.
+        check: { metric: manual }
+      - title: Idle host
+        body: Switch to "Idle host". Waking a core from deep C-states and a sleeping thread adds ~70 µs.
+        watch: Low-traffic services often have worse p99 than busy ones.
+        check: { metric: manual }
+
+  - id: interrupts-syscalls
+    title: Interrupts & syscalls
+    minutes: 3
+    algo: cpu-interrupts
+    steps:
+      - title: A syscall
+        body: read() flips the CPU into kernel mode, saves registers and copies the data out. ~0.5 µs, which adds up at 1M calls/s.
+        watch: The mode switches between user and kernel.
+        check: { metric: manual }
+      - title: A NIC interrupt
+        body: Switch to "NIC interrupt". The handler only schedules a softirq, which then polls packets in batches.
+        watch: At 1M packets/s a whole core goes to softirq.
+        check: { metric: manual }
+
+  - id: event-loop
+    title: Event loop vs threads
+    minutes: 3
+    algo: bus-event-loop
+    steps:
+      - title: epoll
+        body: One thread watches 10k sockets and handles only the ready ones. Cost is O(ready), with no context switches.
+        check: { metric: manual }
+      - title: Thread per connection
+        body: Switch to "Thread per connection". A burst wakes 2,000 threads that fight for 4 cores.
+        watch: ~6 ms of pure switching per burst, and p99 climbs.
+        check: { metric: manual }
+
+  - id: zero-copy-serving
+    title: Zero-copy serving
+    minutes: 2
+    algo: bus-dma
+    steps:
+      - title: Two copies
+        body: A proxy that read()s a file and write()s it to a socket copies every byte twice through the CPU.
+        check: { metric: manual }
+      - title: sendfile
+        body: Switch to "sendfile()". The NIC reads page-cache pages directly and the CPU copies nothing.
+        check: { metric: manual }

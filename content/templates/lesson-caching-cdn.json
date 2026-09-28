@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "id": "lesson-caching-cdn",
+  "name": "Lesson: CDN purge and origin shield",
+  "description": "Two CloudFront distributions with 4 POPs each serve the same site. B has an origin shield: POP misses go through one mid-tier cache that collapses duplicate fetches.",
+  "nodes": [
+    { "id": "web", "type": "web-client", "name": "Visitors", "pos": { "x": 195, "y": 60 } },
+    { "id": "cdn-a", "type": "cdn", "skin": "cloudfront", "name": "CDN A", "pos": { "x": 90, "y": 200 }, "config": { "ttlSec": 300, "pops": 4 } },
+    { "id": "cdn-b", "type": "cdn", "skin": "cloudfront", "name": "CDN B (shield)", "pos": { "x": 300, "y": 200 }, "config": { "ttlSec": 300, "pops": 4, "originShield": true } },
+    { "id": "origin-a", "type": "service", "name": "Origin A", "pos": { "x": 90, "y": 340 }, "config": { "instances": 1, "slots": 8, "p50Ms": 20, "p99Ms": 80 } },
+    { "id": "origin-b", "type": "service", "name": "Origin B", "pos": { "x": 300, "y": 340 }, "config": { "instances": 1, "slots": 8, "p50Ms": 20, "p99Ms": 80 } }
+  ],
+  "edges": [
+    { "id": "e1", "from": "web", "to": "cdn-a", "config": { "ratio": 0.5 } },
+    { "id": "e2", "from": "web", "to": "cdn-b", "config": { "ratio": 0.5 } },
+    { "id": "e3", "from": "cdn-a", "to": "origin-a", "config": { "timeoutMs": 2000 } },
+    { "id": "e4", "from": "cdn-b", "to": "origin-b", "config": { "timeoutMs": 2000 } }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 300,
+    "sources": [{ "id": "s1", "node": "web", "shape": { "kind": "constant", "rps": 2000 }, "readRatio": 0.98, "keys": { "kind": "zipf", "s": 1.0 } }],
+    "events": []
+  },
+  "wire": {
+    "host": "www.news.example",
+    "read": {
+      "path": "/articles/{key}",
+      "body": "{\"id\": {key}, \"headline\": \"Story {key}\"}"
+    },
+    "write": {
+      "method": "PUT",
+      "path": "/admin/articles/{key}",
+      "reqBody": "{\"headline\": \"Update {key}\"}",
+      "status": 200,
+      "body": "{\"id\": {key}, \"purged\": true}"
+    }
+  }
+}

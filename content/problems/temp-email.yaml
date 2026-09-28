@@ -1,0 +1,46 @@
+id: temp-email
+title: Temporary email system
+icon: mail-open
+category: classic
+order: 2
+summary: Disposable inboxes that receive mail for 10 minutes, then vanish.
+requirements:
+  - Receive inbound SMTP for any random address
+  - Read the inbox via web / API; auto-expire after 10 min
+  - Absorb spam floods without slowing readers
+  - 50M inbound emails/day · 150M inbox reads/day
+  - Read p99 < 1s under any inbound burst · 99.9% available
+estimates:
+  - Inbound ~600/s avg · 6k/s spam spikes
+  - Reads ~1.7k/s
+  - Live data only 10 min × 600/s × 20 KB ≈ 7 GB → fits in RAM
+designs:
+  - { id: v1, title: "Naive: one app + Postgres + DELETE cron", template: problem-temp-email-v1 }
+  - { id: v2, title: "Reference: SMTP tier → Kafka → Redis with TTL", template: problem-temp-email-v2 }
+challenges:
+  - id: spam-burst
+    title: "10× inbound spam burst, p99 < 1s"
+    template: problem-temp-email-v2
+    scenario:
+      durationSec: 60
+      sources: [{ id: mail, node: users, shape: { kind: constant, rps: 2000 }, readRatio: 0.7 }]
+      events: [{ atSec: 30, event: { kind: traffic, action: burst, params: { x: 10 }, durationSec: 30 } }]
+    pass:
+      - { metric: p99, op: '<', value: 1000 }
+      - { metric: availability, op: '>=', value: 99.9 }
+  - id: expiry-sweep
+    title: "Expiry sweep: DELETE + vacuum slow the DB 20×"
+    template: problem-temp-email-v2
+    scenario:
+      durationSec: 60
+      sources: [{ id: mail, node: users, shape: { kind: constant, rps: 4000 }, readRatio: 0.7 }]
+      events: [{ atSec: 25, event: { kind: slow, target: db, params: { x: 20 }, durationSec: 40 } }]
+    pass:
+      - { metric: p99, op: '<', value: 150 }
+      - { metric: availability, op: '>=', value: 99.9 }
+      - { metric: costMonth, op: '<=', value: 2000 }
+keyIdeas:
+  - { label: TTL instead of cleanup jobs, link: "lesson:caching/eviction" }
+  - { label: Log absorbs inbound fan-in, link: "lesson:message-queue/queue-vs-stream" }
+  - { label: Separate read and write paths, link: "lesson:system-paradigms/cqrs" }
+  - { label: LSM compaction drops expired data, link: "algo:lsm-tree" }

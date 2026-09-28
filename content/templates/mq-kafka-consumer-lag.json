@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "id": "mq-kafka-consumer-lag",
+  "name": "Kafka consumer lag",
+  "description": "A burst outpaces the billing consumer group: lag climbs, then drains. Killing one consumer triggers a rebalance; uncommitted batches are re-read (duplicates).",
+  "nodes": [
+    { "id": "web", "type": "web-client", "name": "Clients", "pos": { "x": 195, "y": 60 } },
+    { "id": "api", "type": "service", "name": "Events API", "pos": { "x": 195, "y": 200 } },
+    { "id": "k", "type": "log-stream", "skin": "kafka", "name": "payments topic", "pos": { "x": 195, "y": 340 }, "config": { "partitions": 6, "fetchBatch": 20 } },
+    { "id": "c1", "type": "worker", "name": "billing consumer 1", "pos": { "x": 110, "y": 480 }, "config": { "instances": 1, "slots": 2, "p50Ms": 10, "p99Ms": 40, "group": "billing" } },
+    { "id": "c2", "type": "worker", "name": "billing consumer 2", "pos": { "x": 280, "y": 480 }, "config": { "instances": 1, "slots": 2, "p50Ms": 10, "p99Ms": 40, "group": "billing" } }
+  ],
+  "edges": [
+    { "id": "e1", "from": "web", "to": "api" },
+    { "id": "e2", "from": "api", "to": "k" },
+    { "id": "e3", "from": "k", "to": "c1" },
+    { "id": "e4", "from": "k", "to": "c2" }
+  ],
+  "containers": [],
+  "alerts": [{ "id": "lag", "target": "k", "metric": "lag", "op": ">", "threshold": 2000, "forSec": 3 }],
+  "scenario": {
+    "durationSec": 60,
+    "sources": [{ "id": "s1", "node": "web", "shape": { "kind": "constant", "rps": 150 }, "readRatio": 0 }],
+    "events": [
+      { "atSec": 10, "event": { "kind": "traffic", "action": "burst", "params": { "x": 5 }, "durationSec": 10 } },
+      { "atSec": 40, "event": { "kind": "kill", "target": "c2", "durationSec": 8 } }
+    ]
+  },
+  "wire": {
+    "host": "events.pay.io",
+    "read": {
+      "method": "GET",
+      "path": "/v1/payments/{key}",
+      "body": "{\"id\": {key}, \"billed\": true}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/v1/payments",
+      "reqBody": "{\"account\": {key}, \"amount\": {value}}",
+      "status": 202,
+      "body": "{\"id\": {key}, \"status\": \"queued\"}"
+    },
+    "topic": "payments"
+  }
+}

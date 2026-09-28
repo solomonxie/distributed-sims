@@ -1,0 +1,161 @@
+{
+  "schemaVersion": 1,
+  "id": "tech-pg-conn-storm",
+  "name": "Postgres: connection storm vs PgBouncer",
+  "description": "Same traffic, same database size. Left: the app opens a connection per request (one forked backend each). Right: PgBouncer multiplexes onto 20 server connections.",
+  "nodes": [
+    {
+      "id": "users",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 100,
+        "y": 40
+      },
+      "config": {}
+    },
+    {
+      "id": "users2",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 290,
+        "y": 40
+      },
+      "config": {}
+    },
+    {
+      "id": "app-direct",
+      "type": "service",
+      "name": "app (no pooler)",
+      "pos": {
+        "x": 100,
+        "y": 160
+      },
+      "config": {
+        "instances": 4,
+        "slots": 64,
+        "p50Ms": 1,
+        "p99Ms": 3
+      }
+    },
+    {
+      "id": "app-pooled",
+      "type": "service",
+      "name": "app",
+      "pos": {
+        "x": 290,
+        "y": 160
+      },
+      "config": {
+        "instances": 4,
+        "slots": 64,
+        "p50Ms": 1,
+        "p99Ms": 3
+      }
+    },
+    {
+      "id": "bouncer",
+      "type": "pgbouncer",
+      "skin": "pgbouncer-std",
+      "name": "PgBouncer",
+      "pos": {
+        "x": 290,
+        "y": 280
+      },
+      "config": {}
+    },
+    {
+      "id": "pg-direct",
+      "type": "pg-primary",
+      "skin": "postgres-primary",
+      "name": "primary A",
+      "pos": {
+        "x": 100,
+        "y": 400
+      },
+      "config": {
+        "connectMs": 3
+      }
+    },
+    {
+      "id": "pg-pooled",
+      "type": "pg-primary",
+      "skin": "postgres-primary",
+      "name": "primary B",
+      "pos": {
+        "x": 290,
+        "y": 400
+      },
+      "config": {}
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-users-app-direct",
+      "from": "users",
+      "to": "app-direct"
+    },
+    {
+      "id": "e-users2-app-pooled",
+      "from": "users2",
+      "to": "app-pooled"
+    },
+    {
+      "id": "e-app-direct-pg-direct",
+      "from": "app-direct",
+      "to": "pg-direct"
+    },
+    {
+      "id": "e-app-pooled-bouncer",
+      "from": "app-pooled",
+      "to": "bouncer"
+    },
+    {
+      "id": "e-bouncer-pg-pooled",
+      "from": "bouncer",
+      "to": "pg-pooled"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 180,
+    "sources": [
+      {
+        "id": "s1",
+        "node": "users",
+        "shape": {
+          "kind": "constant",
+          "rps": 300
+        },
+        "readRatio": 0.8
+      },
+      {
+        "id": "s2",
+        "node": "users2",
+        "shape": {
+          "kind": "constant",
+          "rps": 300
+        },
+        "readRatio": 0.8
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "tickets.gigpass.com",
+    "read": {
+      "path": "/api/events/{key}",
+      "body": "{\"event_id\": {key}, \"seats_left\": {value}}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/events/{key}/holds",
+      "reqBody": "{\"seats\": 2}",
+      "status": 201,
+      "body": "{\"hold_id\": {key}, \"expires_in\": 600}"
+    },
+    "table": "events",
+    "valCol": "seats_left"
+  }
+}

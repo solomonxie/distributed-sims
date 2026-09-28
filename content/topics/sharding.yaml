@@ -1,0 +1,108 @@
+id: sharding
+title: Sharding
+group: topics
+icon: layout-grid
+order: 2
+summary: Split one dataset across many databases, and live with the keys that don't split evenly.
+info: A shard map decides which database owns each key. Good maps spread load and move few keys when shards change; bad ones create hot shards. Queries without the shard key must ask every shard.
+algos: [consistent-hashing, rendezvous-hashing]
+problems: [tinyurl, kv-store]
+lessons:
+  - id: hash-vs-range
+    title: Hash vs range
+    minutes: 3
+    template: lesson-sharding-hash-range
+    steps:
+      - title: Same inserts, two maps
+        body: New rows get auto-increment ids. The left vtgate owns ids by range, the right one by hash(id).
+        watch: The badge on each vtgate shows its map.
+        check: { metric: time, op: '>=', value: 3 }
+      - title: Range piles onto one shard
+        body: Every new id is the largest so far, so all inserts land in the newest range.
+        watch: One range shard sits at 100% busy with a growing queue.
+        check: { metric: gauge:hotShardPct, target: range, op: '>=', value: 80 }
+      - title: Latency follows the hot shard
+        body: Requests routed to the saturated shard wait in its queue.
+        check: { metric: p99, target: range, op: '>=', value: 500 }
+      - title: Hash spreads them
+        body: hash(id) scatters consecutive ids across all shards. The price is that range scans (ids 100–200) must hit every shard.
+        check: { metric: gauge:hotShardPct, target: hash, op: '<=', value: 50 }
+
+  - id: consistent-hashing
+    title: Consistent hashing
+    minutes: 3
+    algo: consistent-hashing
+    steps:
+      - title: Servers on a ring
+        body: Each server hashes to a point on a 0–360° ring. Each key hashes too and belongs to the next server clockwise.
+      - title: Add a server
+        body: A new server takes over only the arc just before it. Every other key stays put.
+      - title: Only ~1/N keys move
+        body: About 1/4 of keys move when going from 3 to 4 servers. hash(key) mod N would move about 3/4.
+      - title: Vnodes even out load
+        body: With few ring points, arcs differ in size and load is uneven. Many virtual nodes per server make the split close to equal.
+
+  - id: hot-key
+    title: Hot key / celebrity
+    minutes: 4
+    template: lesson-sharding-hot-key
+    steps:
+      - title: Evenly spread
+        body: Uniform keys, hash map, 3 shards per cluster. Each shard takes about a third.
+        watch: The hotShardPct gauge on vtgate A reads ~34%.
+        check: { metric: time, op: '>=', value: 4 }
+      - title: A celebrity posts
+        body: Tap ⚡ Break → Hot key. 60% of all reads now ask for one key, and hashing sends a key to exactly one shard.
+        action: { event: { kind: traffic, action: hot-key, params: { hot: 0.6 }, durationSec: 120 }, label: Make one key hot }
+        check: { metric: gauge:hotShardPct, target: router-a, op: '>=', value: 60 }
+      - title: One shard saturates
+        body: Adding shards doesn't help; the key still lives on one of them.
+        watch: The hot shard in cluster A hits 100% busy; vtgate A's p99 climbs.
+        check: { metric: p99, target: router-a, op: '>=', value: 150 }
+      - title: Replicas absorb the reads
+        body: Cluster B serves reads from 3 replicas per shard, so the hot shard's primary stays nearly idle.
+        check: { metric: p99, target: router-b, op: '<=', value: 40 }
+      - title: The cost
+        body: Replica reads can be slightly behind. For write-hot keys, salt the key (post:42#0..#9) to spread it over shards and merge on read.
+        watch: Stale reads from cluster B's replicas.
+        check: { metric: anomaly:stale-read, op: '>=', value: 100 }
+
+  - id: resharding
+    title: Resharding
+    minutes: 4
+    template: lesson-sharding-resharding
+    steps:
+      - title: A directory map
+        body: The router keeps a table key → shard, so any key can move without changing a hash function.
+        check: { metric: time, op: '>=', value: 3 }
+      - title: Start an online move
+        body: Tap ⚡ Break → Rebalance on the router. It moves half of the busiest shard's keys to the idlest shard in chunks, while traffic keeps flowing.
+        action: { event: { kind: rebalance, target: router, params: { sec: 8 } } }
+        check: { metric: badge:rebalancing, target: router, op: '>=', value: 1 }
+      - title: The dual-read window
+        body: For 4s after a key moves, the router reads and writes it on both shards, so no request misses the row mid-copy.
+        watch: Shard rps now add up to more than the router's rps.
+        check: { metric: gauge:movedKeys, target: router, op: '>=', value: 600 }
+      - title: Cut over
+        body: When the last chunk's window closes, only the new owner serves those keys. No request failed during the move.
+        check: { metric: badge:rebalancing, target: router, op: '=', value: 0 }
+
+  - id: cross-shard-query
+    title: Cross-shard query
+    minutes: 3
+    template: lesson-sharding-scatter
+    steps:
+      - title: Scatter-gather
+        body: These queries lack the shard key, so each coordinator asks every shard and waits for all replies.
+        check: { metric: time, op: '>=', value: 5 }
+      - title: More shards, worse tail
+        body: Every shard is equally fast, but a query waiting on 6 of them hits a slow reply far more often than one waiting on 2.
+        watch: p99 on the 6-shard coordinator runs ~50% higher.
+        check: { metric: p99, target: router-6, op: '>=', value: 300 }
+      - title: Fewer shards per query
+        body: The 2-shard coordinator waits on fewer tails.
+        check: { metric: p99, target: router-2, op: '<=', value: 250 }
+      - title: One slow shard slows everything
+        body: Tap ⚡ Break → Slow on B1. Every scatter query touches B1, so all of them slow down.
+        action: { event: { kind: slow, target: b1, params: { x: 10 }, durationSec: 60 } }
+        check: { metric: p99, target: router-6, op: '>=', value: 800 }

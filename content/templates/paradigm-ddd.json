@@ -1,0 +1,252 @@
+{
+  "schemaVersion": 1,
+  "id": "paradigm-ddd",
+  "name": "DDD: bounded contexts and domain events",
+  "description": "Orders, Billing and Shipping each own their data and react to OrderPlaced events via pub-sub. Shipping reaches the carrier through an anti-corruption layer. Smell: Billing writes straight into the Orders DB (shared database across contexts).",
+  "nodes": [
+    {
+      "id": "web",
+      "type": "web-client",
+      "name": "Shop",
+      "pos": {
+        "x": 195,
+        "y": 20
+      }
+    },
+    {
+      "id": "gw",
+      "type": "api-gateway",
+      "name": "API Gateway",
+      "pos": {
+        "x": 195,
+        "y": 120
+      }
+    },
+    {
+      "id": "ord",
+      "type": "service",
+      "name": "Order service",
+      "pos": {
+        "x": 55,
+        "y": 260
+      },
+      "parent": "orders"
+    },
+    {
+      "id": "odb",
+      "type": "relational-db",
+      "name": "Orders DB",
+      "pos": {
+        "x": 55,
+        "y": 400
+      },
+      "skin": "postgres",
+      "parent": "orders"
+    },
+    {
+      "id": "bus",
+      "type": "pub-sub",
+      "name": "Domain events",
+      "pos": {
+        "x": 195,
+        "y": 260
+      }
+    },
+    {
+      "id": "bill",
+      "type": "service",
+      "name": "Billing service",
+      "pos": {
+        "x": 195,
+        "y": 400
+      },
+      "parent": "billing"
+    },
+    {
+      "id": "bdb",
+      "type": "relational-db",
+      "name": "Billing DB",
+      "pos": {
+        "x": 195,
+        "y": 540
+      },
+      "skin": "postgres",
+      "parent": "billing"
+    },
+    {
+      "id": "ship",
+      "type": "service",
+      "name": "Shipping service",
+      "pos": {
+        "x": 335,
+        "y": 400
+      },
+      "parent": "shipping"
+    },
+    {
+      "id": "sdb",
+      "type": "document-db",
+      "name": "Shipments",
+      "pos": {
+        "x": 335,
+        "y": 540
+      },
+      "parent": "shipping"
+    },
+    {
+      "id": "acl",
+      "type": "anti-corruption-layer",
+      "name": "Carrier ACL",
+      "pos": {
+        "x": 335,
+        "y": 260
+      },
+      "parent": "shipping"
+    },
+    {
+      "id": "carrier",
+      "type": "external-api",
+      "name": "Carrier API",
+      "pos": {
+        "x": 335,
+        "y": 120
+      },
+      "config": {
+        "quotaRps": 1000,
+        "p50Ms": 80,
+        "p99Ms": 300
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "web->gw",
+      "from": "web",
+      "to": "gw"
+    },
+    {
+      "id": "gw->ord",
+      "from": "gw",
+      "to": "ord"
+    },
+    {
+      "id": "ord->odb",
+      "from": "ord",
+      "to": "odb"
+    },
+    {
+      "id": "ord->bus",
+      "from": "ord",
+      "to": "bus",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "bus->bill",
+      "from": "bus",
+      "to": "bill",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "bus->ship",
+      "from": "bus",
+      "to": "ship",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "bill->bdb",
+      "from": "bill",
+      "to": "bdb"
+    },
+    {
+      "id": "bill->odb",
+      "from": "bill",
+      "to": "odb",
+      "config": {
+        "op": "write"
+      }
+    },
+    {
+      "id": "ship->sdb",
+      "from": "ship",
+      "to": "sdb"
+    },
+    {
+      "id": "ship->acl",
+      "from": "ship",
+      "to": "acl"
+    },
+    {
+      "id": "acl->carrier",
+      "from": "acl",
+      "to": "carrier"
+    }
+  ],
+  "containers": [
+    {
+      "id": "orders",
+      "kind": "bounded-context",
+      "name": "Orders"
+    },
+    {
+      "id": "billing",
+      "kind": "bounded-context",
+      "name": "Billing"
+    },
+    {
+      "id": "shipping",
+      "kind": "bounded-context",
+      "name": "Shipping"
+    }
+  ],
+  "scenario": {
+    "durationSec": 90,
+    "sources": [
+      {
+        "id": "s1",
+        "node": "web",
+        "shape": {
+          "kind": "constant",
+          "rps": 100
+        },
+        "readRatio": 0.3
+      }
+    ],
+    "events": [
+      {
+        "atSec": 40,
+        "event": {
+          "kind": "slow",
+          "target": "odb",
+          "params": {
+            "x": 10
+          },
+          "durationSec": 15
+        }
+      }
+    ]
+  },
+  "wire": {
+    "host": "shop.acme.io",
+    "read": {
+      "method": "GET",
+      "path": "/api/orders/{key}",
+      "body": "{\"id\": {key}, \"status\": \"placed\"}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/orders",
+      "reqBody": "{\"cart_id\": {key}, \"total\": {value}}",
+      "status": 201,
+      "body": "{\"id\": {key}, \"status\": \"placed\"}"
+    },
+    "table": "orders",
+    "valCol": "status",
+    "topic": "OrderPlaced"
+  }
+}

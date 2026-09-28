@@ -1,0 +1,205 @@
+id: network
+title: Network
+group: topics
+icon: network
+order: 10
+summary: Distance, lost packets, broken links and exhausted connections between your boxes.
+info: Every hop costs time, and the speed of light sets a floor between regions. Networks drop packets, split into sides that can't see each other, and cache stale answers (DNS). Connection pools and load-balancer layers decide how that shows up for users.
+problems: [google-maps]
+lessons:
+  - id: latency-geography
+    title: Latency geography
+    minutes: 3
+    template: lesson-network-geo
+    steps:
+      - title: One region for everyone
+        body: The left pair of clients reach a single app in us-east-1. From Asia, each round trip crosses the Pacific twice.
+        watch: Asia users on the left see p99 above 300ms.
+        check: { metric: p99, target: ap-single, op: '>=', value: 300 }
+      - title: Serve from nearby
+        body: The right pair of clients go through geo DNS, which picks the nearest region. The same request now stays on its own continent.
+        watch: Asia users on the right drop to about the last-mile cost.
+        check: { metric: p99, target: ap-geo, op: '<=', value: 120 }
+      - title: A region fails
+        body: Kill the eu-west-1 app for 30s. Geo DNS health checks mark it down, and European users are sent to the next-closest region.
+        action: { event: { kind: kill, target: app-eu, durationSec: 30 } }
+        watch: The log shows DNS now resolving EU users to us-east-1, at the cost of higher latency.
+        check: { metric: 'eventMatch:now resolves to', op: '>=', value: 1 }
+
+  - id: connection-pools
+    title: TCP/connection pools
+    minutes: 3
+    template: lesson-network-pools
+    steps:
+      - title: A few connections suffice
+        body: Queries take ~2ms, so 300 req/s keep only a few of the 20 pooled connections busy.
+        check: { metric: 'gauge:poolInUse', target: app, op: '>=', value: 1 }
+      - title: The DB slows down
+        body: Slow Postgres 50× for 20s. Each request now holds its connection ~50× longer.
+        action: { event: { kind: slow, target: db, params: { x: 50 }, durationSec: 20 } }
+        watch: The pool badge pins at 20/20 and requests start waiting for a connection.
+        check: { metric: 'gauge:poolWaiting', target: app, op: '>=', value: 1 }
+      - title: Pool timeouts
+        body: Requests that wait over 500ms for a connection fail with 503. A bigger pool would only push the queueing into the DB.
+        check: { metric: availability, target: users, op: '<', value: 90 }
+      - title: Recovery
+        body: Once queries are fast again, connections free up and the waiters drain.
+        check: { metric: availability, target: users, op: '>=', value: 99.5 }
+
+  - id: packet-loss
+    title: Packet loss & tail latency
+    minutes: 3
+    template: lesson-network-loss
+    steps:
+      - title: Clean network
+        body: Both apps call the DB with a 200ms timeout. Left resends a lost request, right doesn't.
+        check: { metric: time, op: '>=', value: 5 }
+      - title: 2% packet loss
+        body: Add 2% packet loss on the DB's links for 30s. Lost packets are rare, but each one costs a full timeout.
+        action: { event: { kind: loss, target: db, params: { pct: 2 }, durationSec: 30 } }
+        watch: Left p50 barely moves while p99 jumps past 200ms.
+        check: { metric: p99, target: users-r, op: '>=', value: 200 }
+      - title: Or it fails
+        body: Without a resend, each lost packet is a failed request. A little loss either stretches the tail or costs availability.
+        check: { metric: availability, target: users-n, op: '<', value: 99.5 }
+
+  - id: partitions
+    title: Partitions
+    minutes: 4
+    template: lesson-network-splitbrain
+    steps:
+      - title: Two replicated DBs
+        body: Each DB has a primary, 2 replicas and automatic failover. Left replicates async, right sync.
+        check: { metric: time, op: '>=', value: 5 }
+      - title: Asymmetric partition, left
+        body: The failover monitor loses the primary, but clients can still reach it. Fire Split brain on the left DB for 10s, and a replica is promoted next to the old primary.
+        action: { event: { kind: split-brain, target: db-async, durationSec: 10 } }
+        watch: The DB badge reads 2 primaries, and both accept writes.
+        check: { metric: 'badge:2 primaries', target: db-async, op: '>=', value: 1 }
+      - title: Heal and count the damage
+        body: When the partition heals, one primary wins. Writes acknowledged on the other side are thrown away.
+        watch: Divergence and lost-write anomalies appear.
+        check: { metric: 'anomaly:lost-write', op: '>=', value: 1 }
+      - title: Same partition, sync replication
+        body: Fire Split brain on the right DB for 10s. The cut-off side can't get replica acks, so it refuses writes.
+        action: { event: { kind: split-brain, target: db-sync, durationSec: 10 } }
+        watch: Some writes fail on the right, but nothing diverges. That is CAP choosing consistency.
+        check: { metric: availability, target: users-b, op: '<', value: 95 }
+
+  - id: dns-failover
+    title: DNS failover
+    minutes: 4
+    template: lesson-network-dns
+    steps:
+      - title: Primary and standby
+        body: Both DNS zones send everyone to us-east-1 and keep us-west-2 as the standby.
+        check: { metric: rps, target: app-east, op: '>=', value: 100 }
+      - title: us-east-1 goes down
+        body: Take the whole us-east-1 region down. Health checks fail it within ~4s, but clients use their cached answer until it expires.
+        action: { event: { kind: region-down, target: east, durationSec: 90 } }
+        check: { metric: availability, target: users-5, op: '<', value: 50 }
+      - title: Short TTL recovers fast
+        body: With a 5s TTL, the left users ask again within seconds and get us-west-2.
+        check: { metric: availability, target: users-5, op: '>=', value: 99 }
+      - title: Long TTL waits it out
+        body: The right users keep hitting the dead region until their 30s TTL expires. Recovery time is roughly health-check time plus TTL.
+        check: { metric: availability, target: users-30, op: '>=', value: 99 }
+
+  - id: l4-vs-l7
+    title: L4 vs L7 load balancing
+    minutes: 3
+    template: lesson-network-l4l7
+    steps:
+      - title: Three long-lived connections
+        body: Both sides send 330 req/s over three connections, and one of them carries two thirds of the traffic. Each backend handles ~180 req/s.
+        check: { metric: time, op: '>=', value: 5 }
+      - title: L4 pins connections
+        body: The L4 balancer picks a backend once per connection. The busy connection overloads one backend while another gets only a trickle.
+        watch: One api on the left sits at 100% busy with a full queue, and left p99 climbs past 500ms.
+        check: { metric: p99, target: users-l4, op: '>=', value: 300 }
+      - title: L7 balances requests
+        body: The L7 balancer parses each request and spreads them evenly, so all three backends stay about 60% busy. gRPC and HTTP/2 need an L7 balancer, or client-side balancing, for this reason.
+        check: { metric: p99, target: users-l7, op: '<', value: 150 }
+
+  - id: accept-queue
+    title: Socket accept queue
+    minutes: 3
+    template: lesson-network-backlog
+    steps:
+      - title: Workers and a backlog
+        body: Each server has 8 worker threads. Connections the workers can't take yet wait in the listen backlog, the kernel's accept queue.
+        watch: At 200 req/s the workers are about half busy and nothing waits.
+        check: { metric: util, target: srv-a, op: '>=', value: 30 }
+      - title: A burst
+        body: Send about twice the traffic for 20s. The workers fill up, then the backlog does.
+        action: { event: { kind: traffic, action: burst, params: { x: 2.1 }, durationSec: 20 } }
+        watch: The left backlog pins at 16.
+        check: { metric: queue, target: srv-a, op: '>=', value: 12 }
+      - title: Dropped SYNs
+        body: With the backlog full, the kernel drops new SYNs. The client resends after 1s, then 2s later, so those requests take 1–3s or fail.
+        watch: Left p99 jumps past 1s and some requests fail.
+        check: { metric: p99, target: users-a, op: '>=', value: 1000 }
+      - title: A bigger backlog
+        body: The middle server has a backlog of 1024. Nothing is dropped, but requests now wait in the queue for seconds. A bigger backlog only moves the waiting.
+        check: { metric: p99, target: users-b, op: '>=', value: 1000 }
+      - title: More workers
+        body: The right server has the same small backlog but 3 instances, so the burst never fills it. Only more capacity fixes an overflowing backlog.
+        check: { metric: p99, target: users-c, op: '<=', value: 150 }
+
+  - id: vpn
+    title: Site-to-site VPN
+    minutes: 4
+    template: lesson-network-vpn
+    steps:
+      - title: A private path
+        body: The app has no public address. Office traffic is encrypted by the VPN gateway and crosses the internet inside Tunnel 1. Remote users use the public load balancer.
+        watch: Office p99 sits above remote users', paying for the extra hop and encryption.
+        check: { metric: p99, target: office, op: '>=', value: 90 }
+      - title: The tunnel saturates
+        body: Triple office traffic for 10s. One tunnel has a fixed throughput, so packets queue in its buffer and then drop.
+        action: { event: { kind: traffic, source: office, action: burst, params: { x: 3 }, durationSec: 10 } }
+        watch: Tunnel 1 queues, office p99 climbs past 500ms and errors start. Remote users don't notice.
+        check: { metric: p99, target: office, op: '>=', value: 500 }
+      - title: Tunnel 1 goes down
+        body: Kill Tunnel 1 for 30s. The gateway's dead-peer detection misses 2 replies and marks it down.
+        action: { event: { kind: kill, target: t1, durationSec: 30 } }
+        watch: Office requests fail for ~2s, then the log shows the failover.
+        check: { metric: 'eventMatch:tunnel 1 marked unhealthy', op: '>=', value: 1 }
+      - title: The standby takes over
+        body: Traffic now flows through Tunnel 2. With a single tunnel the office would be cut off until it came back, which is why cloud VPNs ship two.
+        check: { metric: rps, target: t2, op: '>=', value: 100 }
+
+  - id: nat-ports
+    title: NAT gateway port exhaustion
+    minutes: 3
+    template: lesson-network-nat
+    steps:
+      - title: Ports fill up
+        body: Each outbound connection takes one NAT source port, at most 55,000 per destination. Left opens a new connection per call, and a closed connection keeps its port for 60s.
+        watch: The left NAT's port badge climbs by ~8k each second.
+        check: { metric: 'gauge:portsUsed', target: nat-n, op: '>=', value: 20000 }
+      - title: Out of ports
+        body: At 55,000 the NAT can't open another connection to the API. Every new call fails until old ports expire.
+        watch: ErrorPortAllocation in the log and left availability near 0.
+        check: { metric: availability, target: users-n, op: '<', value: 50 }
+      - title: Pooling fixes it
+        body: Right reuses a few hundred pooled connections, so it needs a few hundred ports at the same load. Other fixes are more NAT gateways or more destination IPs.
+        check: { metric: 'gauge:portsUsed', target: nat-p, op: '<=', value: 2000 }
+
+  - id: keep-alive
+    title: Keep-alive vs new connections
+    minutes: 3
+    template: lesson-network-keepalive
+    steps:
+      - title: Handshakes cost round trips
+        body: Right opens a new connection per call, paying a TCP and a TLS 1.3 handshake, 2 extra round trips, before each request. Left reuses open connections.
+        watch: Right p99 is ~40ms higher than left.
+        check: { metric: p99, target: users-h, op: '>=', value: 110 }
+      - title: Move the backend away
+        body: Add 40ms each way on the backend's links for 40s, like calling another region.
+        action: { event: { kind: latency, target: api, params: { ms: 40 }, durationSec: 40 } }
+        watch: Left pays one extra round trip. Right pays three.
+        check: { metric: p99, target: users-h, op: '>=', value: 300 }
+      - title: Reuse wins with distance
+        body: The gap grows with every millisecond of distance. TLS 1.2 adds one more round trip. Pools, HTTP keep-alive and HTTP/2 all exist to pay the handshake once.
+        check: { metric: p99, target: users-k, op: '<=', value: 200 }

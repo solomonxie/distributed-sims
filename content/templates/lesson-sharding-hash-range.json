@@ -1,0 +1,211 @@
+{
+  "schemaVersion": 1,
+  "id": "lesson-sharding-hash-range",
+  "name": "Lesson: hash vs range sharding",
+  "description": "Same auto-increment inserts, two shard maps. Left vtgate routes by key range, so every new id lands on the last range. Right vtgate hashes the id and spreads them.",
+  "nodes": [
+    {
+      "id": "web",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 195,
+        "y": 60
+      }
+    },
+    {
+      "id": "range",
+      "type": "shard-router",
+      "skin": "vitess",
+      "name": "vtgate (range)",
+      "pos": {
+        "x": 90,
+        "y": 190
+      },
+      "config": {
+        "shardBy": "range",
+        "keyPattern": "sequential"
+      }
+    },
+    {
+      "id": "hash",
+      "type": "shard-router",
+      "skin": "vitess",
+      "name": "vtgate (hash)",
+      "pos": {
+        "x": 300,
+        "y": 190
+      },
+      "config": {
+        "shardBy": "hash",
+        "keyPattern": "sequential"
+      }
+    },
+    {
+      "id": "r1",
+      "type": "relational-db",
+      "skin": "mysql",
+      "name": "Range 1",
+      "pos": {
+        "x": 20,
+        "y": 330
+      },
+      "config": {
+        "replicas": 0,
+        "slots": 2, "writeP50Ms": 5, "writeP99Ms": 20
+      }
+    },
+    {
+      "id": "r2",
+      "type": "relational-db",
+      "skin": "mysql",
+      "name": "Range 2",
+      "pos": {
+        "x": 90,
+        "y": 330
+      },
+      "config": {
+        "replicas": 0,
+        "slots": 2, "writeP50Ms": 5, "writeP99Ms": 20
+      }
+    },
+    {
+      "id": "r3",
+      "type": "relational-db",
+      "skin": "mysql",
+      "name": "Range 3",
+      "pos": {
+        "x": 160,
+        "y": 330
+      },
+      "config": {
+        "replicas": 0,
+        "slots": 2, "writeP50Ms": 5, "writeP99Ms": 20
+      }
+    },
+    {
+      "id": "h1",
+      "type": "relational-db",
+      "skin": "mysql",
+      "name": "Hash 1",
+      "pos": {
+        "x": 230,
+        "y": 330
+      },
+      "config": {
+        "replicas": 0,
+        "slots": 2, "writeP50Ms": 5, "writeP99Ms": 20
+      }
+    },
+    {
+      "id": "h2",
+      "type": "relational-db",
+      "skin": "mysql",
+      "name": "Hash 2",
+      "pos": {
+        "x": 300,
+        "y": 330
+      },
+      "config": {
+        "replicas": 0,
+        "slots": 2, "writeP50Ms": 5, "writeP99Ms": 20
+      }
+    },
+    {
+      "id": "h3",
+      "type": "relational-db",
+      "skin": "mysql",
+      "name": "Hash 3",
+      "pos": {
+        "x": 370,
+        "y": 330
+      },
+      "config": {
+        "replicas": 0,
+        "slots": 2, "writeP50Ms": 5, "writeP99Ms": 20
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "web",
+      "to": "range",
+      "config": {
+        "ratio": 0.5
+      }
+    },
+    {
+      "id": "e2",
+      "from": "web",
+      "to": "hash",
+      "config": {
+        "ratio": 0.5
+      }
+    },
+    {
+      "id": "e3",
+      "from": "range",
+      "to": "r1"
+    },
+    {
+      "id": "e4",
+      "from": "range",
+      "to": "r2"
+    },
+    {
+      "id": "e5",
+      "from": "range",
+      "to": "r3"
+    },
+    {
+      "id": "e6",
+      "from": "hash",
+      "to": "h1"
+    },
+    {
+      "id": "e7",
+      "from": "hash",
+      "to": "h2"
+    },
+    {
+      "id": "e8",
+      "from": "hash",
+      "to": "h3"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 300,
+    "sources": [
+      {
+        "id": "s1",
+        "node": "web",
+        "shape": {
+          "kind": "constant",
+          "rps": 900
+        },
+        "readRatio": 0.2,
+        "keys": {
+          "kind": "uniform"
+        }
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "api.events.example",
+    "read": {
+      "path": "/v1/events/{key}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/v1/events",
+      "reqBody": "{\"type\": \"click\", \"user\": {value}}",
+      "status": 201,
+      "body": "{\"id\": {key}}"
+    },
+    "table": "events",
+    "valCol": "payload"
+  }
+}

@@ -1,0 +1,117 @@
+{
+  "schemaVersion": 1,
+  "id": "problem-youtube-v1",
+  "name": "YouTube — naive",
+  "description": "Video servers stream every segment and transcode uploads in-process; no CDN.",
+  "nodes": [
+    {
+      "id": "users",
+      "type": "web-client",
+      "skin": "react-spa",
+      "name": "Viewers & creators",
+      "pos": {
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "id": "alb",
+      "type": "load-balancer",
+      "skin": "aws-alb",
+      "name": "Load balancer",
+      "pos": {
+        "x": 0,
+        "y": 110
+      }
+    },
+    {
+      "id": "api",
+      "type": "service",
+      "skin": "go-service",
+      "name": "Video API",
+      "pos": {
+        "x": 0,
+        "y": 220
+      },
+      "config": {
+        "instances": 4
+      }
+    },
+    {
+      "id": "video",
+      "type": "blob-cdn-origin",
+      "name": "Video servers (store + transcode)",
+      "pos": {
+        "x": 0,
+        "y": 330
+      },
+      "config": {
+        "instances": 4,
+        "slots": 128,
+        "transcoders": 32,
+        "videoMin": 1,
+        "renditions": 3,
+        "transcodeSecPerMin": 2
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "users->alb",
+      "from": "users",
+      "to": "alb"
+    },
+    {
+      "id": "alb->api",
+      "from": "alb",
+      "to": "api"
+    },
+    {
+      "id": "api->video",
+      "from": "api",
+      "to": "video"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 60,
+    "sources": [
+      {
+        "id": "watch",
+        "node": "users",
+        "shape": {
+          "kind": "constant",
+          "rps": 3000
+        },
+        "readRatio": 1
+      },
+      {
+        "id": "upload",
+        "node": "users",
+        "shape": {
+          "kind": "constant",
+          "rps": 2
+        },
+        "readRatio": 0,
+        "payloadBytes": 50000000
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "www.youtube.example",
+    "read": {
+      "method": "GET",
+      "path": "/v1/videos/{code}",
+      "status": 200,
+      "body": "{\"id\": \"{code}\", \"title\": \"…\", \"hls\": \"/v/{code}/master.m3u8\"}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/v1/uploads",
+      "reqBody": "{\"title\": \"My trip\", \"size_bytes\": 104857600}",
+      "status": 201,
+      "body": "{\"video_id\": \"{code}\", \"upload_url\": \"https://upload.example/{code}\"}"
+    }
+  }
+}

@@ -1,0 +1,202 @@
+{
+  "schemaVersion": 1,
+  "id": "tech-rabbitmq-unroutable",
+  "name": "RabbitMQ: unroutable messages",
+  "description": "Two services publish order events to a topic exchange bound with order.*. shop-a publishes plainly; shop-b sets mandatory so unroutable messages come back.",
+  "nodes": [
+    {
+      "id": "users-a",
+      "type": "web-client",
+      "skin": "react-spa",
+      "name": "Users A",
+      "pos": {
+        "x": 55,
+        "y": 30
+      },
+      "config": {}
+    },
+    {
+      "id": "users-b",
+      "type": "web-client",
+      "skin": "react-spa",
+      "name": "Users B",
+      "pos": {
+        "x": 335,
+        "y": 30
+      },
+      "config": {}
+    },
+    {
+      "id": "pub-a",
+      "type": "rabbitmq-publisher",
+      "skin": "rabbitmq-app-publisher",
+      "name": "shop-a",
+      "pos": {
+        "x": 55,
+        "y": 140
+      },
+      "config": {
+        "routingKeys": "order.created,order.paid",
+        "mandatory": false
+      }
+    },
+    {
+      "id": "pub-b",
+      "type": "rabbitmq-publisher",
+      "skin": "rabbitmq-app-publisher",
+      "name": "shop-b (mandatory)",
+      "pos": {
+        "x": 335,
+        "y": 140
+      },
+      "config": {
+        "routingKeys": "order.created,order.paid",
+        "mandatory": true
+      }
+    },
+    {
+      "id": "ex",
+      "type": "rabbitmq-exchange",
+      "skin": "rabbitmq-topic-exchange",
+      "name": "events (topic)",
+      "pos": {
+        "x": 195,
+        "y": 140
+      },
+      "config": {}
+    },
+    {
+      "id": "rmq1",
+      "type": "rabbitmq-node",
+      "skin": "rabbitmq-broker-node",
+      "name": "rmq-1",
+      "pos": {
+        "x": 55,
+        "y": 480
+      },
+      "config": {}
+    },
+    {
+      "id": "rmq2",
+      "type": "rabbitmq-node",
+      "skin": "rabbitmq-broker-node",
+      "name": "rmq-2",
+      "pos": {
+        "x": 195,
+        "y": 480
+      },
+      "config": {}
+    },
+    {
+      "id": "rmq3",
+      "type": "rabbitmq-node",
+      "skin": "rabbitmq-broker-node",
+      "name": "rmq-3",
+      "pos": {
+        "x": 335,
+        "y": 480
+      },
+      "config": {}
+    },
+    {
+      "id": "billing",
+      "type": "rabbitmq-queue",
+      "skin": "rabbitmq-quorum-queue",
+      "name": "billing",
+      "pos": {
+        "x": 195,
+        "y": 260
+      },
+      "config": {
+        "bindingKey": "order.*",
+        "leader": "rmq1"
+      }
+    },
+    {
+      "id": "c-billing",
+      "type": "rabbitmq-consumer",
+      "skin": "rabbitmq-worker",
+      "name": "billing worker",
+      "pos": {
+        "x": 195,
+        "y": 380
+      },
+      "config": {}
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-users-a-pub-a",
+      "from": "users-a",
+      "to": "pub-a"
+    },
+    {
+      "id": "e-users-b-pub-b",
+      "from": "users-b",
+      "to": "pub-b"
+    },
+    {
+      "id": "e-pub-a-ex",
+      "from": "pub-a",
+      "to": "ex"
+    },
+    {
+      "id": "e-pub-b-ex",
+      "from": "pub-b",
+      "to": "ex"
+    },
+    {
+      "id": "e-ex-billing",
+      "from": "ex",
+      "to": "billing"
+    },
+    {
+      "id": "e-billing-c-billing",
+      "from": "billing",
+      "to": "c-billing",
+      "config": {
+        "mode": "async"
+      }
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 120,
+    "sources": [
+      {
+        "id": "s-users-a",
+        "node": "users-a",
+        "shape": {
+          "kind": "constant",
+          "rps": 60
+        },
+        "readRatio": 0
+      },
+      {
+        "id": "s-users-b",
+        "node": "users-b",
+        "shape": {
+          "kind": "constant",
+          "rps": 60
+        },
+        "readRatio": 0
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "api.shopmesh.com",
+    "read": {
+      "path": "/v1/orders/{key}",
+      "body": "{\"order_id\": {key}, \"status\": \"created\"}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/v1/orders",
+      "reqBody": "{\"sku\": \"MUG-01\", \"qty\": {value}}",
+      "status": 202,
+      "body": "{\"order_id\": {key}, \"status\": \"created\"}"
+    },
+    "topic": "order.created"
+  }
+}

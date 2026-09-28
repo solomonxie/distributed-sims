@@ -1,0 +1,279 @@
+{
+  "schemaVersion": 1,
+  "id": "problem-google-maps-v2",
+  "name": "Google Maps — reference",
+  "description": "Pre-rendered tiles from S3 behind a CDN; routes on contraction hierarchies in two regions behind DNS failover; location pings into Kafka.",
+  "nodes": [
+    {
+      "id": "users",
+      "type": "mobile-client",
+      "skin": "ios-app",
+      "name": "Map users",
+      "pos": {
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "id": "cdn",
+      "type": "cdn",
+      "skin": "cloudfront",
+      "name": "Tile CDN",
+      "pos": {
+        "x": -130,
+        "y": 110
+      }
+    },
+    {
+      "id": "tiles",
+      "type": "object-store",
+      "skin": "s3",
+      "name": "Tiles (pre-rendered)",
+      "pos": {
+        "x": -130,
+        "y": 220
+      }
+    },
+    {
+      "id": "dns",
+      "type": "dns",
+      "skin": "route53",
+      "name": "DNS failover",
+      "pos": {
+        "x": 50,
+        "y": 110
+      },
+      "config": {
+        "routing": "failover",
+        "ttlSec": 10,
+        "healthIntervalMs": 5000,
+        "unhealthyThreshold": 2,
+        "healthyThreshold": 2
+      }
+    },
+    {
+      "id": "alb-us",
+      "type": "load-balancer",
+      "skin": "aws-alb",
+      "name": "LB us-east",
+      "parent": "us-east",
+      "pos": {
+        "x": -20,
+        "y": 220
+      }
+    },
+    {
+      "id": "api-us",
+      "type": "service",
+      "skin": "go-service",
+      "name": "Maps API",
+      "parent": "us-east",
+      "pos": {
+        "x": -20,
+        "y": 330
+      },
+      "config": {
+        "instances": 3,
+        "fanout": "one"
+      }
+    },
+    {
+      "id": "routing-us",
+      "type": "routing-engine",
+      "skin": "osrm",
+      "name": "Routing (CH)",
+      "parent": "us-east",
+      "pos": {
+        "x": -135,
+        "y": 440
+      },
+      "config": {
+        "graphNodes": 1000000,
+        "instances": 2
+      }
+    },
+    {
+      "id": "pings-us",
+      "type": "log-stream",
+      "skin": "kafka",
+      "name": "Location pings",
+      "parent": "us-east",
+      "pos": {
+        "x": -45,
+        "y": 440
+      }
+    },
+    {
+      "id": "alb-eu",
+      "type": "load-balancer",
+      "skin": "aws-alb",
+      "name": "LB eu-west",
+      "parent": "eu-west",
+      "pos": {
+        "x": 110,
+        "y": 220
+      }
+    },
+    {
+      "id": "api-eu",
+      "type": "service",
+      "skin": "go-service",
+      "name": "Maps API",
+      "parent": "eu-west",
+      "pos": {
+        "x": 110,
+        "y": 330
+      },
+      "config": {
+        "instances": 3,
+        "fanout": "one"
+      }
+    },
+    {
+      "id": "routing-eu",
+      "type": "routing-engine",
+      "skin": "osrm",
+      "name": "Routing (CH)",
+      "parent": "eu-west",
+      "pos": {
+        "x": 45,
+        "y": 440
+      },
+      "config": {
+        "graphNodes": 1000000,
+        "instances": 2
+      }
+    },
+    {
+      "id": "pings-eu",
+      "type": "log-stream",
+      "skin": "kafka",
+      "name": "Location pings",
+      "parent": "eu-west",
+      "pos": {
+        "x": 135,
+        "y": 440
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "users->cdn",
+      "from": "users",
+      "to": "cdn",
+      "config": {
+        "op": "read",
+        "ratio": 0.75
+      }
+    },
+    {
+      "id": "users->dns",
+      "from": "users",
+      "to": "dns",
+      "config": {
+        "ratio": 0.25
+      }
+    },
+    {
+      "id": "cdn->tiles",
+      "from": "cdn",
+      "to": "tiles"
+    },
+    {
+      "id": "dns->alb-us",
+      "from": "dns",
+      "to": "alb-us"
+    },
+    {
+      "id": "dns->alb-eu",
+      "from": "dns",
+      "to": "alb-eu"
+    },
+    {
+      "id": "alb-us->api-us",
+      "from": "alb-us",
+      "to": "api-us"
+    },
+    {
+      "id": "api-us->routing-us",
+      "from": "api-us",
+      "to": "routing-us",
+      "config": {
+        "op": "read"
+      }
+    },
+    {
+      "id": "api-us->pings-us",
+      "from": "api-us",
+      "to": "pings-us",
+      "config": {
+        "op": "write"
+      }
+    },
+    {
+      "id": "alb-eu->api-eu",
+      "from": "alb-eu",
+      "to": "api-eu"
+    },
+    {
+      "id": "api-eu->routing-eu",
+      "from": "api-eu",
+      "to": "routing-eu",
+      "config": {
+        "op": "read"
+      }
+    },
+    {
+      "id": "api-eu->pings-eu",
+      "from": "api-eu",
+      "to": "pings-eu",
+      "config": {
+        "op": "write"
+      }
+    }
+  ],
+  "containers": [
+    {
+      "id": "us-east",
+      "kind": "region",
+      "name": "us-east"
+    },
+    {
+      "id": "eu-west",
+      "kind": "region",
+      "name": "eu-west"
+    }
+  ],
+  "scenario": {
+    "durationSec": 60,
+    "sources": [
+      {
+        "id": "app",
+        "node": "users",
+        "shape": {
+          "kind": "constant",
+          "rps": 2000
+        },
+        "readRatio": 0.95
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "maps.example.com",
+    "read": {
+      "method": "GET",
+      "path": "/v1/directions?origin={key}&dest=4412",
+      "status": 200,
+      "body": "{\"route\": {\"distance_m\": 5230, \"duration_s\": 780, \"polyline\": \"a~l~Fjk~uOw\"}}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/v1/locations",
+      "reqBody": "{\"device_id\": {key}, \"lat\": 37.77, \"lng\": -122.42}",
+      "status": 202,
+      "body": "{\"accepted\": true}"
+    },
+    "topic": "location-pings"
+  }
+}

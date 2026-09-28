@@ -1,0 +1,99 @@
+group: { id: tech, label: Under the hood, order: 14 }
+# Redis + nginx internals (technologies.md → Redis, nginx), with the slow baselines they are compared to.
+# redis-server: one event-loop thread; commands queue and run one at a time. Protocol kinds: redis.REPLCONF.
+# nginx-server: N single-threaded workers, each multiplexing many connections. apache-prefork: 1 process / connection.
+types:
+  - type: redis-server
+    label: Redis server
+    description: One event-loop thread runs every command from a ready queue; epoll multiplexes thousands of clients; fork() snapshots, AOF, async replicas
+    icon: memory-stick
+    costPerInstanceMonth: 120
+    knobs:
+      - { key: role, label: Role, kind: enum, default: primary, options: [primary, replica], help: Replicas (same cluster) get an async replication stream and serve reads }
+      - { key: mix, label: Command mix, kind: enum, default: get-set, options: [get-set, sorted-set, lists, mixed], help: "Cost per command: O(1) GET/SET vs O(log n) ZADD vs O(n) LRANGE" }
+      - { key: execUs, label: Exec cost (O(1)), kind: number, default: 1.5, min: 0.1, max: 10000, unit: µs, help: Hash lookup in RAM }
+      - { key: ioUs, label: Read/parse + write cost, kind: number, default: 6, min: 0.1, max: 10000, unit: µs, help: Syscalls + RESP parsing; dominates for small commands }
+      - { key: ioThreads, label: io-threads, kind: int, default: 1, min: 1, max: 16, help: Parallelizes only socket read/parse and reply writes — commands still run on one thread }
+      - { key: pipeline, label: Pipelining depth, kind: int, default: 1, min: 1, max: 1000, help: Commands per round trip; amortizes syscalls }
+      - { key: clients, label: Connected clients, kind: int, default: 1000, min: 1, max: 100000, help: All on one epoll set — no thread per client }
+      - { key: keys, label: Keys, kind: number, default: 10000000, min: 1, max: 10000000000, help: KEYS * walks all of them (~0.1 µs each) }
+      - { key: datasetGb, label: Dataset, kind: number, default: 8, min: 0.01, max: 1024, unit: GB }
+      - { key: appendonly, label: appendonly (AOF), kind: bool, default: false }
+      - { key: appendfsync, label: appendfsync, kind: enum, default: everysec, options: [always, everysec, "no"], help: "always = fsync before every reply · everysec = lose ≤1s · no = OS decides (~30s)" }
+      - { key: fsyncMs, label: fsync latency, kind: ms, default: 1, min: 0.01, max: 10000, help: SSD ~0.5–2ms; network disk 5–20ms }
+      - { key: saveEverySec, label: RDB save every, kind: number, default: 0, min: 0, max: 86400, unit: s, help: 0 = no periodic BGSAVE }
+      - { key: forkMsPerGb, label: fork() per GB, kind: ms, default: 10, min: 0.1, max: 1000, advanced: true, help: Page-table copy blocks the loop (~10–20ms/GB on VMs) }
+      - { key: snapshotMBps, label: Snapshot write speed, kind: number, default: 2000, min: 1, max: 100000, unit: MB/s, advanced: true }
+      - { key: hugePages, label: Transparent huge pages, kind: bool, default: false, advanced: true, help: COW copies 2 MB instead of 4 KB per touched page — Redis warns to disable }
+      - { key: hostRamGb, label: Host RAM, kind: number, default: 0, min: 0, max: 4096, unit: GB, advanced: true, help: 0 = unlimited; dataset + COW copies above this → OOM kill }
+      - { key: replLagMs, label: Replication batch, kind: ms, default: 100, min: 1, max: 10000, advanced: true }
+      - { key: autoFailover, label: Sentinel failover, kind: bool, default: true, help: A replica promotes itself when the primary is gone }
+      - { key: failoverMs, label: down-after-milliseconds, kind: ms, default: 3000, min: 100, max: 600000, help: Real default 30s }
+      - { key: queueLimit, label: Ready queue limit, kind: int, default: 1000000, min: 1, max: 100000000, advanced: true }
+      - { key: costMonth, label: Cost / month, kind: number, default: 120, min: 0, max: 100000, unit: $ }
+      - { key: cluster, label: Replication group, kind: string, default: r1, advanced: true }
+  - type: nginx-server
+    label: nginx
+    description: Master + one worker per core; each worker is one event loop over thousands of non-blocking connections; sendfile zero-copy; upstream keepalive
+    icon: server-cog
+    costPerInstanceMonth: 60
+    knobs:
+      - { key: workers, label: worker_processes, kind: int, default: 4, min: 1, max: 64, help: auto = one per core }
+      - { key: workerConnections, label: worker_connections, kind: int, default: 1024, min: 1, max: 1000000, help: Max open connections per worker (clients + upstream) }
+      - { key: clients, label: Idle keep-alive clients, kind: int, default: 0, min: 0, max: 1000000, help: Open connections that hold a slot but cost only memory }
+      - { key: staticRatio, label: Static share, kind: number, default: 0, min: 0, max: 1, help: Fraction served from disk; the rest is proxied to upstream edges (all static if no upstream) }
+      - { key: sendfile, label: sendfile, kind: bool, default: true, help: "Zero-copy: file pages go page cache → NIC by DMA, no copy through the worker" }
+      - { key: fileKb, label: File size, kind: number, default: 100, min: 1, max: 1000000, unit: KB }
+      - { key: copyUsPerKb, label: User-space copy / KB, kind: number, default: 2, min: 0, max: 1000, unit: µs, advanced: true }
+      - { key: cpuUs, label: CPU / request, kind: number, default: 20, min: 1, max: 100000, unit: µs, help: Parse + location match + headers }
+      - { key: proxyUs, label: CPU / proxied request, kind: number, default: 30, min: 1, max: 100000, unit: µs, advanced: true }
+      - { key: upstreamKeepalive, label: Upstream keepalive, kind: bool, default: true, help: Off = new TCP connection per request → handshake + a port stuck in TIME_WAIT }
+      - { key: connectMs, label: Upstream connect, kind: ms, default: 1, min: 0, max: 1000, advanced: true }
+      - { key: portRange, label: Ephemeral ports, kind: int, default: 28232, min: 100, max: 64511, advanced: true, help: net.ipv4.ip_local_port_range 32768–60999 }
+      - { key: timeWaitSec, label: TIME_WAIT, kind: number, default: 60, min: 1, max: 240, unit: s, advanced: true }
+      - { key: workerMemMb, label: Memory / worker, kind: number, default: 10, min: 1, max: 4096, unit: MB, advanced: true }
+      - { key: connMemKb, label: Memory / connection, kind: number, default: 2.5, min: 0.1, max: 1024, unit: KB, advanced: true }
+      - { key: drainMs, label: Reload drain, kind: ms, default: 2000, min: 0, max: 600000, advanced: true }
+      - { key: costMonth, label: Cost / month, kind: number, default: 60, min: 0, max: 100000, unit: $ }
+  - type: apache-prefork
+    label: Apache (prefork)
+    description: One process per connection; keep-alive and slow clients pin a whole process; memory and context switches grow with connections
+    icon: server-crash
+    costPerInstanceMonth: 60
+    knobs:
+      - { key: maxRequestWorkers, label: MaxRequestWorkers, kind: int, default: 256, min: 1, max: 20000, help: Max processes = max concurrent connections }
+      - { key: cores, label: CPU cores, kind: int, default: 4, min: 1, max: 128 }
+      - { key: keepAlive, label: KeepAlive, kind: bool, default: true }
+      - { key: keepAliveTimeoutSec, label: KeepAliveTimeout, kind: number, default: 5, min: 0, max: 300, unit: s, help: An idle keep-alive connection holds its process this long }
+      - { key: clients, label: Open client connections, kind: int, default: 0, min: 0, max: 1000000 }
+      - { key: cpuUs, label: CPU / request, kind: number, default: 100, min: 1, max: 100000, unit: µs }
+      - { key: ctxSwitchUs, label: Context switch, kind: number, default: 5, min: 0, max: 1000, unit: µs, advanced: true }
+      - { key: memPerProcessMb, label: Memory / process, kind: number, default: 20, min: 1, max: 4096, unit: MB }
+      - { key: spareServers, label: MinSpareServers, kind: int, default: 5, min: 0, max: 1000, advanced: true }
+      - { key: listenBacklog, label: ListenBacklog, kind: int, default: 511, min: 1, max: 65535, advanced: true }
+      - { key: clientTimeoutMs, label: Client gives up, kind: ms, default: 3000, min: 100, max: 600000, advanced: true }
+      - { key: costMonth, label: Cost / month, kind: number, default: 60, min: 0, max: 100000, unit: $ }
+skins:
+  - name: redis-internals
+    type: redis-server
+    label: Redis (internals)
+    description: Single-threaded in-memory server — watch the event loop
+    icon: brand:redis
+    tags: [in-memory, self-hosted]
+    tech: redis
+    defaults: {}
+  - name: nginx-internals
+    type: nginx-server
+    label: nginx (internals)
+    description: Event-driven workers, sendfile, upstream keepalive
+    icon: brand:nginx
+    tags: [proxy, web-server, self-hosted]
+    tech: nginx
+    defaults: {}
+  - name: apache-httpd-prefork
+    type: apache-prefork
+    label: Apache httpd (prefork)
+    description: Classic process-per-connection web server (mod_php era)
+    icon: server-crash
+    tags: [web-server, self-hosted]
+    defaults: {}

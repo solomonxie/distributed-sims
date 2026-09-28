@@ -1,0 +1,138 @@
+id: rabbitmq
+title: RabbitMQ
+group: under-the-hood
+icon: rabbit
+order: 9
+summary: Smart broker, simple consumers — exchanges route each message to queues, and acks decide when it's safe to forget it.
+info: Publishers never write to a queue directly. They send to an exchange with a routing key, and bindings (direct, topic, fanout) decide which queues get a copy. A queue lives on one broker node, or on a Raft group for quorum queues. Consumers get up to `prefetch` unacked messages and must ack each one; unacked messages go back on the queue when the consumer's channel closes.
+problems: [distributed-mq, notifications]
+lessons:
+  - id: anatomy
+    title: Anatomy of RabbitMQ
+    minutes: 3
+    template: tech-rabbitmq-anatomy
+    steps:
+      - title: The parts
+        body: One publisher, a topic exchange, three queues on a 3-node cluster, and one consumer per queue.
+        watch: Each queue's badge names the node leading it.
+        check: { metric: time, op: '>=', value: 3 }
+      - title: Bindings route
+        body: billing binds order.*, audit binds #, mailer binds user.signup. order.paid goes to billing and audit; user.signup to audit and mailer.
+        watch: audit gets every message, so its published count is highest.
+        check: { metric: gauge:published, target: audit, op: '>=', value: 500 }
+      - title: Direct and fanout
+        body: A direct exchange needs the binding key to equal the routing key exactly. A fanout exchange ignores keys and copies to every bound queue.
+        check: { metric: gauge:published, target: mailer, op: '>=', value: 150 }
+      - title: Consumers ack
+        body: Each worker holds at most 10 unacked messages (prefetch) and acks each one after handling it.
+        check: { metric: gauge:processed, target: c-billing, op: '>=', value: 300 }
+
+  - id: lifecycle
+    title: "One message, end to end"
+    minutes: 3
+    template: tech-rabbitmq-anatomy
+    steps:
+      - title: basic.publish
+        body: The publisher sends the message with a routing key to the exchange and waits for a confirm.
+        check: { metric: eventMatch:basic.publish, op: '>=', value: 1 }
+      - title: Routed by bindings
+        body: The exchange matches the key against every binding and hands a copy to each matching queue.
+        check: { metric: "eventMatch:routed '", op: '>=', value: 1 }
+      - title: Replicated, then confirmed
+        body: A quorum queue appends the message on its leader and replicates it with Raft. Once a majority has it, the broker confirms.
+        check: { metric: eventMatch:basic.ack (publisher confirm), op: '>=', value: 1 }
+      - title: Delivered within prefetch
+        body: The queue pushes the message to a consumer that has fewer than 10 unacked.
+        check: { metric: eventMatch:delivers to, op: '>=', value: 1 }
+      - title: Acked and removed
+        body: After the handler returns, the consumer acks and the queue deletes the message.
+        check: { metric: eventMatch:message removed, op: '>=', value: 1 }
+
+  - id: node-loss
+    title: "Node loss: quorum vs mirrored"
+    minutes: 4
+    template: tech-rabbitmq-node-loss
+    steps:
+      - title: Two queues, same messages
+        body: A fanout exchange copies every order into a quorum queue (3 Raft members) and a classic mirrored queue (leader + 1 mirror). Both are led by rmq-1 and hold a backlog.
+        check: { metric: gauge:ready, target: mq, op: '>=', value: 300 }
+      - title: Restart rmq-2
+        body: Tap ⚡ Break → Restart on rmq-2. The Raft follower catches up from the log; the mirror comes back empty and only gets new messages.
+        action: { event: { kind: restart, target: rmq2, params: { downSec: 5 } } }
+        check: { metric: eventMatch:unsynchronised mirror, op: '>=', value: 1 }
+      - title: Kill the leader node rmq-1
+        body: Tap ⚡ Break → Kill on rmq-1. The mirrored queue promotes its unsynchronised mirror and loses the backlog.
+        action: { event: { kind: kill, target: rmq1 } }
+        check: { metric: anomaly:lost-write, op: '>=', value: 1 }
+      - title: Quorum keeps every message
+        body: The quorum queue's two surviving members are a majority, so they elect a new leader and keep all messages.
+        check: { metric: eventMatch:elected (raft term, op: '>=', value: 1 }
+      - title: Lose the majority
+        body: Kill rmq-2 as well. With 1 of 3 members left there is no majority, so the quorum queue stops and publishes are nacked.
+        action: { event: { kind: kill, target: rmq2 } }
+        check: { metric: gauge:available, target: qq, op: '=', value: 0 }
+
+  - id: acks
+    title: Missing acks, prefetch and dead letters
+    minutes: 4
+    template: tech-rabbitmq-acks
+    steps:
+      - title: Two workers share a queue
+        body: Each has prefetch 10 and acks after every job.
+        check: { metric: gauge:processed, target: w1, op: '>=', value: 100 }
+      - title: A release forgets to ack
+        body: Tap ⚡ Break → Bad deploy on worker-1. It keeps working but never sends basic.ack.
+        action: { event: { kind: bad-deploy, target: w1 } }
+        check: { metric: gauge:unacked, target: jobs, op: '>=', value: 10 }
+      - title: Stuck at prefetch
+        body: After 10 unacked messages the broker stops sending to worker-1. worker-2 takes all the traffic.
+        watch: worker-1's processed count stops growing.
+        check: { metric: eventMatch:consumer_timeout, op: '>=', value: 1 }
+      - title: consumer_timeout redelivers
+        body: After consumer_timeout (15s here, 30 min by default) the broker closes the channel and requeues the 10 messages. They were already processed, so they run twice.
+        check: { metric: anomaly:duplicate, op: '>=', value: 1 }
+      - title: Poison messages
+        body: Tap ⚡ Break → Poison message on jobs. The handler throws and nacks; after delivery-limit 5 the queue moves the message to jobs.dlq.
+        action: { event: { kind: poison-message, target: jobs, params: { pct: 0.05 } } }
+        check: { metric: gauge:ready, target: dlq, op: '>=', value: 5 }
+
+  - id: unroutable
+    title: Unroutable messages vanish
+    minutes: 3
+    template: tech-rabbitmq-unroutable
+    steps:
+      - title: Routed fine
+        body: Both shops publish order.created and order.paid; the billing queue binds order.*.
+        check: { metric: gauge:routed, target: ex, op: '>=', value: 300 }
+      - title: A typo in shop-a
+        body: Tap ⚡ Break → Bad deploy on shop-a. It now publishes orders.created, which no binding matches.
+        action: { event: { kind: bad-deploy, target: pub-a } }
+        check: { metric: gauge:unroutable, target: ex, op: '>=', value: 50 }
+      - title: Silently dropped
+        body: The exchange drops each message and still confirms it, so shop-a sees 100% success while billing gets nothing.
+        watch: Users A stay green; the lost-write anomaly counter climbs.
+        check: { metric: anomaly:lost-write, op: '>=', value: 50 }
+      - title: mandatory makes it loud
+        body: Now break shop-b, which publishes with mandatory=true. The broker returns each message (basic.return), so the failure shows up. An alternate exchange is the other fix.
+        action: { event: { kind: bad-deploy, target: pub-b } }
+        check: { metric: gauge:returned, target: pub-b, op: '>=', value: 20 }
+
+  - id: memory-alarm
+    title: Memory alarm blocks publishers
+    minutes: 4
+    template: tech-rabbitmq-memory
+    steps:
+      - title: Keeping up
+        body: 200 uploads/s of 128 KB messages; the thumbnailer drains the queue as fast as it fills.
+        check: { metric: time, op: '>=', value: 5 }
+      - title: The consumer dies
+        body: Tap ⚡ Break → Kill on the thumbnailer for 25s. The queue grows, and every member node keeps a copy in memory.
+        action: { event: { kind: kill, target: c, durationSec: 25 } }
+        check: { metric: gauge:memMb, target: rmq1, op: '>=', value: 300 }
+      - title: Alarm, publishers blocked
+        body: Above the 400 MB high watermark the broker blocks every publishing connection in the cluster, not just this queue's.
+        watch: Uploads time out; availability falls to 0.
+        check: { metric: gauge:blocked, target: pub, op: '=', value: 1 }
+      - title: Drain and unblock
+        body: When the thumbnailer is back it drains the backlog, memory falls, and publishing resumes. Bound queues with max-length or lazy/stream queues to avoid this.
+        check: { metric: gauge:ready, target: q, op: '<', value: 50 }

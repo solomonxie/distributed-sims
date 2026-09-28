@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "id": "problem-yelp-v1",
+  "name": "Yelp: naive",
+  "description": "Nearby search is a lat/lng BETWEEN range scan on the same Postgres that takes review writes; every query reads thousands of rows.",
+  "nodes": [
+    {"id":"users","type":"mobile-client","skin":"ios-app","name":"Diners","pos":{"x":0,"y":0}},
+    {"id":"app","type":"service","skin":"node-service","name":"Yelp app","pos":{"x":0,"y":110},"config":{"instances":2}},
+    {"id":"db","type":"relational-db","skin":"postgres","name":"Businesses + reviews","pos":{"x":0,"y":220},"config":{"p50Ms":25,"p99Ms":120}}
+  ],
+  "edges": [
+    {"id":"users-app","from":"users","to":"app","config":{"timeoutMs":5000}},
+    {"id":"app-db","from":"app","to":"db"}
+  ],
+  "containers": [],
+  "scenario": {"durationSec":60,"sources":[{"id":"searches","node":"users","shape":{"kind":"constant","rps":3000},"readRatio":0.97,"keys":{"kind":"zipf","s":0.8}}],"events":[]},
+  "wire": {
+    "host": "api.yelp.example",
+    "read": {
+      "method": "GET",
+      "path": "/v3/businesses/search?lat=37.77&lng=-122.42&radius=1000",
+      "status": 200,
+      "body": "{\"total\": 42, \"businesses\": [{\"id\": {key}, \"name\": \"Tartine\", \"rating\": 4.5}]}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/v3/businesses/{key}/reviews",
+      "reqBody": "{\"rating\": 5, \"text\": \"Great croissants\"}",
+      "status": 201,
+      "body": "{\"review_id\": {key}}"
+    },
+    "table": "reviews",
+    "valCol": "rating"
+  }
+}

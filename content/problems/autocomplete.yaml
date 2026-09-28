@@ -1,0 +1,46 @@
+id: autocomplete
+title: Autocomplete
+icon: text-cursor-input
+category: infra
+order: 18
+summary: Suggest the top completions for every keystroke in a few milliseconds.
+requirements:
+  - Return top-10 completions for a prefix; rank by popularity; update daily
+  - 500M DAU · ~6 keystrokes per query · 5B queries/day
+  - p99 < 30ms end to end from a nearby edge
+estimates:
+  - ~350k prefix lookups/s average, 1M/s peak · top-K per prefix precomputed
+  - Trie of ~100M popular prefixes × 10 suggestions ≈ 50 GB, sharded by prefix
+designs:
+  - { id: v1, title: "Naive: prefix query on the search index", template: problem-autocomplete-v1 }
+  - { id: v2, title: "Reference: edge cache + precomputed top-K tries", template: problem-autocomplete-v2 }
+challenges:
+  - id: typing-burst
+    title: "Typing burst: 5× keystrokes"
+    template: problem-autocomplete-v2
+    scenario:
+      durationSec: 60
+      sources: [{ id: typing, node: users, shape: { kind: constant, rps: 3000 }, readRatio: 0.98 }]
+      events:
+        - { atSec: 15, event: { kind: traffic, action: burst, params: { x: 5 }, durationSec: 45 } }
+    pass:
+      - { metric: p99, op: '<', value: 30 }
+      - { metric: availability, op: '>=', value: 99.9 }
+      - { metric: costMonth, op: '<=', value: 2500 }
+  - id: trending
+    title: "Breaking news: one prefix trends"
+    template: problem-autocomplete-v2
+    scenario:
+      durationSec: 60
+      sources: [{ id: typing, node: users, shape: { kind: constant, rps: 3000 }, readRatio: 0.98 }]
+      events:
+        - { atSec: 15, event: { kind: traffic, action: hot-key, params: { hot: 0.5 }, durationSec: 45 } }
+        - { atSec: 15, event: { kind: traffic, action: burst, params: { x: 3 }, durationSec: 45 } }
+    pass:
+      - { metric: p99, op: '<', value: 30 }
+      - { metric: availability, op: '>=', value: 99.9 }
+keyIdeas:
+  - { label: Trie with top-K per node, link: "algo:trie-topk" }
+  - { label: Edge caching, link: "lesson:caching/cdn" }
+  - { label: Shard tries by prefix, link: "lesson:sharding/hash-vs-range" }
+  - { label: Shard fan-out sets the tail, link: "lesson:search/shards-replicas" }

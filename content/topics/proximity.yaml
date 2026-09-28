@@ -1,0 +1,83 @@
+id: proximity
+title: Proximity
+group: topics
+icon: map-pin
+order: 11
+summary: Find what is near a point fast, while millions of points keep moving.
+info: A proximity service buckets the map into cells (geohash, quadtree, S2) so a "nearby" query reads a handful of cells instead of every point. Cell size trades cells touched against points scanned. Dense cities make hot shards, and moving drivers turn it into a write-heavy system.
+algos: [geohash, quadtree]
+problems: [yelp, google-maps]
+lessons:
+  - id: geohash-buckets
+    title: Geohash buckets
+    minutes: 4
+    template: lesson-geo-precision
+    steps:
+      - title: Precision 6, the sweet spot
+        body: A 2 km search at precision 6 (~1.2 km cells) reads the centre cell plus its neighbours, a 5×5 block. It scans ~1.8k drivers and answers in a few ms.
+        watch: Tap Geohash p6 and read cellsTouched and itemsScanned.
+        check: { metric: gauge:cellsTouched, target: g6, op: '>=', value: 25 }
+      - title: Too coarse
+        body: Precision 5 cells are ~5 km wide, so 4 cells cover the circle. Most of the ~4.8k drivers it scans are outside the 2 km radius.
+        watch: itemsScanned on Geohash p5 is 2–3× the p6 number.
+        check: { metric: gauge:itemsScanned, target: g5, op: '>=', value: 4000 }
+      - title: Too fine
+        body: Precision 7 cells are ~150 m wide, so the same circle needs ~784 cell lookups. Scanning is cheap but the lookups dominate.
+        watch: The p7 riders see the worst p99 of the three.
+        check: { metric: p99, target: r7, op: '>=', value: 110 }
+
+  - id: quadtree
+    title: Quadtree
+    minutes: 3
+    algo: quadtree
+    steps:
+      - title: Split where it is dense
+        body: Each node holds a few points; one more and it splits into four children. Downtown ends up with tiny cells, the suburbs keep big ones.
+        watch: Leaves stay small only where points pile up.
+        check: { metric: manual }
+      - title: Range query
+        body: The query box descends only into children it overlaps and skips whole quadrants. Work tracks the points near you, not the map size.
+        watch: Pruned quadrants never get visited.
+        check: { metric: manual }
+
+  - id: geo-sharding
+    title: Geo-sharding
+    minutes: 4
+    template: lesson-geo-sharding
+    steps:
+      - title: Each region owns its map
+        body: US and EU each run their own match service and geo index. A rider's search stays inside their region.
+        watch: US riders see p99 well under 100 ms.
+        check: { metric: rps, target: geoUS, op: '>=', value: 150 }
+      - title: Cross-border searches
+        body: 20% of EU searches sit near a border and also query the US shard. Those pay the ~80 ms Atlantic hop both ways.
+        watch: EU riders' p99 is 3× the US one.
+        check: { metric: p99, target: ridersEU, op: '>=', value: 150 }
+      - title: A stadium empties
+        body: Fire a hot cell on Geo US. Half the searches land in one dense cell, and its shard saturates.
+        action: { event: { kind: hot-cell, target: geoUS, params: { hot: 50, x: 20 }, durationSec: 30 } }
+        watch: hotShardUtil on Geo US hits 100% while Geo EU stays idle.
+        check: { metric: gauge:hotShardUtil, target: geoUS, op: '>=', value: 90 }
+
+  - id: location-updates
+    title: Location updates at scale
+    minutes: 5
+    template: lesson-geo-updates
+    steps:
+      - title: A write-heavy system
+        body: 1M drivers pinging every 4 s is ~250k writes/s, scaled down here. Left writes each ping into the index, right goes through Kafka.
+        watch: Both geo indexes keep up at the base rate.
+        check: { metric: rps, target: geo1, op: '>=', value: 1000 }
+      - title: Rush hour
+        body: Triple the ping rate. The direct path has no buffer, so the index queue overflows.
+        action: { event: { kind: traffic, action: burst, params: { x: 3 }, durationSec: 10 } }
+        watch: Left drivers get errors.
+        check: { metric: errRate, target: d1, op: '>=', value: 10 }
+      - title: The buffer absorbs it
+        body: On the right, pings land in Kafka and the indexer takes them at its own pace. Nothing fails; lag grows instead.
+        watch: Lag on the Pings topic climbs into the thousands.
+        check: { metric: gauge:lag, target: k, op: '>=', value: 3000 }
+      - title: After the burst
+        body: The direct path recovers the moment load drops. The buffered side drains its lag, so positions are a few seconds stale meanwhile.
+        watch: Left drivers back to 100%; right lag falling.
+        check: { metric: availability, target: d1, op: '>=', value: 99 }

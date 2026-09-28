@@ -1,0 +1,112 @@
+{
+  "schemaVersion": 1,
+  "id": "analytics-row-vs-columnar",
+  "name": "Row store vs column store",
+  "description": "The same analytical query (5 of 100 columns over 3M rows) runs on Postgres and on ClickHouse. The row store reads every column of every row with 3 workers; ClickHouse reads 5 compressed columns with 16 vectorized threads per shard.",
+  "nodes": [
+    {
+      "id": "analysts-pg",
+      "type": "web-client",
+      "name": "Analysts",
+      "pos": {
+        "x": 55,
+        "y": 60
+      }
+    },
+    {
+      "id": "pg",
+      "type": "columnar-db",
+      "name": "Postgres (row store)",
+      "pos": {
+        "x": 55,
+        "y": 220
+      },
+      "skin": "postgres-rowstore",
+      "config": {
+        "rowsM": 3
+      }
+    },
+    {
+      "id": "analysts-ch",
+      "type": "web-client",
+      "name": "Analysts",
+      "pos": {
+        "x": 335,
+        "y": 60
+      }
+    },
+    {
+      "id": "ch",
+      "type": "columnar-db",
+      "name": "ClickHouse",
+      "pos": {
+        "x": 335,
+        "y": 220
+      },
+      "skin": "clickhouse",
+      "config": {
+        "rowsM": 3
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "analysts-pg-pg",
+      "from": "analysts-pg",
+      "to": "pg",
+      "config": {
+        "timeoutMs": 60000
+      }
+    },
+    {
+      "id": "analysts-ch-ch",
+      "from": "analysts-ch",
+      "to": "ch",
+      "config": {
+        "timeoutMs": 60000
+      }
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 120,
+    "sources": [
+      {
+        "id": "q-pg",
+        "node": "analysts-pg",
+        "shape": {
+          "kind": "constant",
+          "rps": 0.3
+        },
+        "readRatio": 1
+      },
+      {
+        "id": "q-ch",
+        "node": "analysts-ch",
+        "shape": {
+          "kind": "constant",
+          "rps": 0.3
+        },
+        "readRatio": 1
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "analytics.acme.io",
+    "read": {
+      "method": "GET",
+      "path": "/api/reports/orders?customer={key}",
+      "body": "{\"customer_id\": {key}, \"orders\": 42, \"total\": 3190.2}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/orders",
+      "reqBody": "{\"customer_id\": {key}, \"total\": {value}}",
+      "status": 201,
+      "body": "{\"id\": {key}}"
+    },
+    "table": "orders",
+    "valCol": "total"
+  }
+}

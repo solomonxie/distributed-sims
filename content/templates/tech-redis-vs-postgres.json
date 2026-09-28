@@ -1,0 +1,155 @@
+{
+  "schemaVersion": 1,
+  "id": "tech-redis-vs-postgres",
+  "name": "Redis vs a disk database",
+  "description": "Same 20k ops/s, 80% reads. Left: Redis — RAM, one thread, no locks. Right: Postgres — buffer cache + WAL fsync, 100 connections, row locks.",
+  "nodes": [
+    {
+      "id": "users-a",
+      "type": "web-client",
+      "name": "Users → Redis",
+      "pos": {
+        "x": 110,
+        "y": 40
+      }
+    },
+    {
+      "id": "app-a",
+      "type": "service",
+      "name": "app",
+      "pos": {
+        "x": 110,
+        "y": 160
+      },
+      "config": {
+        "instances": 4,
+        "slots": 256,
+        "p50Ms": 0.2,
+        "p99Ms": 1
+      }
+    },
+    {
+      "id": "redis",
+      "type": "redis-server",
+      "name": "Redis",
+      "pos": {
+        "x": 110,
+        "y": 290
+      },
+      "skin": "redis-internals"
+    },
+    {
+      "id": "users-b",
+      "type": "web-client",
+      "name": "Users → Postgres",
+      "pos": {
+        "x": 280,
+        "y": 40
+      }
+    },
+    {
+      "id": "app-b",
+      "type": "service",
+      "name": "app",
+      "pos": {
+        "x": 280,
+        "y": 160
+      },
+      "config": {
+        "instances": 4,
+        "slots": 256,
+        "p50Ms": 0.2,
+        "p99Ms": 1
+      }
+    },
+    {
+      "id": "pg",
+      "type": "relational-db",
+      "name": "Postgres",
+      "pos": {
+        "x": 280,
+        "y": 290
+      },
+      "skin": "postgres",
+      "config": {
+        "replicas": 0
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "users-a-app-a",
+      "from": "users-a",
+      "to": "app-a",
+      "config": {
+        "timeoutMs": 3000
+      }
+    },
+    {
+      "id": "app-a-redis",
+      "from": "app-a",
+      "to": "redis",
+      "config": {
+        "timeoutMs": 3000
+      }
+    },
+    {
+      "id": "users-b-app-b",
+      "from": "users-b",
+      "to": "app-b",
+      "config": {
+        "timeoutMs": 3000
+      }
+    },
+    {
+      "id": "app-b-pg",
+      "from": "app-b",
+      "to": "pg",
+      "config": {
+        "timeoutMs": 3000
+      }
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 300,
+    "sources": [
+      {
+        "id": "s-a",
+        "node": "users-a",
+        "shape": {
+          "kind": "constant",
+          "rps": 20000
+        },
+        "readRatio": 0.8
+      },
+      {
+        "id": "s-b",
+        "node": "users-b",
+        "shape": {
+          "kind": "constant",
+          "rps": 20000
+        },
+        "readRatio": 0.8
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "api.bookshelf.io",
+    "read": {
+      "path": "/api/books/{key}",
+      "body": "{\"id\": {key}, \"title\": \"Dune\", \"price_cents\": {value}}"
+    },
+    "write": {
+      "method": "PUT",
+      "path": "/api/books/{key}/price",
+      "reqBody": "{\"price_cents\": {value}}",
+      "status": 200,
+      "body": "{\"id\": {key}, \"price_cents\": {value}}"
+    },
+    "table": "books",
+    "valCol": "price_cents",
+    "cachePrefix": "book:"
+  }
+}

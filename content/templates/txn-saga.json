@@ -1,0 +1,223 @@
+{
+  "schemaVersion": 1,
+  "id": "txn-saga",
+  "name": "Saga: orchestrated vs choreographed",
+  "description": "Top: orchestrator runs order → payment → inventory; inventory fails 30% → compensations in reverse (sequence view). Bottom: choreography — each service reacts to the previous event via pub-sub; no central state, follow it in the trace view.",
+  "nodes": [
+    {
+      "id": "web",
+      "type": "web-client",
+      "name": "Checkout",
+      "pos": {
+        "x": 55,
+        "y": 60
+      }
+    },
+    {
+      "id": "orch",
+      "type": "txn-coordinator",
+      "skin": "saga-orchestrator",
+      "name": "Orchestrator",
+      "pos": {
+        "x": 195,
+        "y": 60
+      }
+    },
+    {
+      "id": "order",
+      "type": "service",
+      "name": "Order",
+      "pos": {
+        "x": 55,
+        "y": 200
+      }
+    },
+    {
+      "id": "payment",
+      "type": "service",
+      "name": "Payment",
+      "pos": {
+        "x": 195,
+        "y": 200
+      }
+    },
+    {
+      "id": "inventory",
+      "type": "service",
+      "name": "Inventory",
+      "pos": {
+        "x": 335,
+        "y": 200
+      },
+      "config": {
+        "sagaFailPct": 30
+      }
+    },
+    {
+      "id": "web2",
+      "type": "web-client",
+      "name": "Checkout (choreo)",
+      "pos": {
+        "x": 55,
+        "y": 340
+      }
+    },
+    {
+      "id": "order2",
+      "type": "service",
+      "name": "Order",
+      "pos": {
+        "x": 55,
+        "y": 480
+      }
+    },
+    {
+      "id": "payment2",
+      "type": "service",
+      "name": "Payment",
+      "pos": {
+        "x": 195,
+        "y": 620
+      }
+    },
+    {
+      "id": "inventory2",
+      "type": "service",
+      "name": "Inventory",
+      "pos": {
+        "x": 335,
+        "y": 620
+      }
+    },
+    {
+      "id": "busA",
+      "type": "pub-sub",
+      "name": "order.created",
+      "pos": {
+        "x": 195,
+        "y": 480
+      }
+    },
+    {
+      "id": "busB",
+      "type": "pub-sub",
+      "name": "payment.done",
+      "pos": {
+        "x": 335,
+        "y": 480
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "web",
+      "to": "orch",
+      "config": {
+        "timeoutMs": 5000
+      }
+    },
+    {
+      "id": "e2",
+      "from": "orch",
+      "to": "order"
+    },
+    {
+      "id": "e3",
+      "from": "orch",
+      "to": "payment"
+    },
+    {
+      "id": "e4",
+      "from": "orch",
+      "to": "inventory"
+    },
+    {
+      "id": "c1",
+      "from": "web2",
+      "to": "order2"
+    },
+    {
+      "id": "c2",
+      "from": "order2",
+      "to": "busA",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "c3",
+      "from": "busA",
+      "to": "payment2",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "c4",
+      "from": "payment2",
+      "to": "busB",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "c5",
+      "from": "busB",
+      "to": "inventory2",
+      "config": {
+        "mode": "async"
+      }
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 60,
+    "sources": [
+      {
+        "id": "s1",
+        "node": "web",
+        "shape": {
+          "kind": "constant",
+          "rps": 30
+        },
+        "readRatio": 0
+      },
+      {
+        "id": "s2",
+        "node": "web2",
+        "shape": {
+          "kind": "constant",
+          "rps": 30
+        },
+        "readRatio": 0
+      }
+    ],
+    "events": [
+      {
+        "atSec": 20,
+        "event": {
+          "kind": "kill",
+          "target": "payment",
+          "durationSec": 5
+        }
+      }
+    ]
+  },
+  "wire": {
+    "host": "shop.acme.io",
+    "read": {
+      "method": "GET",
+      "path": "/api/orders/{key}",
+      "body": "{\"id\": {key}, \"saga\": \"completed\"}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/orders",
+      "reqBody": "{\"cart_id\": {key}, \"amount\": {value}}",
+      "status": 202,
+      "body": "{\"id\": {key}, \"saga\": \"started\"}"
+    },
+    "topic": "order.created"
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "id": "mq-fanout",
+  "name": "Pub/sub fan-out",
+  "description": "One order event fans out to email, analytics and search. Analytics is slow: its backlog grows while the others keep up. Switch the topic to sync delivery to see the publisher blocked.",
+  "nodes": [
+    { "id": "web", "type": "web-client", "name": "Shoppers", "pos": { "x": 195, "y": 60 } },
+    { "id": "api", "type": "service", "name": "Orders API", "pos": { "x": 195, "y": 200 } },
+    { "id": "t", "type": "pub-sub", "skin": "sns", "name": "order-placed", "pos": { "x": 195, "y": 340 } },
+    { "id": "email", "type": "worker", "name": "Email", "pos": { "x": 55, "y": 480 } },
+    { "id": "analytics", "type": "worker", "name": "Analytics", "pos": { "x": 195, "y": 480 }, "config": { "instances": 2, "slots": 4, "p50Ms": 20, "p99Ms": 60, "queueLimit": 5000 } },
+    { "id": "search", "type": "worker", "name": "Search indexer", "pos": { "x": 335, "y": 480 } }
+  ],
+  "edges": [
+    { "id": "e1", "from": "web", "to": "api" },
+    { "id": "e2", "from": "api", "to": "t" },
+    { "id": "e3", "from": "t", "to": "email" },
+    { "id": "e4", "from": "t", "to": "analytics" },
+    { "id": "e5", "from": "t", "to": "search" }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 60,
+    "sources": [{ "id": "s1", "node": "web", "shape": { "kind": "constant", "rps": 150 }, "readRatio": 0 }],
+    "events": [{ "atSec": 20, "event": { "kind": "slow", "target": "analytics", "params": { "x": 4 }, "durationSec": 15 } }]
+  },
+  "wire": {
+    "host": "shop.acme.io",
+    "read": {
+      "method": "GET",
+      "path": "/api/orders/{key}",
+      "body": "{\"id\": {key}, \"status\": \"placed\"}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/orders",
+      "reqBody": "{\"cart_id\": {key}, \"total\": {value}}",
+      "status": 201,
+      "body": "{\"id\": {key}, \"status\": \"placed\"}"
+    },
+    "topic": "order-placed"
+  }
+}

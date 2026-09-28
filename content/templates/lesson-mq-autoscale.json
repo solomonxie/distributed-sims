@@ -1,0 +1,105 @@
+{
+  "schemaVersion": 1,
+  "id": "lesson-mq-autoscale",
+  "name": "Consumer lag & autoscaling",
+  "description": "Orders queue up in SQS and a consumer fleet drains them. The autoscaler adds a consumer when utilisation stays above 60% (5s boot). A 5× burst builds a backlog, the fleet scales out and drains it, then scales back in after the cooldown.",
+  "nodes": [
+    {
+      "id": "users",
+      "type": "web-client",
+      "name": "Shoppers",
+      "pos": {
+        "x": 195,
+        "y": 40
+      }
+    },
+    {
+      "id": "api",
+      "type": "service",
+      "name": "Orders API",
+      "pos": {
+        "x": 195,
+        "y": 160
+      }
+    },
+    {
+      "id": "q",
+      "type": "queue",
+      "name": "Orders queue",
+      "pos": {
+        "x": 195,
+        "y": 290
+      },
+      "skin": "sqs"
+    },
+    {
+      "id": "consumers",
+      "type": "service",
+      "name": "Consumers",
+      "pos": {
+        "x": 195,
+        "y": 420
+      },
+      "config": {
+        "instances": 1,
+        "slots": 4,
+        "p50Ms": 20,
+        "p99Ms": 50,
+        "autoscale": true,
+        "minInstances": 1,
+        "maxInstances": 10,
+        "targetUtil": 60,
+        "scaleUpDelaySec": 5,
+        "autoscaleEvalSec": 2,
+        "cooldownSec": 30
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "users->api",
+      "from": "users",
+      "to": "api"
+    },
+    {
+      "id": "api->q",
+      "from": "api",
+      "to": "q"
+    },
+    {
+      "id": "q->consumers",
+      "from": "q",
+      "to": "consumers"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 150,
+    "sources": [
+      {
+        "id": "s1",
+        "node": "users",
+        "shape": {
+          "kind": "constant",
+          "rps": 100
+        },
+        "readRatio": 0
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "shop.example",
+    "read": {
+      "path": "/api/orders/{key}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/orders",
+      "reqBody": "{\"sku\": \"SKU-{key}\", \"qty\": 1}",
+      "status": 202,
+      "body": "{\"order_id\": {key}, \"status\": \"queued\"}"
+    },
+    "topic": "orders"
+  }
+}

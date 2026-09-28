@@ -1,0 +1,248 @@
+{
+  "schemaVersion": 1,
+  "id": "tech-rediscluster-keys",
+  "name": "Redis Cluster: key design",
+  "description": "Both apps MGET a user's cart and profile together 30% of the time; cart-v1 uses plain keys, cart-v2 wraps the user id in a {hash tag}. Commands cost ~0.8ms, so a node tops out near 1250 ops/s.",
+  "nodes": [
+    {
+      "id": "users-a",
+      "type": "web-client",
+      "skin": "react-spa",
+      "name": "Users A",
+      "pos": {
+        "x": 110,
+        "y": 30
+      },
+      "config": {}
+    },
+    {
+      "id": "app-a",
+      "type": "redis-cluster-client",
+      "skin": "redis-cluster-lettuce",
+      "name": "cart-v1 (plain keys)",
+      "pos": {
+        "x": 110,
+        "y": 130
+      },
+      "config": {
+        "multiKeyPct": 30,
+        "hashTags": false
+      }
+    },
+    {
+      "id": "users-b",
+      "type": "web-client",
+      "skin": "react-spa",
+      "name": "Users B",
+      "pos": {
+        "x": 280,
+        "y": 30
+      },
+      "config": {}
+    },
+    {
+      "id": "app-b",
+      "type": "redis-cluster-client",
+      "skin": "redis-cluster-lettuce",
+      "name": "cart-v2 {hash tags}",
+      "pos": {
+        "x": 280,
+        "y": 130
+      },
+      "config": {
+        "multiKeyPct": 30,
+        "hashTags": true
+      }
+    },
+    {
+      "id": "rc1",
+      "type": "redis-cluster-node",
+      "skin": "redis-cluster-primary",
+      "name": "rc-1",
+      "pos": {
+        "x": 55,
+        "y": 260
+      },
+      "config": {
+        "slotRange": "0-5460",
+        "execUs": 800
+      }
+    },
+    {
+      "id": "rc2",
+      "type": "redis-cluster-node",
+      "skin": "redis-cluster-primary",
+      "name": "rc-2",
+      "pos": {
+        "x": 195,
+        "y": 260
+      },
+      "config": {
+        "slotRange": "5461-10922",
+        "execUs": 800
+      }
+    },
+    {
+      "id": "rc3",
+      "type": "redis-cluster-node",
+      "skin": "redis-cluster-primary",
+      "name": "rc-3",
+      "pos": {
+        "x": 335,
+        "y": 260
+      },
+      "config": {
+        "slotRange": "10923-16383",
+        "execUs": 800
+      }
+    },
+    {
+      "id": "rc4",
+      "type": "redis-cluster-node",
+      "skin": "redis-cluster-replica",
+      "name": "rc-4",
+      "pos": {
+        "x": 55,
+        "y": 380
+      },
+      "config": {
+        "replicaOf": "rc1",
+        "execUs": 800
+      }
+    },
+    {
+      "id": "rc5",
+      "type": "redis-cluster-node",
+      "skin": "redis-cluster-replica",
+      "name": "rc-5",
+      "pos": {
+        "x": 195,
+        "y": 380
+      },
+      "config": {
+        "replicaOf": "rc2",
+        "execUs": 800
+      }
+    },
+    {
+      "id": "rc6",
+      "type": "redis-cluster-node",
+      "skin": "redis-cluster-replica",
+      "name": "rc-6",
+      "pos": {
+        "x": 335,
+        "y": 380
+      },
+      "config": {
+        "replicaOf": "rc3",
+        "execUs": 800
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-users-a-app-a",
+      "from": "users-a",
+      "to": "app-a"
+    },
+    {
+      "id": "e-app-a-rc1",
+      "from": "app-a",
+      "to": "rc1"
+    },
+    {
+      "id": "e-app-a-rc2",
+      "from": "app-a",
+      "to": "rc2"
+    },
+    {
+      "id": "e-app-a-rc3",
+      "from": "app-a",
+      "to": "rc3"
+    },
+    {
+      "id": "e-users-b-app-b",
+      "from": "users-b",
+      "to": "app-b"
+    },
+    {
+      "id": "e-app-b-rc1",
+      "from": "app-b",
+      "to": "rc1"
+    },
+    {
+      "id": "e-app-b-rc2",
+      "from": "app-b",
+      "to": "rc2"
+    },
+    {
+      "id": "e-app-b-rc3",
+      "from": "app-b",
+      "to": "rc3"
+    },
+    {
+      "id": "e-rc1-rc4",
+      "from": "rc1",
+      "to": "rc4",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "e-rc2-rc5",
+      "from": "rc2",
+      "to": "rc5",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "e-rc3-rc6",
+      "from": "rc3",
+      "to": "rc6",
+      "config": {
+        "mode": "async"
+      }
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 120,
+    "sources": [
+      {
+        "id": "s1",
+        "node": "users-a",
+        "shape": {
+          "kind": "constant",
+          "rps": 900
+        },
+        "readRatio": 0.8
+      },
+      {
+        "id": "s2",
+        "node": "users-b",
+        "shape": {
+          "kind": "constant",
+          "rps": 900
+        },
+        "readRatio": 0.8
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "shop.nordhaus.com",
+    "read": {
+      "path": "/api/users/{key}/cart",
+      "body": "{\"user_id\": {key}, \"items\": {value}}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/users/{key}/cart",
+      "reqBody": "{\"sku_id\": {value}, \"qty\": 1}",
+      "status": 201,
+      "body": "{\"items\": 3}"
+    },
+    "cachePrefix": "cart:"
+  }
+}

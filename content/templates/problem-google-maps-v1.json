@@ -1,0 +1,163 @@
+{
+  "schemaVersion": 1,
+  "id": "problem-google-maps-v1",
+  "name": "Google Maps — naive",
+  "description": "One region. Every request hits the API: tiles are rendered on demand, routes run plain Dijkstra over the whole road graph.",
+  "nodes": [
+    {
+      "id": "users",
+      "type": "mobile-client",
+      "skin": "ios-app",
+      "name": "Map users",
+      "pos": {
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "id": "alb",
+      "type": "load-balancer",
+      "skin": "aws-alb",
+      "name": "Load balancer",
+      "parent": "us-east",
+      "pos": {
+        "x": 0,
+        "y": 110
+      }
+    },
+    {
+      "id": "api",
+      "type": "service",
+      "skin": "go-service",
+      "name": "Maps API",
+      "parent": "us-east",
+      "pos": {
+        "x": 0,
+        "y": 220
+      },
+      "config": {
+        "instances": 3,
+        "fanout": "one"
+      }
+    },
+    {
+      "id": "tiles",
+      "type": "service",
+      "name": "Tile renderer",
+      "parent": "us-east",
+      "pos": {
+        "x": -120,
+        "y": 330
+      },
+      "config": {
+        "instances": 6,
+        "p50Ms": 40,
+        "p99Ms": 150
+      }
+    },
+    {
+      "id": "routing",
+      "type": "routing-engine",
+      "name": "Routing (Dijkstra)",
+      "parent": "us-east",
+      "pos": {
+        "x": 0,
+        "y": 330
+      },
+      "config": {
+        "algo": "dijkstra",
+        "graphNodes": 1000000,
+        "instances": 2
+      }
+    },
+    {
+      "id": "db",
+      "type": "relational-db",
+      "skin": "postgres",
+      "name": "Locations DB",
+      "parent": "us-east",
+      "pos": {
+        "x": 120,
+        "y": 330
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "users->alb",
+      "from": "users",
+      "to": "alb"
+    },
+    {
+      "id": "alb->api",
+      "from": "alb",
+      "to": "api"
+    },
+    {
+      "id": "api->tiles",
+      "from": "api",
+      "to": "tiles",
+      "config": {
+        "op": "read",
+        "ratio": 0.75
+      }
+    },
+    {
+      "id": "api->routing",
+      "from": "api",
+      "to": "routing",
+      "config": {
+        "op": "read",
+        "ratio": 0.25
+      }
+    },
+    {
+      "id": "api->db",
+      "from": "api",
+      "to": "db",
+      "config": {
+        "op": "write"
+      }
+    }
+  ],
+  "containers": [
+    {
+      "id": "us-east",
+      "kind": "region",
+      "name": "us-east"
+    }
+  ],
+  "scenario": {
+    "durationSec": 60,
+    "sources": [
+      {
+        "id": "app",
+        "node": "users",
+        "shape": {
+          "kind": "constant",
+          "rps": 2000
+        },
+        "readRatio": 0.95
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "maps.example.com",
+    "read": {
+      "method": "GET",
+      "path": "/v1/directions?origin={key}&dest=4412",
+      "status": 200,
+      "body": "{\"route\": {\"distance_m\": 5230, \"duration_s\": 780, \"polyline\": \"a~l~Fjk~uOw\"}}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/v1/locations",
+      "reqBody": "{\"device_id\": {key}, \"lat\": 37.77, \"lng\": -122.42}",
+      "status": 202,
+      "body": "{\"accepted\": true}"
+    },
+    "table": "road_segments",
+    "valCol": "speed_kph"
+  }
+}

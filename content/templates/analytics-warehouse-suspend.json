@@ -1,0 +1,109 @@
+{
+  "schemaVersion": 1,
+  "id": "analytics-warehouse-suspend",
+  "name": "Snowflake: auto-suspend, resume and result cache",
+  "description": "Dashboards refresh in bursts every 40s, re-running a small set of queries. The Small warehouse suspends after 8s idle (no credits), resumes on the next cache miss with a cold local cache, and serves repeated queries from the result cache until a load job writes to the table.",
+  "nodes": [
+    {
+      "id": "bi",
+      "type": "web-client",
+      "name": "Dashboards",
+      "pos": {
+        "x": 55,
+        "y": 60
+      }
+    },
+    {
+      "id": "etl",
+      "type": "web-client",
+      "name": "Load job",
+      "pos": {
+        "x": 335,
+        "y": 60
+      }
+    },
+    {
+      "id": "wh",
+      "type": "data-warehouse",
+      "name": "Snowflake \u00b7 S",
+      "pos": {
+        "x": 195,
+        "y": 220
+      },
+      "skin": "snowflake",
+      "config": {
+        "size": "S",
+        "autoSuspendSec": 8,
+        "resumeMs": 1500,
+        "resultCache": true
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "bi-wh",
+      "from": "bi",
+      "to": "wh",
+      "config": {
+        "timeoutMs": 60000
+      }
+    },
+    {
+      "id": "etl-wh",
+      "from": "etl",
+      "to": "wh",
+      "config": {
+        "timeoutMs": 60000
+      }
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 180,
+    "sources": [
+      {
+        "id": "dash",
+        "node": "bi",
+        "shape": {
+          "kind": "spike-train",
+          "base": 0,
+          "height": 3,
+          "periodSec": 40,
+          "widthSec": 10
+        },
+        "readRatio": 1,
+        "keys": {
+          "kind": "uniform",
+          "keys": 24
+        }
+      },
+      {
+        "id": "load",
+        "node": "etl",
+        "shape": {
+          "kind": "constant",
+          "rps": 0
+        },
+        "readRatio": 0
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "bi.acme.io",
+    "read": {
+      "method": "GET",
+      "path": "/api/dashboards/kpi/{key}",
+      "body": "{\"tile\": {key}, \"value\": 98213, \"cached\": true}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/loads",
+      "reqBody": "{\"batch\": {key}, \"rows\": {value}}",
+      "status": 202,
+      "body": "{\"load_id\": {key}}"
+    },
+    "table": "kpi_daily",
+    "valCol": "metric"
+  }
+}

@@ -1,0 +1,166 @@
+{
+  "schemaVersion": 1,
+  "id": "tech-es-mapping",
+  "name": "Elasticsearch: mapping explosion",
+  "description": "A log shipper indexes JSON events with dynamic mapping on. Every new field name is a cluster-state update on the master.",
+  "nodes": [
+    {
+      "id": "users",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 195,
+        "y": 10
+      },
+      "config": {}
+    },
+    {
+      "id": "app",
+      "type": "es-app",
+      "name": "log shipper",
+      "pos": {
+        "x": 195,
+        "y": 80
+      },
+      "config": {}
+    },
+    {
+      "id": "coord",
+      "type": "es-coord",
+      "name": "coordinating",
+      "pos": {
+        "x": 195,
+        "y": 170
+      },
+      "config": {}
+    },
+    {
+      "id": "m1",
+      "type": "es-master",
+      "name": "master-1",
+      "pos": {
+        "x": 70,
+        "y": 290
+      },
+      "config": {}
+    },
+    {
+      "id": "m2",
+      "type": "es-master",
+      "name": "master-2",
+      "pos": {
+        "x": 195,
+        "y": 290
+      },
+      "config": {}
+    },
+    {
+      "id": "m3",
+      "type": "es-master",
+      "name": "master-3",
+      "pos": {
+        "x": 320,
+        "y": 290
+      },
+      "config": {}
+    },
+    {
+      "id": "d1",
+      "type": "es-data",
+      "name": "data-1",
+      "pos": {
+        "x": 70,
+        "y": 420
+      },
+      "config": {}
+    },
+    {
+      "id": "d2",
+      "type": "es-data",
+      "name": "data-2",
+      "pos": {
+        "x": 195,
+        "y": 420
+      },
+      "config": {}
+    },
+    {
+      "id": "d3",
+      "type": "es-data",
+      "name": "data-3",
+      "pos": {
+        "x": 320,
+        "y": 420
+      },
+      "config": {}
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-users-app",
+      "from": "users",
+      "to": "app"
+    },
+    {
+      "id": "e-app-coord",
+      "from": "app",
+      "to": "coord"
+    },
+    {
+      "id": "e-coord-d1",
+      "from": "coord",
+      "to": "d1",
+      "config": {
+        "timeoutMs": 1000
+      }
+    },
+    {
+      "id": "e-coord-d2",
+      "from": "coord",
+      "to": "d2",
+      "config": {
+        "timeoutMs": 1000
+      }
+    },
+    {
+      "id": "e-coord-d3",
+      "from": "coord",
+      "to": "d3",
+      "config": {
+        "timeoutMs": 1000
+      }
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 120,
+    "sources": [
+      {
+        "id": "s1",
+        "node": "users",
+        "shape": {
+          "kind": "constant",
+          "rps": 400
+        },
+        "readRatio": 0.5
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "logs.internal",
+    "read": {
+      "method": "GET",
+      "path": "/api/logs?trace_id={code}",
+      "status": 200,
+      "body": "{\"total\": 12, \"hits\": [{\"trace_id\": \"{code}\"}]}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/logs/_bulk",
+      "reqBody": "{\"trace_id\": \"{code}\", \"level\": \"error\", \"ms\": {value}}",
+      "status": 200,
+      "body": "{\"errors\": false, \"items\": 1}"
+    }
+  }
+}

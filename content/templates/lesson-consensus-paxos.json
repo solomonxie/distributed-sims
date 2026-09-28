@@ -1,0 +1,120 @@
+{
+  "schemaVersion": 1,
+  "id": "lesson-consensus-paxos",
+  "name": "Lesson: single-decree Paxos",
+  "description": "Two proposers race to get their value chosen by 3 acceptors: Prepare/Promise, then Accept/Accepted, each from a majority. Later, clients propose one value per log slot.",
+  "nodes": [
+    {
+      "id": "web",
+      "type": "web-client",
+      "name": "Clients",
+      "pos": {
+        "x": 195,
+        "y": 40
+      }
+    },
+    {
+      "id": "p1",
+      "type": "paxos-proposer",
+      "name": "Proposer A",
+      "pos": {
+        "x": 90,
+        "y": 170
+      },
+      "config": {
+        "value": "A",
+        "startDelayMs": 500,
+        "startJitterMs": 5
+      }
+    },
+    {
+      "id": "p2",
+      "type": "paxos-proposer",
+      "name": "Proposer B",
+      "pos": {
+        "x": 300,
+        "y": 170
+      },
+      "config": {
+        "value": "B",
+        "startDelayMs": 500,
+        "startJitterMs": 5
+      }
+    },
+    {
+      "id": "acc1",
+      "type": "paxos-acceptor",
+      "name": "Acceptor 1",
+      "pos": {
+        "x": 55,
+        "y": 320
+      }
+    },
+    {
+      "id": "acc2",
+      "type": "paxos-acceptor",
+      "name": "Acceptor 2",
+      "pos": {
+        "x": 195,
+        "y": 320
+      }
+    },
+    {
+      "id": "acc3",
+      "type": "paxos-acceptor",
+      "name": "Acceptor 3",
+      "pos": {
+        "x": 335,
+        "y": 320
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "web",
+      "to": "p1",
+      "config": {
+        "ratio": 0.5,
+        "timeoutMs": 5000
+      }
+    },
+    {
+      "id": "e2",
+      "from": "web",
+      "to": "p2",
+      "config": {
+        "ratio": 0.5,
+        "timeoutMs": 5000
+      }
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 300,
+    "sources": [
+      {
+        "id": "s1",
+        "node": "web",
+        "shape": {
+          "kind": "constant",
+          "rps": 0
+        }
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "lock.internal",
+    "read": {
+      "path": "/v1/decisions/{key}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/v1/decisions/{key}",
+      "reqBody": "{\"proposal\": \"{value}\"}",
+      "status": 200,
+      "body": "{\"slot\": {key}, \"chosen\": \"{value}\"}"
+    }
+  }
+}

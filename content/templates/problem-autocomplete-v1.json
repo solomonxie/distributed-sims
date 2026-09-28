@@ -1,0 +1,103 @@
+{
+  "schemaVersion": 1,
+  "id": "problem-autocomplete-v1",
+  "name": "Autocomplete — naive",
+  "description": "Each keystroke runs a prefix query that fans out to every Elasticsearch shard.",
+  "nodes": [
+    {
+      "id": "users",
+      "type": "web-client",
+      "skin": "react-spa",
+      "name": "Typing users",
+      "pos": {
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "id": "alb",
+      "type": "load-balancer",
+      "skin": "aws-alb",
+      "name": "Load balancer",
+      "pos": {
+        "x": 0,
+        "y": 110
+      }
+    },
+    {
+      "id": "api",
+      "type": "service",
+      "skin": "go-service",
+      "name": "Suggest API",
+      "pos": {
+        "x": 0,
+        "y": 220
+      },
+      "config": {
+        "instances": 3
+      }
+    },
+    {
+      "id": "search",
+      "type": "search-index",
+      "skin": "elasticsearch",
+      "name": "Search index (prefix query)",
+      "pos": {
+        "x": 0,
+        "y": 330
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "users->alb",
+      "from": "users",
+      "to": "alb",
+      "config": {
+        "latencyMs": 4
+      }
+    },
+    {
+      "id": "alb->api",
+      "from": "alb",
+      "to": "api"
+    },
+    {
+      "id": "api->search",
+      "from": "api",
+      "to": "search"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 60,
+    "sources": [
+      {
+        "id": "typing",
+        "node": "users",
+        "shape": {
+          "kind": "constant",
+          "rps": 3000
+        },
+        "readRatio": 0.98
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "complete.example.com",
+    "read": {
+      "method": "GET",
+      "path": "/v1/suggest?q=q{key}&n=10",
+      "status": 200,
+      "body": "{\"q\": \"q{key}\", \"suggestions\": [\"q{key}0\", \"q{key}1\", \"q{key}2\"]}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/v1/queries",
+      "reqBody": "{\"q\": \"q{key}\", \"ts\": 1767225600}",
+      "status": 202,
+      "body": "{\"logged\": true}"
+    }
+  }
+}

@@ -1,0 +1,92 @@
+{
+  "schemaVersion": 1,
+  "id": "search-refresh",
+  "name": "Search: refresh interval & shard fan-out",
+  "description": "Half the traffic writes docs, half searches for them. With a 5s refresh interval, a search right after a write misses it (stale-read anomalies). Set refreshMs to 0 to fix it at an indexing cost; raise shards to see the slowest shard set query p99. At 40s a shard rebalance slows everything.",
+  "nodes": [
+    {
+      "id": "web",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 55,
+        "y": 60
+      }
+    },
+    {
+      "id": "api",
+      "type": "service",
+      "name": "Catalog API",
+      "pos": {
+        "x": 195,
+        "y": 60
+      }
+    },
+    {
+      "id": "es",
+      "type": "search-index",
+      "skin": "elasticsearch",
+      "name": "Elasticsearch",
+      "pos": {
+        "x": 335,
+        "y": 60
+      },
+      "config": {
+        "refreshMs": 5000,
+        "shards": 8
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "web-api",
+      "from": "web",
+      "to": "api"
+    },
+    {
+      "id": "api-es",
+      "from": "api",
+      "to": "es"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 70,
+    "sources": [
+      {
+        "id": "s",
+        "node": "web",
+        "shape": {
+          "kind": "constant",
+          "rps": 300
+        },
+        "readRatio": 0.5
+      }
+    ],
+    "events": [
+      {
+        "atSec": 40,
+        "event": {
+          "kind": "rebalance",
+          "target": "es",
+          "durationSec": 15
+        }
+      }
+    ]
+  },
+  "wire": {
+    "host": "catalog.shop.io",
+    "read": {
+      "method": "GET",
+      "path": "/api/search?q=sku{key}",
+      "body": "{\"q\": \"sku{key}\", \"total\": 3, \"hits\": [{key}]}"
+    },
+    "write": {
+      "method": "PUT",
+      "path": "/api/products/{key}",
+      "reqBody": "{\"title\": \"Trail shoe {key}\", \"price\": {value}}",
+      "status": 200,
+      "body": "{\"id\": {key}, \"indexed\": true}"
+    }
+  }
+}

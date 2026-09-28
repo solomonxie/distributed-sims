@@ -1,0 +1,167 @@
+{
+  "schemaVersion": 1,
+  "id": "lesson-migration-dualwrite",
+  "name": "DB migration: dual-write vs CDC backfill",
+  "description": "The app writes to the old DB and copies each write to the new cluster two ways. Left: a best-effort dual-write, which drops rows whenever the new DB is unreachable. Right: CDC (Debezium) tails the old DB and retries until the copy catches up. Verify that both sides match before you cut over.",
+  "nodes": [
+    {
+      "id": "users",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 195,
+        "y": 40
+      }
+    },
+    {
+      "id": "app",
+      "type": "service",
+      "name": "App",
+      "pos": {
+        "x": 195,
+        "y": 160
+      }
+    },
+    {
+      "id": "old-db",
+      "type": "relational-db",
+      "name": "Old DB",
+      "pos": {
+        "x": 195,
+        "y": 290
+      },
+      "skin": "mysql"
+    },
+    {
+      "id": "dw",
+      "type": "outbox-relay",
+      "name": "Dual-write",
+      "pos": {
+        "x": 75,
+        "y": 290
+      },
+      "config": {
+        "mode": "dual-write"
+      }
+    },
+    {
+      "id": "cdc",
+      "type": "outbox-relay",
+      "name": "CDC backfill",
+      "pos": {
+        "x": 315,
+        "y": 290
+      },
+      "skin": "debezium",
+      "config": {
+        "mode": "outbox"
+      }
+    },
+    {
+      "id": "new-a",
+      "type": "relational-db",
+      "name": "New DB (dual-write)",
+      "pos": {
+        "x": 75,
+        "y": 440
+      },
+      "skin": "aurora",
+      "parent": "new"
+    },
+    {
+      "id": "new-b",
+      "type": "relational-db",
+      "name": "New DB (CDC)",
+      "pos": {
+        "x": 315,
+        "y": 440
+      },
+      "skin": "aurora",
+      "parent": "new"
+    }
+  ],
+  "edges": [
+    {
+      "id": "users->app",
+      "from": "users",
+      "to": "app",
+      "config": {
+        "timeoutMs": 3000
+      }
+    },
+    {
+      "id": "app->old-db",
+      "from": "app",
+      "to": "old-db"
+    },
+    {
+      "id": "app->dw",
+      "from": "app",
+      "to": "dw",
+      "config": {
+        "op": "write"
+      }
+    },
+    {
+      "id": "app->cdc",
+      "from": "app",
+      "to": "cdc",
+      "config": {
+        "op": "write"
+      }
+    },
+    {
+      "id": "dw->new-a",
+      "from": "dw",
+      "to": "new-a",
+      "config": {
+        "timeoutMs": 500
+      }
+    },
+    {
+      "id": "cdc->new-b",
+      "from": "cdc",
+      "to": "new-b",
+      "config": {
+        "timeoutMs": 500
+      }
+    }
+  ],
+  "containers": [
+    {
+      "id": "new",
+      "kind": "availability-zone",
+      "name": "New cluster"
+    }
+  ],
+  "scenario": {
+    "durationSec": 120,
+    "sources": [
+      {
+        "id": "s1",
+        "node": "users",
+        "shape": {
+          "kind": "constant",
+          "rps": 150
+        },
+        "readRatio": 0.3
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "crm.example",
+    "read": {
+      "path": "/api/customers/{key}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/customers",
+      "reqBody": "{\"email\": \"c{key}@mail.example\"}",
+      "status": 201,
+      "body": "{\"id\": {key}, \"created\": true}"
+    },
+    "table": "customers",
+    "valCol": "email"
+  }
+}

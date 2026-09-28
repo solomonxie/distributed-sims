@@ -1,0 +1,105 @@
+group: { id: tech, label: Under the hood, order: 14 }
+# Flink (technologies.md v1.1): JobManager, TaskManagers with slots, Kafka source, checkpoint storage, sink.
+# Protocol kinds: flink.* (fetch, records, trigger/ack barriers, snapshot, heartbeat, deploy, write/commit).
+types:
+  - type: flink-jobmanager
+    label: Flink JobManager
+    description: Schedules subtasks into TaskManager slots, coordinates checkpoints (barriers), restarts the job from the last checkpoint
+    icon: crown
+    costPerInstanceMonth: 120
+    knobs:
+      - { key: parallelism, label: Parallelism, kind: int, default: 4, min: 1, max: 16, help: Subtasks per operator; each needs a slot }
+      - { key: checkpointMs, label: Checkpoint interval, kind: ms, default: 5000, min: 500, max: 600000, help: execution.checkpointing.interval }
+      - { key: checkpointTimeoutMs, label: Checkpoint timeout, kind: ms, default: 20000, min: 1000, max: 3600000, help: "Real default 10 min; scaled down" }
+      - { key: windowMs, label: Window size, kind: ms, default: 5000, min: 100, max: 3600000, help: Tumbling event-time window }
+      - { key: boundMs, label: Max out-of-orderness, kind: ms, default: 1000, min: 0, max: 600000, help: "Watermark = max event time seen − this" }
+      - { key: allowedLatenessMs, label: Allowed lateness, kind: ms, default: 0, min: 0, max: 3600000, help: Late events within this update an already-fired window; later ones are dropped }
+      - { key: heartbeatTimeoutMs, label: Heartbeat timeout, kind: ms, default: 4000, min: 500, max: 300000, advanced: true, help: "Real default 50s; scaled down" }
+      - { key: restartDelayMs, label: Restart delay, kind: ms, default: 1000, min: 0, max: 600000, advanced: true, help: fixed-delay restart strategy }
+      - { key: costMonth, label: Cost / month, kind: number, default: 120, min: 0, max: 100000, unit: $ }
+  - type: flink-taskmanager
+    label: Flink TaskManager
+    description: JVM worker with task slots; runs chained operators (source→map) and keyed windows; snapshots state on barriers
+    icon: cpu
+    costPerInstanceMonth: 200
+    knobs:
+      - { key: slots, label: Task slots, kind: int, default: 2, min: 1, max: 32, help: taskmanager.numberOfTaskSlots }
+      - { key: recordUs, label: Window cost / event, kind: number, default: 100, min: 1, max: 100000, unit: µs }
+      - { key: mapCost, label: Map cost (× window), kind: number, default: 0.3, min: 0, max: 10, advanced: true }
+      - { key: bufferRecords, label: Network buffers, kind: int, default: 2000, min: 10, max: 1000000, help: "Events a downstream subtask may queue before its upstream is backpressured (credit-based flow control)" }
+      - { key: fetchMs, label: Source poll, kind: ms, default: 200, min: 10, max: 10000, advanced: true }
+      - { key: fetchMax, label: Max poll records, kind: int, default: 500, min: 1, max: 100000, advanced: true }
+      - { key: stateKbPerKey, label: State per key, kind: number, default: 0.5, min: 0, max: 100000, unit: KB, advanced: true }
+      - { key: heartbeatMs, label: Heartbeat, kind: ms, default: 1000, min: 100, max: 60000, advanced: true }
+      - { key: costMonth, label: Cost / month, kind: number, default: 200, min: 0, max: 100000, unit: $ }
+  - type: flink-source
+    label: Flink Kafka source topic
+    description: Kafka topic the job reads; partitions keep records by offset so a restarted job can rewind and replay
+    icon: scroll-text
+    costPerInstanceMonth: 150
+    knobs:
+      - { key: partitions, label: Partitions, kind: int, default: 4, min: 1, max: 64 }
+      - { key: keys, label: Distinct keys, kind: int, default: 8, min: 1, max: 1024, help: e.g. user regions being counted }
+      - { key: eventDelayMs, label: Event delay p50, kind: ms, default: 150, min: 0, max: 600000, help: Time from event to append (event time is stamped by the sender's clock) }
+      - { key: eventDelayP99Ms, label: Event delay p99, kind: ms, default: 600, min: 0, max: 600000 }
+      - { key: slots, label: Slots, kind: int, default: 256, min: 1, max: 100000, advanced: true }
+      - { key: p50Ms, label: Append p50, kind: ms, default: 1, min: 0.01, max: 1000, advanced: true }
+      - { key: p99Ms, label: Append p99, kind: ms, default: 5, min: 0.01, max: 5000, advanced: true }
+      - { key: costMonth, label: Cost / month, kind: number, default: 150, min: 0, max: 100000, unit: $ }
+  - type: flink-sink
+    label: Flink sink
+    description: Where window results land. exactly-once = two-phase commit (transaction per checkpoint); at-least-once = write immediately
+    icon: download
+    costPerInstanceMonth: 100
+    knobs:
+      - { key: delivery, label: Delivery, kind: enum, default: exactly-once, options: [exactly-once, at-least-once], help: "exactly-once: results visible only when the checkpoint completes" }
+      - { key: costMonth, label: Cost / month, kind: number, default: 100, min: 0, max: 100000, unit: $ }
+  - type: flink-checkpoint-storage
+    label: Flink checkpoint storage
+    description: Durable store (S3 / HDFS) for state snapshots uploaded at each checkpoint
+    icon: archive
+    costPerInstanceMonth: 30
+    knobs:
+      - { key: p50Ms, label: Upload p50, kind: ms, default: 30, min: 0.1, max: 60000 }
+      - { key: p99Ms, label: Upload p99, kind: ms, default: 150, min: 0.1, max: 120000 }
+      - { key: mbps, label: Throughput, kind: number, default: 200, min: 1, max: 100000, unit: MB/s }
+      - { key: slots, label: Parallel uploads, kind: int, default: 32, min: 1, max: 1024, advanced: true }
+      - { key: costMonth, label: Cost / month, kind: number, default: 30, min: 0, max: 100000, unit: $ }
+skins:
+  - { name: flink-jobmanager-std, type: flink-jobmanager, label: JobManager, description: Flink 1.18 JobManager (dispatcher, scheduler, checkpoint coordinator), icon: crown, tags: [flink, stream], defaults: {} }
+  - { name: flink-taskmanager-std, type: flink-taskmanager, label: TaskManager, description: "TaskManager JVM, 2 slots", icon: cpu, tags: [flink, stream], defaults: { slots: 2 } }
+  - { name: flink-kafka-topic, type: flink-source, label: Kafka topic (source), description: Input topic read by the Flink Kafka source, icon: brand:kafka, tags: [flink, kafka], defaults: {} }
+  - { name: flink-kafka-sink, type: flink-sink, label: Kafka topic (sink), description: "Transactional Kafka producer: two-phase commit per checkpoint, read_committed consumers", icon: brand:kafka, tags: [flink, kafka, exactly-once], defaults: { delivery: exactly-once } }
+  - { name: flink-es-sink, type: flink-sink, label: Elasticsearch (sink), description: Bulk writes as results arrive; replays write again (at-least-once), icon: search, tags: [flink, at-least-once], defaults: { delivery: at-least-once } }
+  - { name: flink-s3-checkpoints, type: flink-checkpoint-storage, label: S3 checkpoints, description: state.checkpoints.dir on S3, icon: brand:aws, tags: [flink, s3], defaults: {} }
+  - name: flink
+    type: flink-source
+    label: Flink
+    description: Stream job — Kafka in, JobManager + TaskManagers with slots, checkpoints to S3, exactly-once sink (tap ⤢ to drill in)
+    icon: waves
+    tags: [flink, stream, composite]
+    defaults: {}
+    ports: { in: kafka, out: sink }
+    internals:
+      schemaVersion: 1
+      id: flink-internals
+      name: Flink internals
+      nodes:
+        - { id: kafka, type: flink-source, skin: flink-kafka-topic, name: events (Kafka), pos: { x: 195, y: 40 } }
+        - { id: jm, type: flink-jobmanager, skin: flink-jobmanager-std, name: JobManager, pos: { x: 335, y: 150 } }
+        - { id: tm1, type: flink-taskmanager, skin: flink-taskmanager-std, name: tm-1, pos: { x: 55, y: 260 } }
+        - { id: tm2, type: flink-taskmanager, skin: flink-taskmanager-std, name: tm-2, pos: { x: 195, y: 260 } }
+        - { id: tm3, type: flink-taskmanager, skin: flink-taskmanager-std, name: tm-3, pos: { x: 335, y: 260 } }
+        - { id: s3, type: flink-checkpoint-storage, skin: flink-s3-checkpoints, name: checkpoints (S3), pos: { x: 335, y: 390 } }
+        - { id: sink, type: flink-sink, skin: flink-kafka-sink, name: results (Kafka), pos: { x: 125, y: 390 } }
+      edges:
+        - { id: e-k1, from: kafka, to: tm1, config: { mode: async } }
+        - { id: e-k2, from: kafka, to: tm2, config: { mode: async } }
+        - { id: e-k3, from: kafka, to: tm3, config: { mode: async } }
+        - { id: e-j1, from: jm, to: tm1, config: { mode: async } }
+        - { id: e-j2, from: jm, to: tm2, config: { mode: async } }
+        - { id: e-j3, from: jm, to: tm3, config: { mode: async } }
+        - { id: e-s1, from: tm1, to: sink, config: { mode: async } }
+        - { id: e-s2, from: tm2, to: sink, config: { mode: async } }
+        - { id: e-c2, from: tm2, to: s3, config: { mode: async } }
+      containers: []

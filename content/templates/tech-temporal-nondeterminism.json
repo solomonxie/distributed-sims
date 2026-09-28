@@ -1,0 +1,133 @@
+{
+  "schemaVersion": 1,
+  "id": "tech-temporal-nondeterminism",
+  "name": "Temporal: non-deterministic deploy",
+  "description": "One worker; each workflow sleeps 10s between charge and reserve, so many are in flight. Deploying code that changes the step order breaks replay of in-flight workflows.",
+  "nodes": [
+    {
+      "id": "app",
+      "type": "web-client",
+      "name": "Checkout app",
+      "pos": {
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "id": "frontend",
+      "type": "temporal-frontend",
+      "name": "Frontend",
+      "pos": {
+        "x": 0,
+        "y": 120
+      }
+    },
+    {
+      "id": "history",
+      "type": "temporal-history",
+      "name": "History",
+      "pos": {
+        "x": -100,
+        "y": 240
+      }
+    },
+    {
+      "id": "matching",
+      "type": "temporal-matching",
+      "name": "Matching",
+      "pos": {
+        "x": 100,
+        "y": 240
+      }
+    },
+    {
+      "id": "db",
+      "type": "temporal-persistence",
+      "skin": "temporal-cassandra",
+      "name": "Persistence",
+      "pos": {
+        "x": -100,
+        "y": 360
+      }
+    },
+    {
+      "id": "worker-1",
+      "type": "temporal-worker",
+      "name": "Worker 1",
+      "pos": {
+        "x": 100,
+        "y": 360
+      },
+      "config": {
+        "timerSec": 10,
+        "actP50Ms": 500,
+        "actP99Ms": 1500
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-app",
+      "from": "app",
+      "to": "frontend"
+    },
+    {
+      "id": "e-fh",
+      "from": "frontend",
+      "to": "history"
+    },
+    {
+      "id": "e-fm",
+      "from": "frontend",
+      "to": "matching"
+    },
+    {
+      "id": "e-hdb",
+      "from": "history",
+      "to": "db"
+    },
+    {
+      "id": "e-hm",
+      "from": "history",
+      "to": "matching",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "e-w1",
+      "from": "worker-1",
+      "to": "frontend"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 180,
+    "sources": [
+      {
+        "id": "starts",
+        "node": "app",
+        "shape": {
+          "kind": "constant",
+          "rps": 1
+        },
+        "readRatio": 1
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "api.mealbox.com",
+    "read": {
+      "path": "/v1/orders/{key}",
+      "body": "{\"workflow_id\": \"order-{key}\", \"status\": \"RUNNING\"}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/v1/orders",
+      "reqBody": "{\"plan\": \"family\", \"boxes\": {value}}",
+      "status": 202,
+      "body": "{\"workflow_id\": \"order-{key}\"}"
+    }
+  }
+}

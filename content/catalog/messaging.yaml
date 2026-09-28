@@ -1,0 +1,170 @@
+group: { id: messaging, label: Messaging, order: 5 }
+types:
+  - type: queue
+    label: Queue
+    description: Producers enqueue and get an ack; messages are pushed to consumer edges, invisible while in flight, redelivered if not acked
+    icon: inbox
+    costPerInstanceMonth: 40
+    knobs:
+      - { key: instances, label: Instances, kind: int, default: 1, min: 1, max: 64 }
+      - { key: slots, label: Slots / instance, kind: int, default: 256, min: 1, max: 100000, help: Concurrent enqueue requests }
+      - { key: p50Ms, label: Enqueue p50, kind: ms, default: 5, min: 0.1, max: 5000 }
+      - { key: p99Ms, label: Enqueue p99, kind: ms, default: 20, min: 0.1, max: 30000 }
+      - { key: queueLimit, label: Request queue limit, kind: int, default: 10000, min: 0, max: 1000000 }
+      - { key: costMonth, label: Cost / instance, kind: number, default: 40, min: 0, max: 100000, unit: $/mo }
+      - { key: ordering, label: Ordering, kind: enum, default: standard, options: [standard, ordered, fifo], help: standard = best-effort order; ordered = strict head-of-queue; fifo = one in-flight per key (message group) }
+      - { key: visibilityMs, label: Visibility timeout, kind: ms, default: 30000, min: 100, max: 43200000, help: In-flight messages reappear after this if not acked }
+      - { key: maxReceives, label: Max receives, kind: int, default: 5, min: 1, max: 1000, help: Then moved to DLQ (out-edge with route 'dlq') }
+      - { key: prefetch, label: Prefetch, kind: number, default: 1, min: 0.1, max: 100, help: Unacked deliveries per consumer slot (consumer's own prefetch wins) }
+      - { key: batch, label: Receive batch, kind: int, default: 1, min: 1, max: 100, help: Messages per delivery (consumer's own batch wins) }
+      - { key: nackRequeue, label: Requeue on nack, kind: bool, default: false, help: On consumer error or disconnect requeue now instead of waiting for visibility timeout }
+      - { key: retentionSec, label: Retention, kind: number, default: 345600, min: 60, max: 1209600, unit: s, advanced: true, help: Older messages expire (counted as lost) }
+      - { key: maxDepth, label: Max depth, kind: number, default: 10000000, min: 1, max: 1000000000, advanced: true, help: Enqueue rejected with 503 above this }
+  - type: log-stream
+    label: Log stream
+    description: Partitioned append-only log; consumer groups track per-partition offsets; ordering per partition; replayable
+    icon: logs
+    costPerInstanceMonth: 250
+    knobs:
+      - { key: instances, label: Brokers, kind: int, default: 3, min: 1, max: 100 }
+      - { key: slots, label: Slots / broker, kind: int, default: 256, min: 1, max: 100000 }
+      - { key: p50Ms, label: Append p50, kind: ms, default: 2, min: 0.1, max: 5000 }
+      - { key: p99Ms, label: Append p99, kind: ms, default: 10, min: 0.1, max: 30000 }
+      - { key: queueLimit, label: Request queue limit, kind: int, default: 10000, min: 0, max: 1000000 }
+      - { key: costMonth, label: Cost / broker, kind: number, default: 250, min: 0, max: 100000, unit: $/mo }
+      - { key: partitions, label: Partitions, kind: int, default: 6, min: 1, max: 256, help: Max consumer parallelism per group }
+      - { key: partitionBy, label: Partitioner, kind: enum, default: key, options: [key, round-robin], help: key keeps per-key order; round-robin spreads load but breaks it }
+      - { key: acks, label: Producer acks, kind: enum, default: all, options: ["0", "1", all], help: 0 = no wait; 1 = leader only (loses tail on failover); all = in-sync replicas }
+      - { key: commit, label: Offset commit, kind: enum, default: after, options: [after, before], help: before (auto-commit) = loss on consumer crash; after = duplicates }
+      - { key: fetchBatch, label: Max poll records, kind: int, default: 10, min: 1, max: 10000 }
+      - { key: startFrom, label: New group starts at, kind: enum, default: latest, options: [latest, earliest] }
+      - { key: retentionSec, label: Retention, kind: number, default: 604800, min: 1, max: 31536000, unit: s }
+      - { key: replicaMs, label: Replication p50, kind: ms, default: 2, min: 0.1, max: 5000, advanced: true, help: Extra produce latency with acks=all }
+      - { key: replicaP99Ms, label: Replication p99, kind: ms, default: 10, min: 0.1, max: 30000, advanced: true }
+      - { key: replicaLagMs, label: Follower lag, kind: ms, default: 100, min: 0, max: 60000, advanced: true, help: Records this recent are lost on leader failover unless acks=all }
+      - { key: pollTimeoutMs, label: Max poll interval, kind: ms, default: 5000, min: 100, max: 600000, advanced: true, help: Batch not acked in time is retried }
+      - { key: retryBackoffMs, label: Retry backoff, kind: ms, default: 200, min: 0, max: 60000, advanced: true }
+      - { key: electionMs, label: Leader election, kind: ms, default: 1500, min: 0, max: 60000, advanced: true }
+      - { key: rebalanceMs, label: Rebalance pause, kind: ms, default: 3000, min: 0, max: 120000, advanced: true }
+      - { key: maxRecordsPerPartition, label: Sim record cap, kind: int, default: 20000, min: 100, max: 1000000, advanced: true, help: Simulator memory cap; oldest trimmed like retention }
+  - type: pub-sub
+    label: Pub/Sub topic
+    description: Fans each message out to every subscriber edge; at-least-once with retries; subscribers are independent
+    icon: radio-tower
+    costPerInstanceMonth: 30
+    knobs:
+      - { key: instances, label: Instances, kind: int, default: 1, min: 1, max: 64 }
+      - { key: slots, label: Slots / instance, kind: int, default: 256, min: 1, max: 100000 }
+      - { key: p50Ms, label: Publish p50, kind: ms, default: 10, min: 0.1, max: 5000 }
+      - { key: p99Ms, label: Publish p99, kind: ms, default: 50, min: 0.1, max: 30000 }
+      - { key: queueLimit, label: Request queue limit, kind: int, default: 10000, min: 0, max: 1000000 }
+      - { key: costMonth, label: Cost / instance, kind: number, default: 30, min: 0, max: 100000, unit: $/mo }
+      - { key: delivery, label: Delivery, kind: enum, default: async, options: [async, sync], help: sync = publisher waits for the slowest subscriber }
+      - { key: ackDeadlineMs, label: Ack deadline, kind: ms, default: 10000, min: 100, max: 600000 }
+      - { key: maxAttempts, label: Max attempts, kind: int, default: 5, min: 1, max: 100, help: Then the message is dropped for that subscriber (lost) }
+      - { key: retryBackoffMs, label: Retry backoff, kind: ms, default: 100, min: 0, max: 60000, advanced: true }
+  - type: worker
+    label: Worker
+    description: Consumes messages with limited concurrency; ack early or late; optional idempotency; calls its own dependencies
+    icon: hard-hat
+    costPerInstanceMonth: 50
+    knobs:
+      - { key: instances, label: Instances, kind: int, default: 2, min: 0, max: 200 }
+      - { key: slots, label: Concurrency / instance, kind: int, default: 4, min: 1, max: 1024 }
+      - { key: p50Ms, label: Task p50, kind: ms, default: 20, min: 0.1, max: 600000 }
+      - { key: p99Ms, label: Task p99, kind: ms, default: 100, min: 0.1, max: 600000 }
+      - { key: queueLimit, label: Local queue limit, kind: int, default: 1000, min: 0, max: 100000 }
+      - { key: costMonth, label: Cost / instance, kind: number, default: 50, min: 0, max: 100000, unit: $/mo }
+      - { key: batch, label: Batch size, kind: int, default: 1, min: 1, max: 1000, help: Messages taken per delivery from a queue; one ack for the whole batch }
+      - { key: prefetch, label: Prefetch multiplier, kind: number, default: 1, min: 0.1, max: 100, help: Unacked deliveries per slot; high values hoard work }
+      - { key: ackMode, label: Ack mode, kind: enum, default: late, options: [late, early], help: early = lost on crash; late = redelivered (duplicates) }
+      - { key: idempotent, label: Idempotent, kind: bool, default: false, help: Dedupe by message id; redeliveries become no-ops }
+      - { key: group, label: Consumer group, kind: string, default: "", help: Workers with the same group share a stream's partitions }
+      - { key: ackMs, label: Ack latency, kind: ms, default: 2, min: 0, max: 10000, advanced: true }
+      - { key: memoryMb, label: Memory, kind: int, default: 1024, min: 128, max: 65536, unit: MB, advanced: true }
+  - type: outbox-relay
+    label: Outbox relay
+    description: Reads events written to an outbox table in the same DB transaction and relays them to a broker; fixes dual writes
+    icon: send
+    costPerInstanceMonth: 40
+    knobs:
+      - { key: instances, label: Instances, kind: int, default: 1, min: 1, max: 16 }
+      - { key: slots, label: Slots / instance, kind: int, default: 64, min: 1, max: 10000 }
+      - { key: p50Ms, label: Outbox insert p50, kind: ms, default: 1, min: 0.1, max: 5000 }
+      - { key: p99Ms, label: Outbox insert p99, kind: ms, default: 5, min: 0.1, max: 30000 }
+      - { key: queueLimit, label: Request queue limit, kind: int, default: 10000, min: 0, max: 1000000 }
+      - { key: costMonth, label: Cost / instance, kind: number, default: 40, min: 0, max: 100000, unit: $/mo }
+      - { key: mode, label: Mode, kind: enum, default: outbox, options: [outbox, dual-write], help: dual-write = publish once after the DB commit; lost if the broker is down }
+      - { key: pollMs, label: Poll interval, kind: ms, default: 500, min: 10, max: 60000 }
+      - { key: batch, label: Batch, kind: int, default: 100, min: 1, max: 10000 }
+skins:
+  - name: sqs
+    type: queue
+    label: Amazon SQS
+    description: Managed queue; standard (best-effort order) or FIFO; visibility timeout + redrive to DLQ
+    icon: brand:aws
+    tags: [queue, aws, managed]
+    defaults: { p50Ms: 10, p99Ms: 40, visibilityMs: 30000, maxReceives: 5, ordering: standard, nackRequeue: false, batch: 1, retentionSec: 345600, costMonth: 40 }   # source: SQS defaults (30s visibility, 4-day retention)
+  - name: rabbitmq
+    type: queue
+    label: RabbitMQ
+    description: AMQP broker; strict queue order, prefetch per consumer, nack/disconnect requeues immediately
+    icon: brand:rabbitmq
+    tags: [queue, amqp, self-hosted]
+    defaults: { p50Ms: 1, p99Ms: 5, ordering: ordered, nackRequeue: true, visibilityMs: 1800000, maxReceives: 20, prefetch: 2, costMonth: 150 }   # source: RabbitMQ consumer_timeout 30 min
+  - name: kafka
+    type: log-stream
+    label: Apache Kafka
+    description: Partitioned replicated log; consumer groups, offsets, replay
+    icon: brand:kafka
+    tags: [stream, self-hosted]
+    defaults: { instances: 3, p50Ms: 2, p99Ms: 10, partitions: 6, acks: all, commit: after, fetchBatch: 500, replicaLagMs: 50, retentionSec: 604800, costMonth: 250 }   # source: Kafka 3.x defaults (acks=all, max.poll.records 500, 7-day retention)
+  - name: kinesis
+    type: log-stream
+    label: Amazon Kinesis
+    description: Managed shards (1 MB/s in each); 24 h retention by default
+    icon: brand:aws
+    tags: [stream, aws, managed]
+    defaults: { instances: 1, p50Ms: 20, p99Ms: 100, partitions: 4, acks: all, fetchBatch: 100, retentionSec: 86400, costMonth: 60 }   # source: Kinesis PutRecord ~tens of ms, 24 h default retention
+  - name: redpanda
+    type: log-stream
+    label: Redpanda
+    description: Kafka-compatible log in C++ (Raft per partition); lower tail latency
+    icon: logs
+    tags: [stream, self-hosted, kafka-api]
+    defaults: { instances: 3, p50Ms: 1, p99Ms: 4, partitions: 6, acks: all, fetchBatch: 500, replicaLagMs: 20, costMonth: 250 }
+  - name: sns
+    type: pub-sub
+    label: Amazon SNS
+    description: Managed fan-out to queues, functions, HTTP endpoints
+    icon: brand:aws
+    tags: [pubsub, aws, managed]
+    defaults: { p50Ms: 20, p99Ms: 100, maxAttempts: 3, ackDeadlineMs: 15000, costMonth: 20 }
+  - name: google-pubsub
+    type: pub-sub
+    label: Google Pub/Sub
+    description: Managed topics and subscriptions; ack deadline, redelivery
+    icon: radio-tower
+    tags: [pubsub, gcp, managed]
+    defaults: { p50Ms: 15, p99Ms: 80, ackDeadlineMs: 10000, maxAttempts: 5, costMonth: 30 }   # source: default ack deadline 10 s
+  - name: celery-worker
+    type: worker
+    label: Celery worker
+    description: Python task worker; prefork pool, prefetch multiplier 4, acks early by default
+    icon: hard-hat
+    tags: [worker, python]
+    defaults: { slots: 4, prefetch: 4, ackMode: early, p50Ms: 50, p99Ms: 400, costMonth: 50 }   # source: Celery worker_prefetch_multiplier=4, acks_late=False
+  - name: sidekiq
+    type: worker
+    label: Sidekiq
+    description: Ruby job processor on Redis; threads; basic fetch loses in-progress jobs on crash
+    icon: hard-hat
+    tags: [worker, ruby, redis]
+    defaults: { slots: 5, ackMode: early, p50Ms: 30, p99Ms: 200, costMonth: 50 }   # source: Sidekiq 7 default concurrency 5, BRPOP fetch
+  - name: debezium
+    type: outbox-relay
+    label: Debezium
+    description: Change data capture tails the DB log and relays outbox rows to Kafka
+    icon: send
+    tags: [cdc, outbox, self-hosted]
+    defaults: { mode: outbox, pollMs: 100, batch: 2048, costMonth: 80 }   # source: max.batch.size 2048

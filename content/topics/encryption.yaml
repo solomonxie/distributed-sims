@@ -1,0 +1,83 @@
+id: encryption
+title: Encryption
+group: topics
+icon: lock
+order: 13
+summary: Where TLS terminates, how KMS envelope encryption scales, and what key rotation costs.
+info: In transit, TLS protects bytes on the wire; the question is where it terminates and whether internal hops (mTLS) are covered too. At rest, data is encrypted with data keys that a KMS wraps with a master key. Every KMS call counts against a quota, and rotating keys means re-wrapping everything.
+problems: [send-email]
+lessons:
+  - id: tls-termination
+    title: TLS termination points
+    minutes: 4
+    template: lesson-crypto-mtls
+    steps:
+      - title: Edge TLS vs mTLS everywhere
+        body: Left terminates TLS at the load balancer and talks plaintext inside. Right wraps every hop in mTLS through Envoy sidecars.
+        watch: Tap an edge on each side; the right side's badges read mTLS.
+        check: { metric: rps, target: b2, op: '>=', value: 100 }
+      - title: The handshake tax
+        body: Each sidecar encrypts every record, and 30% of calls here open a fresh connection with a full handshake. That shows up in p99, not in the median.
+        watch: The right ALB's p99 sits well above the left one.
+        check: { metric: p99, target: lb2, op: '>=', value: 30 }
+      - title: A certificate expires
+        body: Expire the Payments sidecar's certificate. mTLS makes every call to it fail, where plaintext would have carried on.
+        action: { event: { kind: cert-expired, target: sb, durationSec: 15 } }
+        watch: Right users fail until the cert is renewed; automate rotation.
+        check: { metric: errRate, target: web2, op: '>=', value: 50 }
+
+  - id: envelope-encryption
+    title: Envelope encryption
+    minutes: 4
+    template: sec-kms-envelope
+    steps:
+      - title: One KMS call per record
+        body: The top API asks KMS for a data key on every record. The bottom one caches a data key and reuses it for 1000 records.
+        watch: kmsCallsPerSec on the top KMS tracks traffic; the bottom one is near 0.
+        check: { metric: gauge:kmsCallsPerSec, target: kms, op: '>=', value: 150 }
+      - title: Burst meets the quota
+        body: At 15 s traffic jumps 10×. The top KMS hits its 1000 calls/s quota and returns 429.
+        watch: Top users fail; the bottom path doesn't notice.
+        check: { metric: errRate, target: web, op: '>=', value: 5 }
+      - title: Data-key caching wins
+        body: With caching, a 10× burst is still only a few KMS calls per second. The cost is a data key that lives longer in memory.
+        check: { metric: availability, target: web2, op: '>=', value: 99 }
+      - title: Rotation eats quota
+        body: At 45 s the top key rotates and a re-encrypt job starts rewrapping 30k objects with half the quota.
+        watch: reencryptLeft counts down on the top KMS.
+        check: { metric: gauge:reencryptLeft, target: kms, op: '>=', value: 1 }
+
+  - id: at-rest-vs-in-transit
+    title: At rest vs in transit
+    minutes: 3
+    template: lesson-crypto-at-rest
+    steps:
+      - title: Two different protections
+        body: In transit, the sidecar hop is mTLS, so a sniffer on that link sees ciphertext. At rest, the API encrypts each record with a KMS data key before it reaches S3.
+        watch: Tap the Envoy → API edge to inspect a packet; the KMS counts one call per request.
+        check: { metric: gauge:kmsCallsPerSec, target: kms, op: '>=', value: 100 }
+      - title: Lose the keys
+        body: Kill the KMS for 10 s. The network is fine, but nothing can be encrypted or decrypted.
+        action: { event: { kind: kill, target: kms, durationSec: 10 } }
+        watch: Every request fails, reads included.
+        check: { metric: errRate, target: web, op: '>=', value: 50 }
+      - title: Keys back
+        body: When KMS returns, traffic recovers at once. KMS is on the critical path of every read and write here.
+        check: { metric: availability, target: web, op: '>=', value: 99 }
+
+  - id: key-rotation
+    title: Key rotation
+    minutes: 4
+    template: lesson-crypto-rotation
+    steps:
+      - title: Near the quota
+        body: The API calls KMS for every record, ~600 calls/s against a 1000/s quota. There is headroom, but not much.
+        check: { metric: gauge:kmsCallsPerSec, target: kms, op: '>=', value: 500 }
+      - title: Rotate the key
+        body: Rotate the master key. A re-encrypt job rewraps 20k objects and burns half the quota while it runs.
+        action: { event: { kind: key-rotation, target: kms, params: { objects: 20000 } } }
+        watch: Live traffic now gets 429s; reencryptLeft counts down.
+        check: { metric: errRate, target: web, op: '>=', value: 5 }
+      - title: Job done
+        body: Once every object is rewrapped, the full quota is back. Throttle re-encryption or rotate off-peak.
+        check: { metric: availability, target: web, op: '>=', value: 99.5 }

@@ -1,0 +1,66 @@
+id: machine-paging
+title: Paging
+group: machine
+icon: file-stack
+order: 3
+summary: Virtual memory, page tables, page faults and the page cache.
+info: Every address a program uses is virtual; the MMU translates it through a 4-level page table, cached in the TLB. A missing page traps into the kernel, which may have to read it from disk. Free RAM becomes the page cache, which makes repeat file reads nearly free and makes writes durable only after fsync.
+algos: [mem-paging, mem-page-fault, mem-page-replacement, mem-page-cache]
+lessons:
+  - id: page-table-walk
+    title: Page table walk
+    minutes: 3
+    algo: mem-paging
+    steps:
+      - title: TLB miss
+        body: The virtual page isn't in the TLB, so the CPU walks four table levels in RAM. Each level is one more memory read.
+        watch: Table reads and extra time grow to 4 reads, ~400 ns.
+        check: { metric: manual }
+      - title: TLB hit
+        body: Switch to "TLB hit". The translation is cached and costs about a cycle, which is ~99% of accesses.
+        watch: Huge pages cover 512× more memory per TLB entry, so big heaps miss less.
+        check: { metric: manual }
+
+  - id: page-fault
+    title: Page fault
+    minutes: 3
+    algo: mem-page-fault
+    steps:
+      - title: Major fault
+        body: The page table entry says not present. The kernel reads the 4 KB page from SSD (~100 µs) while the thread sleeps.
+        watch: Elapsed jumps from ns to ~100 µs.
+        check: { metric: manual }
+      - title: Minor fault
+        body: Switch to "Minor fault". The page is already in RAM, so it's ~1 µs with no IO.
+        watch: Thousands of major faults per second is swapping, a p99 disaster.
+        check: { metric: manual }
+
+  - id: page-replacement
+    title: Page replacement
+    minutes: 4
+    algo: mem-page-replacement
+    steps:
+      - title: FIFO
+        body: With 3 frames, FIFO evicts the page loaded longest ago, even if it's hot.
+        watch: 15 faults on 20 references.
+        check: { metric: manual }
+      - title: LRU and Clock
+        body: Switch to LRU (12 faults), then Clock (14). Clock approximates LRU with one bit per page.
+        check: { metric: manual }
+      - title: Belady's anomaly
+        body: Switch to "Belady's anomaly". FIFO with 4 frames faults more than with 3; LRU never does.
+        check: { metric: manual }
+
+  - id: page-cache
+    title: Page cache
+    minutes: 3
+    algo: mem-page-cache
+    steps:
+      - title: Reads are cached
+        body: The first read misses and DMAs the page from SSD. The next read of the same page is a RAM copy, ~50× faster.
+        watch: Disk IO stops growing after the first read.
+        check: { metric: manual }
+      - title: mmap
+        body: Switch to "mmap". The file is mapped into the address space, so hits are plain memory loads with no syscall.
+        watch: A miss is now an invisible page fault that blocks the thread.
+        check: { metric: manual }

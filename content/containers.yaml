@@ -1,0 +1,57 @@
+# Container kinds (grouping boxes on the canvas). chip = header glyph (uiux/components.md).
+containers:
+  - kind: region
+    label: Region
+    icon: globe
+    chip: "🌎"
+    description: Geographic cloud region; cross-region calls add ~60-150 ms
+    knobs:
+      - { key: name, label: Region, kind: enum, default: us-east-1, options: [us-east-1, us-west-2, eu-west-1, ap-southeast-1] }
+  - kind: availability-zone
+    label: Availability zone
+    icon: server-cog
+    chip: "◫"
+    description: Isolated datacenter inside a region; cross-AZ adds ~1 ms
+    knobs:
+      - { key: zone, label: Zone, kind: enum, default: a, options: [a, b, c] }
+  - kind: vpc
+    label: VPC
+    icon: lock
+    chip: "🔒"
+    description: Private network boundary; traffic in needs a gateway or peering
+    knobs:
+      - { key: cidr, label: CIDR, kind: string, default: 10.0.0.0/16 }
+  - kind: bounded-context
+    label: Bounded context
+    icon: hexagon
+    chip: "⬡"
+    description: DDD boundary; owns its data, talks to others via APIs or events
+    knobs: []
+  - kind: layer
+    label: Layer
+    icon: layers
+    chip: "≡"
+    description: Architectural layer; calls should only go down one layer at a time
+    knobs:
+      - { key: order, label: Layer order, kind: int, default: 0, min: 0, max: 9, help: 0 = top layer }
+  - kind: tenant
+    label: Tenant
+    icon: users
+    chip: "👥"
+    description: Customer tenant; isolation decides noisy-neighbour blast radius
+    knobs:
+      - { key: isolation, label: Isolation, kind: enum, default: pool, options: [pool, silo, bridge], help: pool = shared, silo = dedicated, bridge = mixed }
+  - kind: cell
+    label: Cell
+    icon: grid-3x3
+    chip: "▦"
+    description: Self-contained copy of the stack serving a shard of users; limits blast radius
+    knobs:
+      - { key: users, label: Users share, kind: percent, default: 25, min: 1, max: 100 }
+  - kind: k8s-namespace
+    label: K8s namespace
+    icon: box
+    chip: "☸"
+    description: Kubernetes namespace; quotas and network policies per team or app
+    knobs:
+      - { key: cpuQuota, label: CPU quota (cores), kind: number, default: 8, min: 1, max: 1024 }

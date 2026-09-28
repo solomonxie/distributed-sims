@@ -1,0 +1,140 @@
+{
+  "schemaVersion": 1,
+  "id": "problem-twitch-v1",
+  "name": "Twitch — naive",
+  "description": "Every viewer pulls live segments from the origin; the chat server loops over viewers to deliver each message.",
+  "nodes": [
+    {
+      "id": "users",
+      "type": "web-client",
+      "skin": "react-spa",
+      "name": "Viewers",
+      "pos": {
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "id": "alb",
+      "type": "load-balancer",
+      "skin": "aws-alb",
+      "name": "Load balancer",
+      "pos": {
+        "x": 0,
+        "y": 110
+      }
+    },
+    {
+      "id": "origin",
+      "type": "service",
+      "skin": "go-service",
+      "name": "Live origin (transcode + package)",
+      "pos": {
+        "x": -90,
+        "y": 220
+      },
+      "config": {
+        "instances": 2,
+        "slots": 32,
+        "p50Ms": 20,
+        "p99Ms": 80
+      }
+    },
+    {
+      "id": "chat",
+      "type": "service",
+      "name": "Chat server (fan-out loop)",
+      "pos": {
+        "x": 90,
+        "y": 220
+      },
+      "config": {
+        "instances": 2,
+        "slots": 16,
+        "p50Ms": 20,
+        "p99Ms": 100
+      }
+    },
+    {
+      "id": "chatdb",
+      "type": "kv-store",
+      "skin": "cassandra",
+      "name": "Chat history",
+      "pos": {
+        "x": 90,
+        "y": 330
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "users->alb",
+      "from": "users",
+      "to": "alb"
+    },
+    {
+      "id": "alb->origin",
+      "from": "alb",
+      "to": "origin",
+      "config": {
+        "op": "read"
+      }
+    },
+    {
+      "id": "alb->chat",
+      "from": "alb",
+      "to": "chat",
+      "config": {
+        "op": "write"
+      }
+    },
+    {
+      "id": "chat->chatdb",
+      "from": "chat",
+      "to": "chatdb"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 60,
+    "sources": [
+      {
+        "id": "viewers",
+        "node": "users",
+        "shape": {
+          "kind": "constant",
+          "rps": 500
+        },
+        "readRatio": 1
+      },
+      {
+        "id": "chat",
+        "node": "users",
+        "shape": {
+          "kind": "constant",
+          "rps": 200
+        },
+        "readRatio": 0
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "api.twitch.example",
+    "read": {
+      "method": "GET",
+      "path": "/v1/streams/{key}",
+      "status": 200,
+      "body": "{\"channel_id\": {key}, \"live\": true, \"hls\": \"/hls/{key}/index.m3u8\", \"viewers\": 18234}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/v1/channels/{key}/chat",
+      "reqBody": "{\"text\": \"PogChamp\"}",
+      "status": 201,
+      "body": "{\"msg_id\": \"{code}\", \"sent_at\": \"2026-09-27T09:00:00Z\"}"
+    },
+    "table": "chat_messages",
+    "valCol": "text"
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "id": "lesson-caching-invalidation",
+  "name": "Lesson: cache invalidation",
+  "description": "Both APIs update Postgres. Lane A never touches Redis on a write, so cached rows stay old until the 5 min TTL. Lane B deletes the key on every write; the next read refills it.",
+  "nodes": [
+    { "id": "web", "type": "web-client", "name": "Users", "pos": { "x": 195, "y": 60 } },
+    { "id": "api-a", "type": "service", "name": "API A", "pos": { "x": 90, "y": 180 } },
+    { "id": "api-b", "type": "service", "name": "API B", "pos": { "x": 300, "y": 180 } },
+    { "id": "cache-a", "type": "cache", "skin": "redis", "name": "Redis A (no inval.)", "pos": { "x": 90, "y": 300 }, "config": { "capacityKeys": 1024, "ttlSec": 300, "invalidation": "none" } },
+    { "id": "cache-b", "type": "cache", "skin": "redis", "name": "Redis B (delete)", "pos": { "x": 300, "y": 300 }, "config": { "capacityKeys": 1024, "ttlSec": 300, "invalidation": "delete-on-write" } },
+    { "id": "db-a", "type": "relational-db", "skin": "postgres", "name": "Postgres A", "pos": { "x": 90, "y": 420 }, "config": { "replicas": 0 } },
+    { "id": "db-b", "type": "relational-db", "skin": "postgres", "name": "Postgres B", "pos": { "x": 300, "y": 420 }, "config": { "replicas": 0 } }
+  ],
+  "edges": [
+    { "id": "e1", "from": "web", "to": "api-a", "config": { "ratio": 0.5 } },
+    { "id": "e2", "from": "web", "to": "api-b", "config": { "ratio": 0.5 } },
+    { "id": "e3", "from": "api-a", "to": "cache-a" },
+    { "id": "e4", "from": "api-b", "to": "cache-b" },
+    { "id": "e5", "from": "cache-a", "to": "db-a" },
+    { "id": "e6", "from": "cache-b", "to": "db-b" }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 300,
+    "sources": [{ "id": "s1", "node": "web", "shape": { "kind": "constant", "rps": 400 }, "readRatio": 0.9, "keys": { "kind": "zipf", "s": 1.0 } }],
+    "events": []
+  },
+  "wire": {
+    "host": "api.hotels.example",
+    "read": {
+      "path": "/v1/rooms/{key}/rate"
+    },
+    "write": {
+      "method": "PUT",
+      "path": "/v1/rooms/{key}/rate",
+      "reqBody": "{\"nightly_usd\": {value}}",
+      "status": 200,
+      "body": "{\"room\": {key}, \"updated\": true}"
+    },
+    "table": "room_rates",
+    "valCol": "nightly_usd",
+    "cachePrefix": "rate:"
+  }
+}

@@ -1,0 +1,257 @@
+{
+  "schemaVersion": 1,
+  "id": "tech-flink-late-data",
+  "name": "Flink: watermarks and late events",
+  "description": "Two producers: the app and phones. Event time is stamped on the device; the watermark trails the newest event by 1s. Late events miss their window.",
+  "nodes": [
+    {
+      "id": "users",
+      "type": "web-client",
+      "skin": "react-spa",
+      "name": "app events",
+      "pos": {
+        "x": 195,
+        "y": 30
+      },
+      "config": {}
+    },
+    {
+      "id": "kafka",
+      "type": "flink-source",
+      "skin": "flink-kafka-topic",
+      "name": "events (Kafka)",
+      "pos": {
+        "x": 195,
+        "y": 130
+      },
+      "config": {}
+    },
+    {
+      "id": "jm",
+      "type": "flink-jobmanager",
+      "skin": "flink-jobmanager-std",
+      "name": "JobManager",
+      "pos": {
+        "x": 335,
+        "y": 130
+      },
+      "config": {}
+    },
+    {
+      "id": "tm1",
+      "type": "flink-taskmanager",
+      "skin": "flink-taskmanager-std",
+      "name": "tm-1",
+      "pos": {
+        "x": 55,
+        "y": 250
+      },
+      "config": {}
+    },
+    {
+      "id": "tm2",
+      "type": "flink-taskmanager",
+      "skin": "flink-taskmanager-std",
+      "name": "tm-2",
+      "pos": {
+        "x": 195,
+        "y": 250
+      },
+      "config": {}
+    },
+    {
+      "id": "tm3",
+      "type": "flink-taskmanager",
+      "skin": "flink-taskmanager-std",
+      "name": "tm-3",
+      "pos": {
+        "x": 335,
+        "y": 250
+      },
+      "config": {}
+    },
+    {
+      "id": "sink",
+      "type": "flink-sink",
+      "skin": "flink-kafka-sink",
+      "name": "results (Kafka)",
+      "pos": {
+        "x": 110,
+        "y": 370
+      },
+      "config": {}
+    },
+    {
+      "id": "s3",
+      "type": "flink-checkpoint-storage",
+      "skin": "flink-s3-checkpoints",
+      "name": "checkpoints (S3)",
+      "pos": {
+        "x": 290,
+        "y": 370
+      },
+      "config": {}
+    },
+    {
+      "id": "phones",
+      "type": "mobile-client",
+      "skin": "ios-app",
+      "name": "phones",
+      "pos": {
+        "x": 55,
+        "y": 30
+      },
+      "config": {}
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-users-kafka",
+      "from": "users",
+      "to": "kafka"
+    },
+    {
+      "id": "e-kafka-tm1",
+      "from": "kafka",
+      "to": "tm1",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "e-jm-tm1",
+      "from": "jm",
+      "to": "tm1",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "e-tm1-sink",
+      "from": "tm1",
+      "to": "sink",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "e-tm1-s3",
+      "from": "tm1",
+      "to": "s3",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "e-kafka-tm2",
+      "from": "kafka",
+      "to": "tm2",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "e-jm-tm2",
+      "from": "jm",
+      "to": "tm2",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "e-tm2-sink",
+      "from": "tm2",
+      "to": "sink",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "e-tm2-s3",
+      "from": "tm2",
+      "to": "s3",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "e-kafka-tm3",
+      "from": "kafka",
+      "to": "tm3",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "e-jm-tm3",
+      "from": "jm",
+      "to": "tm3",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "e-tm3-sink",
+      "from": "tm3",
+      "to": "sink",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "e-tm3-s3",
+      "from": "tm3",
+      "to": "s3",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "e-phones-kafka",
+      "from": "phones",
+      "to": "kafka"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 120,
+    "sources": [
+      {
+        "id": "s1",
+        "node": "users",
+        "shape": {
+          "kind": "constant",
+          "rps": 400
+        },
+        "readRatio": 0
+      },
+      {
+        "id": "s2",
+        "node": "phones",
+        "shape": {
+          "kind": "constant",
+          "rps": 100
+        },
+        "readRatio": 0
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "app.example.com",
+    "read": {
+      "method": "GET",
+      "path": "/api/users/{key}/sessions?window=1m",
+      "status": 200,
+      "body": "{\"user_id\": {key}, \"sessions\": {value}}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/v1/events",
+      "reqBody": "{\"user_id\": {key}, \"event\": \"tap\", \"device_ts\": {value}}",
+      "status": 202,
+      "body": "{\"accepted\": 1}"
+    },
+    "topic": "app-events"
+  }
+}

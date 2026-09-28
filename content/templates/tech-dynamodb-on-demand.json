@@ -1,0 +1,120 @@
+{
+  "schemaVersion": 1,
+  "id": "tech-dynamodb-on-demand",
+  "name": "DynamoDB: on-demand burst",
+  "description": "An on-demand table whose previous peak is 500 WCU, so it serves up to 1,000 WCU instantly.",
+  "nodes": [
+    {
+      "id": "users",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 195,
+        "y": 90
+      },
+      "config": {}
+    },
+    {
+      "id": "router",
+      "type": "dynamodb-router",
+      "name": "request router",
+      "pos": {
+        "x": 195,
+        "y": 200
+      },
+      "config": {
+        "mode": "on-demand",
+        "peakRcu": 1500,
+        "peakWcu": 500,
+        "minPartitions": 4
+      }
+    },
+    {
+      "id": "s1",
+      "type": "dynamodb-storage",
+      "name": "storage node 1",
+      "pos": {
+        "x": 70,
+        "y": 330
+      },
+      "config": {}
+    },
+    {
+      "id": "s2",
+      "type": "dynamodb-storage",
+      "name": "storage node 2",
+      "pos": {
+        "x": 195,
+        "y": 330
+      },
+      "config": {}
+    },
+    {
+      "id": "s3",
+      "type": "dynamodb-storage",
+      "name": "storage node 3",
+      "pos": {
+        "x": 320,
+        "y": 330
+      },
+      "config": {}
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-users-router",
+      "from": "users",
+      "to": "router"
+    },
+    {
+      "id": "e-router-s1",
+      "from": "router",
+      "to": "s1"
+    },
+    {
+      "id": "e-router-s2",
+      "from": "router",
+      "to": "s2"
+    },
+    {
+      "id": "e-router-s3",
+      "from": "router",
+      "to": "s3"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 120,
+    "sources": [
+      {
+        "id": "s1",
+        "node": "users",
+        "shape": {
+          "kind": "constant",
+          "rps": 1000
+        },
+        "readRatio": 0.5
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "tickets.example.com",
+    "read": {
+      "method": "GET",
+      "path": "/api/holds/{code}",
+      "status": 200,
+      "body": "{\"hold_id\": \"{code}\", \"seat\": {value}}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/events/{key}/holds",
+      "reqBody": "{\"seat\": {value}, \"ttl_s\": 600}",
+      "status": 201,
+      "body": "{\"hold_id\": \"{code}\", \"expires_in\": 600}"
+    },
+    "table": "seat_holds",
+    "keyCol": "hold_id",
+    "valCol": "seat"
+  }
+}

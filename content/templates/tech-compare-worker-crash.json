@@ -1,0 +1,372 @@
+{
+  "schemaVersion": 1,
+  "id": "tech-compare-worker-crash",
+  "name": "Celery vs Airflow vs Temporal: worker crash",
+  "description": "The same job (charge → reserve → ship) on three engines, two workers each. Kill one worker per engine and watch what survives.",
+  "nodes": [
+    {
+      "id": "orders",
+      "type": "web-client",
+      "name": "Orders",
+      "pos": {
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "id": "c-app",
+      "type": "celery-producer",
+      "skin": "celery-app",
+      "name": "app (.delay)",
+      "parent": "ctx-celery",
+      "pos": {
+        "x": -130,
+        "y": 120
+      },
+      "config": {
+        "taskMs": 5000,
+        "taskP99Ms": 8000
+      }
+    },
+    {
+      "id": "c-broker",
+      "type": "celery-broker",
+      "skin": "celery-rabbitmq-broker",
+      "name": "broker",
+      "parent": "ctx-celery",
+      "pos": {
+        "x": -130,
+        "y": 230
+      },
+      "config": {}
+    },
+    {
+      "id": "c-w1",
+      "type": "celery-worker",
+      "skin": "celery-prefork",
+      "name": "celery w1",
+      "parent": "ctx-celery",
+      "pos": {
+        "x": -130,
+        "y": 340
+      },
+      "config": {
+        "slots": 4,
+        "acksLate": false
+      }
+    },
+    {
+      "id": "c-w2",
+      "type": "celery-worker",
+      "skin": "celery-prefork",
+      "name": "celery w2",
+      "parent": "ctx-celery",
+      "pos": {
+        "x": -130,
+        "y": 450
+      },
+      "config": {
+        "slots": 4,
+        "acksLate": false
+      }
+    },
+    {
+      "id": "af-scheduler",
+      "type": "airflow-scheduler",
+      "skin": "airflow-scheduler-std",
+      "name": "Scheduler",
+      "parent": "ctx-airflow",
+      "pos": {
+        "x": 0,
+        "y": 120
+      },
+      "config": {
+        "scheduleSec": 0,
+        "tasks": 3,
+        "taskP50Ms": 2000,
+        "taskP99Ms": 4000
+      }
+    },
+    {
+      "id": "af-db",
+      "type": "airflow-metadata-db",
+      "skin": "airflow-postgres-db",
+      "name": "Metadata DB",
+      "parent": "ctx-airflow",
+      "pos": {
+        "x": 0,
+        "y": 230
+      },
+      "config": {}
+    },
+    {
+      "id": "af-executor",
+      "type": "airflow-executor",
+      "skin": "airflow-celery-executor",
+      "name": "CeleryExecutor",
+      "parent": "ctx-airflow",
+      "pos": {
+        "x": 0,
+        "y": 340
+      },
+      "config": {}
+    },
+    {
+      "id": "af-w1",
+      "type": "airflow-worker",
+      "skin": "airflow-worker-std",
+      "name": "airflow w1",
+      "parent": "ctx-airflow",
+      "pos": {
+        "x": 0,
+        "y": 450
+      },
+      "config": {
+        "slots": 6
+      }
+    },
+    {
+      "id": "af-w2",
+      "type": "airflow-worker",
+      "skin": "airflow-worker-std",
+      "name": "airflow w2",
+      "parent": "ctx-airflow",
+      "pos": {
+        "x": 0,
+        "y": 560
+      },
+      "config": {
+        "slots": 6
+      }
+    },
+    {
+      "id": "t-frontend",
+      "type": "temporal-frontend",
+      "name": "Frontend",
+      "parent": "ctx-temporal",
+      "pos": {
+        "x": 130,
+        "y": 120
+      },
+      "config": {}
+    },
+    {
+      "id": "t-history",
+      "type": "temporal-history",
+      "name": "History",
+      "parent": "ctx-temporal",
+      "pos": {
+        "x": 130,
+        "y": 230
+      },
+      "config": {}
+    },
+    {
+      "id": "t-matching",
+      "type": "temporal-matching",
+      "name": "Matching",
+      "parent": "ctx-temporal",
+      "pos": {
+        "x": 130,
+        "y": 340
+      },
+      "config": {}
+    },
+    {
+      "id": "t-db",
+      "type": "temporal-persistence",
+      "skin": "temporal-postgres",
+      "name": "Persistence",
+      "parent": "ctx-temporal",
+      "pos": {
+        "x": 130,
+        "y": 450
+      },
+      "config": {}
+    },
+    {
+      "id": "t-w1",
+      "type": "temporal-worker",
+      "name": "temporal w1",
+      "parent": "ctx-temporal",
+      "pos": {
+        "x": 130,
+        "y": 560
+      },
+      "config": {
+        "actP50Ms": 2000,
+        "actP99Ms": 4000,
+        "startToCloseSec": 8,
+        "actSlots": 16
+      }
+    },
+    {
+      "id": "t-w2",
+      "type": "temporal-worker",
+      "name": "temporal w2",
+      "parent": "ctx-temporal",
+      "pos": {
+        "x": 130,
+        "y": 670
+      },
+      "config": {
+        "actP50Ms": 2000,
+        "actP99Ms": 4000,
+        "startToCloseSec": 8,
+        "actSlots": 16
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "orders->c-app",
+      "from": "orders",
+      "to": "c-app"
+    },
+    {
+      "id": "orders->af-scheduler",
+      "from": "orders",
+      "to": "af-scheduler"
+    },
+    {
+      "id": "orders->t-frontend",
+      "from": "orders",
+      "to": "t-frontend"
+    },
+    {
+      "id": "c-app->c-broker",
+      "from": "c-app",
+      "to": "c-broker"
+    },
+    {
+      "id": "c-broker->c-w1",
+      "from": "c-broker",
+      "to": "c-w1",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "c-broker->c-w2",
+      "from": "c-broker",
+      "to": "c-w2",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "af-scheduler->af-db",
+      "from": "af-scheduler",
+      "to": "af-db"
+    },
+    {
+      "id": "af-scheduler->af-executor",
+      "from": "af-scheduler",
+      "to": "af-executor"
+    },
+    {
+      "id": "af-executor->af-w1",
+      "from": "af-executor",
+      "to": "af-w1"
+    },
+    {
+      "id": "af-executor->af-w2",
+      "from": "af-executor",
+      "to": "af-w2"
+    },
+    {
+      "id": "af-w1->af-db",
+      "from": "af-w1",
+      "to": "af-db"
+    },
+    {
+      "id": "af-w2->af-db",
+      "from": "af-w2",
+      "to": "af-db"
+    },
+    {
+      "id": "t-frontend->t-history",
+      "from": "t-frontend",
+      "to": "t-history"
+    },
+    {
+      "id": "t-frontend->t-matching",
+      "from": "t-frontend",
+      "to": "t-matching"
+    },
+    {
+      "id": "t-history->t-db",
+      "from": "t-history",
+      "to": "t-db"
+    },
+    {
+      "id": "t-history->t-matching",
+      "from": "t-history",
+      "to": "t-matching",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "t-w1->t-frontend",
+      "from": "t-w1",
+      "to": "t-frontend"
+    },
+    {
+      "id": "t-w2->t-frontend",
+      "from": "t-w2",
+      "to": "t-frontend"
+    }
+  ],
+  "containers": [
+    {
+      "id": "ctx-celery",
+      "kind": "bounded-context",
+      "name": "Celery"
+    },
+    {
+      "id": "ctx-airflow",
+      "kind": "bounded-context",
+      "name": "Airflow"
+    },
+    {
+      "id": "ctx-temporal",
+      "kind": "bounded-context",
+      "name": "Temporal"
+    }
+  ],
+  "scenario": {
+    "durationSec": 180,
+    "sources": [
+      {
+        "id": "s1",
+        "node": "orders",
+        "shape": {
+          "kind": "constant",
+          "rps": 3
+        },
+        "readRatio": 1
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "shop.example.com",
+    "read": {
+      "method": "GET",
+      "path": "/api/orders/{key}/status",
+      "status": 200,
+      "body": "{\"task_id\": \"{code}\", \"status\": \"SUCCESS\"}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/orders",
+      "reqBody": "{\"sku\": \"SKU-{key}\", \"qty\": {value}}",
+      "status": 202,
+      "body": "{\"task_id\": \"{code}\", \"status\": \"PENDING\"}"
+    },
+    "topic": "orders",
+    "table": "task_instance",
+    "valCol": "state"
+  }
+}

@@ -1,0 +1,187 @@
+{
+  "schemaVersion": 1,
+  "id": "paradigm-layered",
+  "name": "Layered monolith",
+  "description": "A Rails monolith split into presentation, application, domain and infrastructure layers; each calls only the layer below. One violation: the invoice job in infrastructure calls the web controllers upward (rule warning on that edge).",
+  "nodes": [
+    {
+      "id": "web",
+      "type": "web-client",
+      "name": "Browser",
+      "pos": {
+        "x": 55,
+        "y": 20
+      }
+    },
+    {
+      "id": "ctl",
+      "type": "monolith",
+      "name": "Web controllers",
+      "pos": {
+        "x": 195,
+        "y": 100
+      },
+      "skin": "rails-monolith",
+      "parent": "l0",
+      "config": {
+        "modules": "orders:presentation,billing:presentation"
+      }
+    },
+    {
+      "id": "app",
+      "type": "service",
+      "name": "Order use cases",
+      "pos": {
+        "x": 195,
+        "y": 240
+      },
+      "parent": "l1",
+      "config": {
+        "p50Ms": 3,
+        "p99Ms": 10
+      }
+    },
+    {
+      "id": "dom",
+      "type": "service",
+      "name": "Order domain",
+      "pos": {
+        "x": 195,
+        "y": 380
+      },
+      "parent": "l2",
+      "config": {
+        "p50Ms": 1,
+        "p99Ms": 4
+      }
+    },
+    {
+      "id": "repo",
+      "type": "service",
+      "name": "Order repository",
+      "pos": {
+        "x": 195,
+        "y": 520
+      },
+      "parent": "l3",
+      "config": {
+        "p50Ms": 1,
+        "p99Ms": 3
+      }
+    },
+    {
+      "id": "db",
+      "type": "relational-db",
+      "name": "Postgres",
+      "pos": {
+        "x": 55,
+        "y": 520
+      },
+      "skin": "postgres",
+      "parent": "l3"
+    },
+    {
+      "id": "job",
+      "type": "cron",
+      "name": "Invoice job",
+      "pos": {
+        "x": 335,
+        "y": 520
+      },
+      "parent": "l3",
+      "config": {
+        "scheduleSec": 10,
+        "batch": 5
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "web->ctl",
+      "from": "web",
+      "to": "ctl"
+    },
+    {
+      "id": "ctl->app",
+      "from": "ctl",
+      "to": "app"
+    },
+    {
+      "id": "app->dom",
+      "from": "app",
+      "to": "dom"
+    },
+    {
+      "id": "dom->repo",
+      "from": "dom",
+      "to": "repo"
+    },
+    {
+      "id": "repo->db",
+      "from": "repo",
+      "to": "db"
+    },
+    {
+      "id": "job->ctl",
+      "from": "job",
+      "to": "ctl"
+    }
+  ],
+  "containers": [
+    {
+      "id": "l0",
+      "kind": "layer",
+      "name": "Presentation",
+      "order": 0
+    },
+    {
+      "id": "l1",
+      "kind": "layer",
+      "name": "Application",
+      "order": 1
+    },
+    {
+      "id": "l2",
+      "kind": "layer",
+      "name": "Domain",
+      "order": 2
+    },
+    {
+      "id": "l3",
+      "kind": "layer",
+      "name": "Infrastructure",
+      "order": 3
+    }
+  ],
+  "scenario": {
+    "durationSec": 60,
+    "sources": [
+      {
+        "id": "s1",
+        "node": "web",
+        "shape": {
+          "kind": "constant",
+          "rps": 80
+        }
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "store.acme.io",
+    "read": {
+      "method": "GET",
+      "path": "/orders/{key}",
+      "body": "{\"id\": {key}, \"state\": \"confirmed\"}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/orders",
+      "reqBody": "{\"order\": {\"sku\": \"SKU-{key}\", \"qty\": 1}}",
+      "status": 201,
+      "body": "{\"id\": {key}, \"state\": \"confirmed\"}"
+    },
+    "table": "orders",
+    "valCol": "state"
+  }
+}

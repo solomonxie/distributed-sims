@@ -1,0 +1,127 @@
+{
+  "schemaVersion": 1,
+  "id": "analytics-snowflake-warehouse",
+  "name": "Snowflake: one warehouse vs multi-cluster",
+  "description": "BI dashboards plus a few ad-hoc analysts share a Medium warehouse (8 slots). Left: a single cluster. Right: multi-cluster 1\u20133, which starts clusters while queries queue and stops them when load drops. Result cache is off here so every query uses compute.",
+  "nodes": [
+    {
+      "id": "bi-1",
+      "type": "web-client",
+      "name": "Dashboards + ad-hoc",
+      "pos": {
+        "x": 55,
+        "y": 60
+      }
+    },
+    {
+      "id": "wh-single",
+      "type": "data-warehouse",
+      "name": "Warehouse \u00b7 1 cluster",
+      "pos": {
+        "x": 55,
+        "y": 220
+      },
+      "skin": "snowflake",
+      "config": {
+        "size": "M",
+        "maxClusters": 1,
+        "resultCache": false,
+        "autoSuspendSec": 0
+      }
+    },
+    {
+      "id": "bi-2",
+      "type": "web-client",
+      "name": "Dashboards + ad-hoc",
+      "pos": {
+        "x": 335,
+        "y": 60
+      }
+    },
+    {
+      "id": "wh-multi",
+      "type": "data-warehouse",
+      "name": "Warehouse \u00b7 1\u20133 clusters",
+      "pos": {
+        "x": 335,
+        "y": 220
+      },
+      "skin": "snowflake",
+      "config": {
+        "size": "M",
+        "minClusters": 1,
+        "maxClusters": 3,
+        "resultCache": false,
+        "autoSuspendSec": 0
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "bi-1-wh-single",
+      "from": "bi-1",
+      "to": "wh-single",
+      "config": {
+        "timeoutMs": 120000
+      }
+    },
+    {
+      "id": "bi-2-wh-multi",
+      "from": "bi-2",
+      "to": "wh-multi",
+      "config": {
+        "timeoutMs": 120000
+      }
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 120,
+    "sources": [
+      {
+        "id": "q-1",
+        "node": "bi-1",
+        "shape": {
+          "kind": "constant",
+          "rps": 4
+        },
+        "readRatio": 1,
+        "tenants": {
+          "dashboard": 99,
+          "adhoc": 1
+        }
+      },
+      {
+        "id": "q-2",
+        "node": "bi-2",
+        "shape": {
+          "kind": "constant",
+          "rps": 4
+        },
+        "readRatio": 1,
+        "tenants": {
+          "dashboard": 99,
+          "adhoc": 1
+        }
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "bi.acme.io",
+    "read": {
+      "method": "POST",
+      "path": "/api/v2/statements",
+      "body": "{\"statementHandle\": \"01b{key}\", \"rows\": 250}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/v2/statements",
+      "reqBody": "{\"statement\": \"SELECT region, SUM(amount) FROM sales WHERE day = {key}\"}",
+      "status": 202,
+      "body": "{\"statementHandle\": \"01b{key}\"}"
+    },
+    "table": "sales",
+    "valCol": "amount"
+  }
+}

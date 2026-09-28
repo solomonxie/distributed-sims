@@ -1,0 +1,241 @@
+{
+  "schemaVersion": 1,
+  "id": "lesson-consensus-split-vote",
+  "name": "Lesson: Raft split votes",
+  "description": "Two 4-member Raft clusters. Cluster A: every member's election timeout is exactly 150ms. Cluster B: random between 150 and 300ms.",
+  "nodes": [
+    {
+      "id": "web",
+      "type": "web-client",
+      "name": "Clients",
+      "pos": {
+        "x": 195,
+        "y": 40
+      }
+    },
+    {
+      "id": "api-a",
+      "type": "service",
+      "name": "API A",
+      "pos": {
+        "x": 90,
+        "y": 160
+      },
+      "config": {
+        "fanout": "one"
+      }
+    },
+    {
+      "id": "api-b",
+      "type": "service",
+      "name": "API B",
+      "pos": {
+        "x": 300,
+        "y": 160
+      },
+      "config": {
+        "fanout": "one"
+      }
+    },
+    {
+      "id": "a1",
+      "type": "consensus-member",
+      "name": "A1",
+      "pos": {
+        "x": 40,
+        "y": 300
+      },
+      "config": {
+        "electionMinMs": 150,
+        "electionMaxMs": 150,
+        "group": "ga"
+      }
+    },
+    {
+      "id": "a2",
+      "type": "consensus-member",
+      "name": "A2",
+      "pos": {
+        "x": 140,
+        "y": 300
+      },
+      "config": {
+        "electionMinMs": 150,
+        "electionMaxMs": 150,
+        "group": "ga"
+      }
+    },
+    {
+      "id": "a3",
+      "type": "consensus-member",
+      "name": "A3",
+      "pos": {
+        "x": 40,
+        "y": 420
+      },
+      "config": {
+        "electionMinMs": 150,
+        "electionMaxMs": 150,
+        "group": "ga"
+      }
+    },
+    {
+      "id": "a4",
+      "type": "consensus-member",
+      "name": "A4",
+      "pos": {
+        "x": 140,
+        "y": 420
+      },
+      "config": {
+        "electionMinMs": 150,
+        "electionMaxMs": 150,
+        "group": "ga"
+      }
+    },
+    {
+      "id": "b1",
+      "type": "consensus-member",
+      "name": "B1",
+      "pos": {
+        "x": 250,
+        "y": 300
+      },
+      "config": {
+        "electionMinMs": 150,
+        "electionMaxMs": 300,
+        "group": "gb"
+      }
+    },
+    {
+      "id": "b2",
+      "type": "consensus-member",
+      "name": "B2",
+      "pos": {
+        "x": 350,
+        "y": 300
+      },
+      "config": {
+        "electionMinMs": 150,
+        "electionMaxMs": 300,
+        "group": "gb"
+      }
+    },
+    {
+      "id": "b3",
+      "type": "consensus-member",
+      "name": "B3",
+      "pos": {
+        "x": 250,
+        "y": 420
+      },
+      "config": {
+        "electionMinMs": 150,
+        "electionMaxMs": 300,
+        "group": "gb"
+      }
+    },
+    {
+      "id": "b4",
+      "type": "consensus-member",
+      "name": "B4",
+      "pos": {
+        "x": 350,
+        "y": 420
+      },
+      "config": {
+        "electionMinMs": 150,
+        "electionMaxMs": 300,
+        "group": "gb"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "web",
+      "to": "api-a",
+      "config": {
+        "ratio": 0.5
+      }
+    },
+    {
+      "id": "e2",
+      "from": "web",
+      "to": "api-b",
+      "config": {
+        "ratio": 0.5
+      }
+    },
+    {
+      "id": "ea1",
+      "from": "api-a",
+      "to": "a1"
+    },
+    {
+      "id": "ea2",
+      "from": "api-a",
+      "to": "a2"
+    },
+    {
+      "id": "ea3",
+      "from": "api-a",
+      "to": "a3"
+    },
+    {
+      "id": "ea4",
+      "from": "api-a",
+      "to": "a4"
+    },
+    {
+      "id": "eb1",
+      "from": "api-b",
+      "to": "b1"
+    },
+    {
+      "id": "eb2",
+      "from": "api-b",
+      "to": "b2"
+    },
+    {
+      "id": "eb3",
+      "from": "api-b",
+      "to": "b3"
+    },
+    {
+      "id": "eb4",
+      "from": "api-b",
+      "to": "b4"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 300,
+    "sources": [
+      {
+        "id": "s1",
+        "node": "web",
+        "shape": {
+          "kind": "constant",
+          "rps": 40
+        },
+        "readRatio": 0.5
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "config.internal",
+    "read": {
+      "path": "/v3/kv/{key}",
+      "body": "{\"key\": {key}, \"value\": {value}, \"revision\": 7}"
+    },
+    "write": {
+      "method": "PUT",
+      "path": "/v3/kv/{key}",
+      "reqBody": "{\"value\": \"{value}\"}",
+      "status": 200,
+      "body": "{\"key\": {key}, \"revision\": 1}"
+    }
+  }
+}

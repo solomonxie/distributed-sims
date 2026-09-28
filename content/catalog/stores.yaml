@@ -1,0 +1,148 @@
+group: { id: data, label: Data, order: 4 }
+# Specialised stores (behaviors/stores.ts). Shares the Data group with data.yaml.
+types:
+  - type: search-index
+    label: Search index
+    description: Shards × replicas; queries fan out to every shard; writes invisible until refresh
+    icon: search
+    costPerInstanceMonth: 250
+    knobs:
+      - { key: shards, label: Shards, kind: int, default: 5, min: 1, max: 64, help: Each query waits for the slowest shard }
+      - { key: replicas, label: Replicas, kind: int, default: 1, min: 0, max: 5, help: Spread reads; every write indexed on each copy }
+      - { key: refreshMs, label: Refresh interval, kind: ms, default: 1000, min: 0, max: 60000, help: New docs searchable only after a refresh (0 = refresh on every write) }
+      - { key: indexP50Ms, label: Index p50, kind: ms, default: 3, min: 0.1, max: 5000, advanced: true }
+      - { key: indexP99Ms, label: Index p99, kind: ms, default: 20, min: 0.1, max: 30000, advanced: true }
+      - { key: instances, label: Instances, kind: int, default: 3, min: 1, max: 64 }
+      - { key: slots, label: Slots, kind: int, default: 32, min: 1, max: 4096, advanced: true }
+      - { key: p50Ms, label: Shard query p50, kind: ms, default: 4, min: 0.1, max: 5000 }
+      - { key: p99Ms, label: Shard query p99, kind: ms, default: 30, min: 0.1, max: 30000 }
+      - { key: queueLimit, label: Queue limit, kind: int, default: 1000, min: 0, max: 100000, advanced: true }
+      - { key: costMonth, label: Cost / month, kind: number, default: 250, min: 0, max: 100000, unit: $ }
+  - type: time-series-db
+    label: Time-series DB
+    description: Ingest-capped metrics store; memory grows with series cardinality
+    icon: chart-line
+    costPerInstanceMonth: 150
+    knobs:
+      - { key: ingestLimit, label: Ingest limit, kind: int, default: 1000000, min: 1, max: 100000000, unit: samples/s, help: Over limit → 429 }
+      - { key: samplesPerWrite, label: Samples per write, kind: int, default: 100, min: 1, max: 100000, advanced: true }
+      - { key: cardinality, label: Active series, kind: int, default: 100000, min: 1, max: 100000000, help: Every label combination is a series held in memory }
+      - { key: bytesPerSeries, label: Bytes per series, kind: int, default: 4096, min: 100, max: 100000, advanced: true }
+      - { key: memoryMb, label: Memory, kind: int, default: 8192, min: 256, max: 1048576, unit: MB }
+      - { key: writeP50Ms, label: Write p50, kind: ms, default: 1, min: 0.01, max: 5000, advanced: true }
+      - { key: writeP99Ms, label: Write p99, kind: ms, default: 8, min: 0.01, max: 30000, advanced: true }
+      - { key: queryRangeHours, label: Query range, kind: number, default: 1, min: 0.1, max: 8760, unit: h }
+      - { key: retentionDays, label: Retention, kind: int, default: 15, min: 1, max: 3650, unit: d }
+      - { key: instances, label: Instances, kind: int, default: 1, min: 1, max: 64 }
+      - { key: slots, label: Slots, kind: int, default: 32, min: 1, max: 4096, advanced: true }
+      - { key: p50Ms, label: Query p50, kind: ms, default: 10, min: 0.1, max: 60000 }
+      - { key: p99Ms, label: Query p99, kind: ms, default: 80, min: 0.1, max: 60000 }
+      - { key: queueLimit, label: Queue limit, kind: int, default: 1000, min: 0, max: 100000, advanced: true }
+      - { key: costMonth, label: Cost / month, kind: number, default: 150, min: 0, max: 100000, unit: $ }
+  - type: object-store
+    label: Object store
+    description: Blobs by key; latency by size; per-prefix request limits → 503 SlowDown
+    icon: archive
+    costPerInstanceMonth: 25
+    knobs:
+      - { key: prefixes, label: Key prefixes, kind: int, default: 16, min: 1, max: 4096, help: Keys hash onto prefixes; each prefix has its own rate limit }
+      - { key: getRpsPerPrefix, label: GET limit / prefix, kind: int, default: 5500, min: 1, max: 1000000, unit: rps }
+      - { key: putRpsPerPrefix, label: PUT limit / prefix, kind: int, default: 3500, min: 1, max: 1000000, unit: rps }
+      - { key: mbPerSec, label: Per-request throughput, kind: number, default: 90, min: 1, max: 10000, unit: MB/s, advanced: true }
+      - { key: putP50Ms, label: PUT p50, kind: ms, default: 30, min: 0.1, max: 10000 }
+      - { key: putP99Ms, label: PUT p99, kind: ms, default: 150, min: 0.1, max: 60000, advanced: true }
+      - { key: instances, label: Instances, kind: int, default: 1, min: 1, max: 1 }
+      - { key: slots, label: Slots, kind: int, default: 100000, min: 1, max: 1000000, advanced: true }
+      - { key: p50Ms, label: GET p50, kind: ms, default: 15, min: 0.1, max: 10000 }
+      - { key: p99Ms, label: GET p99, kind: ms, default: 80, min: 0.1, max: 60000 }
+      - { key: queueLimit, label: Queue limit, kind: int, default: 100000, min: 0, max: 1000000, advanced: true }
+      - { key: costMonth, label: Cost / month, kind: number, default: 25, min: 0, max: 100000, unit: $ }
+  - type: graph-db
+    label: Graph DB
+    description: Traversals cost ∝ degree^depth; supernodes explode queries
+    icon: share-2
+    costPerInstanceMonth: 300
+    knobs:
+      - { key: depth, label: Traversal depth, kind: int, default: 2, min: 1, max: 6 }
+      - { key: avgDegree, label: Avg degree, kind: number, default: 20, min: 1, max: 10000 }
+      - { key: usPerVisit, label: Cost per visit, kind: number, default: 10, min: 0.1, max: 1000, unit: µs, advanced: true }
+      - { key: writeP50Ms, label: Write p50, kind: ms, default: 3, min: 0.01, max: 5000, advanced: true }
+      - { key: writeP99Ms, label: Write p99, kind: ms, default: 20, min: 0.01, max: 30000, advanced: true }
+      - { key: maxVisited, label: Visit cap, kind: int, default: 1000000, min: 100, max: 100000000, advanced: true }
+      - { key: instances, label: Instances, kind: int, default: 1, min: 1, max: 16 }
+      - { key: slots, label: Slots, kind: int, default: 32, min: 1, max: 4096, advanced: true }
+      - { key: p50Ms, label: p50, kind: ms, default: 1, min: 0.1, max: 5000 }
+      - { key: p99Ms, label: p99, kind: ms, default: 5, min: 0.1, max: 30000 }
+      - { key: queueLimit, label: Queue limit, kind: int, default: 1000, min: 0, max: 100000, advanced: true }
+      - { key: costMonth, label: Cost / month, kind: number, default: 300, min: 0, max: 100000, unit: $ }
+  - type: blob-cdn-origin
+    label: Video origin
+    description: Serves video segments; uploads queue for a transcoding worker pool
+    icon: clapperboard
+    costPerInstanceMonth: 200
+    knobs:
+      - { key: segmentMb, label: Segment size, kind: number, default: 2, min: 0.1, max: 100, unit: MB }
+      - { key: mbPerSec, label: Egress / request, kind: number, default: 100, min: 1, max: 10000, unit: MB/s, advanced: true }
+      - { key: transcoders, label: Transcode workers, kind: int, default: 8, min: 1, max: 4096 }
+      - { key: transcodeQueue, label: Transcode queue, kind: int, default: 200, min: 0, max: 1000000 }
+      - { key: videoMin, label: Video length, kind: number, default: 5, min: 0.1, max: 600, unit: min }
+      - { key: renditions, label: Renditions, kind: int, default: 4, min: 1, max: 12, help: 1080p/720p/480p/360p… each transcoded }
+      - { key: transcodeSecPerMin, label: Transcode s / rendition-min, kind: number, default: 6, min: 0.1, max: 600, advanced: true }
+      - { key: putP50Ms, label: Upload p50, kind: ms, default: 40, min: 0.1, max: 10000, advanced: true }
+      - { key: putP99Ms, label: Upload p99, kind: ms, default: 200, min: 0.1, max: 60000, advanced: true }
+      - { key: instances, label: Instances, kind: int, default: 2, min: 1, max: 64 }
+      - { key: slots, label: Slots, kind: int, default: 256, min: 1, max: 100000, advanced: true }
+      - { key: p50Ms, label: p50, kind: ms, default: 5, min: 0.1, max: 5000 }
+      - { key: p99Ms, label: p99, kind: ms, default: 30, min: 0.1, max: 30000 }
+      - { key: queueLimit, label: Queue limit, kind: int, default: 1000, min: 0, max: 100000, advanced: true }
+      - { key: costMonth, label: Cost / month, kind: number, default: 200, min: 0, max: 100000, unit: $ }
+skins:
+  - name: elasticsearch
+    type: search-index
+    label: Elasticsearch
+    description: Lucene-based search; 1s refresh by default
+    icon: search
+    tags: [self-hosted, search]
+    defaults: { shards: 5, replicas: 1, refreshMs: 1000, costMonth: 250 }   # source: ES index.refresh_interval default 1s
+  - name: opensearch
+    type: search-index
+    label: OpenSearch
+    description: AWS fork of Elasticsearch
+    icon: brand:aws
+    tags: [aws, managed, search]
+    defaults: { shards: 5, replicas: 1, refreshMs: 1000, costMonth: 280 }
+  - name: prometheus-tsdb
+    type: time-series-db
+    label: Prometheus TSDB
+    description: In-memory head block; cardinality is the enemy
+    icon: chart-line
+    tags: [self-hosted, cncf]
+    defaults: { bytesPerSeries: 4096, retentionDays: 15, costMonth: 150 }   # source: ~3-4KB RAM per active series; retention default 15d
+  - name: influxdb
+    type: time-series-db
+    label: InfluxDB
+    description: Time-series database with tags and fields
+    icon: chart-line
+    tags: [self-hosted]
+    defaults: { bytesPerSeries: 2048, costMonth: 180 }
+  - name: s3
+    type: object-store
+    label: Amazon S3
+    description: Object storage; 3,500 PUT / 5,500 GET rps per prefix
+    icon: brand:aws
+    tags: [aws, managed]
+    defaults: { getRpsPerPrefix: 5500, putRpsPerPrefix: 3500, p50Ms: 15, p99Ms: 80, costMonth: 25 }   # source: S3 performance guidelines (per-prefix rates)
+  - name: gcs
+    type: object-store
+    label: Google Cloud Storage
+    description: Object storage; ramps per-prefix rates gradually
+    icon: archive
+    tags: [gcp, managed]
+    defaults: { getRpsPerPrefix: 5000, putRpsPerPrefix: 1000, p50Ms: 20, p99Ms: 100, costMonth: 25 }   # source: GCS request-rate guidelines (~1000 writes / 5000 reads initial)
+  - name: neo4j
+    type: graph-db
+    label: Neo4j
+    description: Native property-graph database
+    icon: share-2
+    tags: [self-hosted]
+    defaults: { avgDegree: 20, costMonth: 300 }

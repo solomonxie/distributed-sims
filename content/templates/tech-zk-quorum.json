@@ -1,0 +1,126 @@
+{
+  "schemaVersion": 1,
+  "id": "tech-zk-quorum",
+  "name": "ZooKeeper: quorum loss",
+  "description": "The app reads (90%) and writes (10%) through whichever server it is connected to, failing over on timeouts. Writes need a majority; ZooKeeper followers answer reads from their own copy.",
+  "nodes": [
+    {
+      "id": "users",
+      "type": "web-client",
+      "name": "Clients",
+      "pos": {
+        "x": 195,
+        "y": 40
+      },
+      "config": {}
+    },
+    {
+      "id": "app",
+      "type": "zk-app",
+      "skin": "election-app",
+      "name": "app (ZK client)",
+      "pos": {
+        "x": 195,
+        "y": 150
+      },
+      "config": {
+        "elect": false,
+        "opTimeoutMs": 500
+      }
+    },
+    {
+      "id": "zk-1",
+      "type": "zk-server",
+      "skin": "zookeeper-node",
+      "name": "zk-1",
+      "pos": {
+        "x": 90,
+        "y": 300
+      },
+      "config": {},
+      "parent": "ensemble"
+    },
+    {
+      "id": "zk-2",
+      "type": "zk-server",
+      "skin": "zookeeper-node",
+      "name": "zk-2",
+      "pos": {
+        "x": 195,
+        "y": 300
+      },
+      "config": {},
+      "parent": "ensemble"
+    },
+    {
+      "id": "zk-3",
+      "type": "zk-server",
+      "skin": "zookeeper-node",
+      "name": "zk-3",
+      "pos": {
+        "x": 300,
+        "y": 300
+      },
+      "config": {},
+      "parent": "ensemble"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-users-app",
+      "from": "users",
+      "to": "app"
+    },
+    {
+      "id": "e-app-zk-1",
+      "from": "app",
+      "to": "zk-1"
+    },
+    {
+      "id": "e-app-zk-2",
+      "from": "app",
+      "to": "zk-2"
+    },
+    {
+      "id": "e-app-zk-3",
+      "from": "app",
+      "to": "zk-3"
+    }
+  ],
+  "containers": [
+    {
+      "id": "ensemble",
+      "kind": "vpc",
+      "name": "Ensemble"
+    }
+  ],
+  "scenario": {
+    "durationSec": 180,
+    "sources": [
+      {
+        "id": "s1",
+        "node": "users",
+        "shape": {
+          "kind": "constant",
+          "rps": 200
+        },
+        "readRatio": 0.9
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "config.internal",
+    "read": {
+      "path": "/config/flags/{key}",
+      "body": "{\"flag\": \"checkout_v2\", \"enabled\": true, \"version\": {value}}"
+    },
+    "write": {
+      "method": "PUT",
+      "path": "/config/flags/{key}",
+      "reqBody": "{\"enabled\": true}",
+      "status": 200,
+      "body": "{\"version\": {value}}"
+    }
+  }
+}

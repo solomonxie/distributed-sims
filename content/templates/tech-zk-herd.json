@@ -1,0 +1,111 @@
+{
+  "schemaVersion": 1,
+  "id": "tech-zk-herd",
+  "name": "ZooKeeper: herd effect",
+  "description": "One leader and 12 standby processes that all watch the /election parent: every change wakes all of them.",
+  "nodes": [
+    {
+      "id": "zk-1",
+      "type": "zk-server",
+      "skin": "zookeeper-node",
+      "name": "zk-1",
+      "pos": {
+        "x": 90,
+        "y": 360
+      },
+      "config": {},
+      "parent": "ensemble"
+    },
+    {
+      "id": "zk-2",
+      "type": "zk-server",
+      "skin": "zookeeper-node",
+      "name": "zk-2",
+      "pos": {
+        "x": 195,
+        "y": 360
+      },
+      "config": {},
+      "parent": "ensemble"
+    },
+    {
+      "id": "zk-3",
+      "type": "zk-server",
+      "skin": "zookeeper-node",
+      "name": "zk-3",
+      "pos": {
+        "x": 300,
+        "y": 360
+      },
+      "config": {},
+      "parent": "ensemble"
+    },
+    {
+      "id": "leader-app",
+      "type": "zk-app",
+      "skin": "election-app",
+      "name": "leader app",
+      "pos": {
+        "x": 110,
+        "y": 150
+      },
+      "config": {
+        "startDelayMs": 1500,
+        "recipe": "herd"
+      }
+    },
+    {
+      "id": "workers",
+      "type": "zk-app",
+      "skin": "election-app",
+      "name": "standbys",
+      "pos": {
+        "x": 280,
+        "y": 150
+      },
+      "config": {
+        "startDelayMs": 2200,
+        "procs": 12,
+        "recipe": "herd"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-leader-app-zk-1",
+      "from": "leader-app",
+      "to": "zk-1"
+    },
+    {
+      "id": "e-workers-zk-2",
+      "from": "workers",
+      "to": "zk-2"
+    }
+  ],
+  "containers": [
+    {
+      "id": "ensemble",
+      "kind": "vpc",
+      "name": "Ensemble"
+    }
+  ],
+  "scenario": {
+    "durationSec": 180,
+    "sources": [],
+    "events": []
+  },
+  "wire": {
+    "host": "cron.internal",
+    "read": {
+      "path": "/leader",
+      "body": "{\"leader\": \"leader-app\", \"epoch\": {value}}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/election/join",
+      "reqBody": "{\"instance\": \"worker-{key}\"}",
+      "status": 201,
+      "body": "{\"znode\": \"/election/n_00000{key}\"}"
+    }
+  }
+}

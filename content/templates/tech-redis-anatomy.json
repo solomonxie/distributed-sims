@@ -1,0 +1,109 @@
+{
+  "schemaVersion": 1,
+  "id": "tech-redis-anatomy",
+  "name": "Redis: anatomy",
+  "description": "An app sends 20k commands/s to one Redis primary with an async replica. One event-loop thread serves every client.",
+  "nodes": [
+    {
+      "id": "users",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 195,
+        "y": 40
+      }
+    },
+    {
+      "id": "app",
+      "type": "service",
+      "name": "app",
+      "pos": {
+        "x": 195,
+        "y": 160
+      },
+      "config": {
+        "instances": 4,
+        "slots": 256,
+        "p50Ms": 0.2,
+        "p99Ms": 1
+      }
+    },
+    {
+      "id": "redis",
+      "type": "redis-server",
+      "name": "redis primary",
+      "pos": {
+        "x": 110,
+        "y": 290
+      },
+      "skin": "redis-internals"
+    },
+    {
+      "id": "replica",
+      "type": "redis-server",
+      "name": "redis replica",
+      "pos": {
+        "x": 280,
+        "y": 290
+      },
+      "skin": "redis-internals",
+      "config": {
+        "role": "replica"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "users-app",
+      "from": "users",
+      "to": "app"
+    },
+    {
+      "id": "app-redis",
+      "from": "app",
+      "to": "redis",
+      "config": {
+        "timeoutMs": 3000
+      }
+    },
+    {
+      "id": "redis-replica",
+      "from": "redis",
+      "to": "replica",
+      "config": {
+        "mode": "async"
+      }
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 300,
+    "sources": [
+      {
+        "id": "s1",
+        "node": "users",
+        "shape": {
+          "kind": "constant",
+          "rps": 20000
+        },
+        "readRatio": 0.8
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "app.taskboard.io",
+    "read": {
+      "path": "/api/session",
+      "body": "{\"user_id\": {key}, \"boards\": {value}}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/login",
+      "reqBody": "{\"email\": \"u{key}@taskboard.io\"}",
+      "status": 201,
+      "body": "{\"session\": \"{code}\", \"ttl\": 3600}"
+    },
+    "cachePrefix": "sess:"
+  }
+}

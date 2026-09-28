@@ -1,0 +1,13 @@
+{
+  "name": "@dsims/scripts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build-content": "node build-content.mjs",
+    "validate-content": "node validate-content.mjs"
+  },
+  "dependencies": {
+    "yaml": "^2.5.0"
+  }
+}

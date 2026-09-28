@@ -1,0 +1,127 @@
+{
+  "schemaVersion": 1,
+  "id": "lesson-paradigm-gateway",
+  "name": "API gateway",
+  "description": "One Kong instance fronts three services: it routes, checks auth (expired tokens go to the IdP) and is the only way in. Its SPOF badge is the catch: kill it and everything behind it is unreachable, however healthy.",
+  "nodes": [
+    {
+      "id": "web",
+      "type": "web-client",
+      "name": "Clients",
+      "pos": {
+        "x": 195,
+        "y": 20
+      },
+      "skin": "react-spa"
+    },
+    {
+      "id": "gw",
+      "type": "api-gateway",
+      "name": "Kong",
+      "pos": {
+        "x": 195,
+        "y": 140
+      },
+      "skin": "kong",
+      "config": {
+        "instances": 1
+      }
+    },
+    {
+      "id": "idp",
+      "type": "identity-provider",
+      "name": "Auth0",
+      "pos": {
+        "x": 330,
+        "y": 40
+      },
+      "skin": "auth0"
+    },
+    {
+      "id": "users",
+      "type": "service",
+      "name": "Users",
+      "pos": {
+        "x": 60,
+        "y": 290
+      },
+      "skin": "go-service"
+    },
+    {
+      "id": "orders",
+      "type": "service",
+      "name": "Orders",
+      "pos": {
+        "x": 195,
+        "y": 290
+      },
+      "skin": "java-service"
+    },
+    {
+      "id": "catalog",
+      "type": "service",
+      "name": "Catalog",
+      "pos": {
+        "x": 330,
+        "y": 290
+      },
+      "skin": "node-service"
+    }
+  ],
+  "edges": [
+    {
+      "id": "web->gw",
+      "from": "web",
+      "to": "gw"
+    },
+    {
+      "id": "gw->idp",
+      "from": "gw",
+      "to": "idp"
+    },
+    {
+      "id": "gw->users",
+      "from": "gw",
+      "to": "users"
+    },
+    {
+      "id": "gw->orders",
+      "from": "gw",
+      "to": "orders"
+    },
+    {
+      "id": "gw->catalog",
+      "from": "gw",
+      "to": "catalog"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 60,
+    "sources": [
+      {
+        "id": "s",
+        "node": "web",
+        "shape": {
+          "kind": "constant",
+          "rps": 300
+        },
+        "expiredAuth": 0.02
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "api.shop.example",
+    "read": {
+      "path": "/users/{key}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/orders",
+      "reqBody": "{\"user_id\": {key}, \"sku\": \"SKU-{value}\"}",
+      "status": 201,
+      "body": "{\"order_id\": {key}, \"status\": \"placed\"}"
+    }
+  }
+}

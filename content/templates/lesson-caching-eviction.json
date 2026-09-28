@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "id": "lesson-caching-eviction",
+  "name": "Lesson: LRU vs LFU under a scan",
+  "description": "Two Redis caches hold 128 of 1024 keys. Users read a few popular keys (zipf). A batch job then scans the whole keyspace: LRU evicts the popular keys, LFU keeps them.",
+  "nodes": [
+    { "id": "web", "type": "web-client", "name": "Users", "pos": { "x": 90, "y": 60 } },
+    { "id": "batch", "type": "web-client", "name": "Batch scan", "pos": { "x": 300, "y": 60 } },
+    { "id": "api-lru", "type": "service", "name": "API A", "pos": { "x": 90, "y": 180 } },
+    { "id": "api-lfu", "type": "service", "name": "API B", "pos": { "x": 300, "y": 180 } },
+    { "id": "lru", "type": "cache", "skin": "redis", "name": "Redis LRU", "pos": { "x": 90, "y": 300 }, "config": { "capacityKeys": 128, "eviction": "lru", "ttlSec": 0 } },
+    { "id": "lfu", "type": "cache", "skin": "redis", "name": "Redis LFU", "pos": { "x": 300, "y": 300 }, "config": { "capacityKeys": 128, "eviction": "lfu", "ttlSec": 0 } },
+    { "id": "db-lru", "type": "relational-db", "skin": "postgres", "name": "Postgres A", "pos": { "x": 90, "y": 420 }, "config": { "replicas": 0 } },
+    { "id": "db-lfu", "type": "relational-db", "skin": "postgres", "name": "Postgres B", "pos": { "x": 300, "y": 420 }, "config": { "replicas": 0 } }
+  ],
+  "edges": [
+    { "id": "e1", "from": "web", "to": "api-lru", "config": { "ratio": 0.5 } },
+    { "id": "e2", "from": "web", "to": "api-lfu", "config": { "ratio": 0.5 } },
+    { "id": "e3", "from": "batch", "to": "api-lru", "config": { "ratio": 0.5 } },
+    { "id": "e4", "from": "batch", "to": "api-lfu", "config": { "ratio": 0.5 } },
+    { "id": "e5", "from": "api-lru", "to": "lru" },
+    { "id": "e6", "from": "api-lfu", "to": "lfu" },
+    { "id": "e7", "from": "lru", "to": "db-lru" },
+    { "id": "e8", "from": "lfu", "to": "db-lfu" }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 300,
+    "sources": [
+      { "id": "users", "node": "web", "shape": { "kind": "constant", "rps": 600 }, "readRatio": 1, "keys": { "kind": "zipf", "s": 1.2 } },
+      { "id": "scan", "node": "batch", "shape": { "kind": "constant", "rps": 1 }, "readRatio": 1, "keys": { "kind": "uniform" } }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "music.example",
+    "read": {
+      "path": "/api/tracks/{key}"
+    },
+    "write": {
+      "method": "PUT",
+      "path": "/api/tracks/{key}/plays",
+      "reqBody": "{\"plays\": {value}}",
+      "status": 200,
+      "body": "{\"id\": {key}, \"plays\": {value}}"
+    },
+    "table": "tracks",
+    "valCol": "title",
+    "cachePrefix": "track:"
+  }
+}

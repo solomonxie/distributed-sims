@@ -1,0 +1,113 @@
+{
+  "schemaVersion": 1,
+  "id": "lesson-txn-2pc",
+  "name": "Lesson: 2PC happy path",
+  "description": "A checkout coordinator runs two-phase commit over 3 Postgres databases: prepare (lock + vote) on all, then commit on all. Open the sequence view to see each phase.",
+  "nodes": [
+    {
+      "id": "web",
+      "type": "web-client",
+      "name": "Checkout",
+      "pos": {
+        "x": 195,
+        "y": 60
+      }
+    },
+    {
+      "id": "tm",
+      "type": "txn-coordinator",
+      "skin": "2pc-coordinator",
+      "name": "Coordinator",
+      "pos": {
+        "x": 195,
+        "y": 200
+      }
+    },
+    {
+      "id": "orders",
+      "type": "relational-db",
+      "skin": "postgres",
+      "name": "Orders DB",
+      "pos": {
+        "x": 55,
+        "y": 340
+      }
+    },
+    {
+      "id": "payments",
+      "type": "relational-db",
+      "skin": "postgres",
+      "name": "Payments DB",
+      "pos": {
+        "x": 195,
+        "y": 340
+      }
+    },
+    {
+      "id": "stock",
+      "type": "relational-db",
+      "skin": "postgres",
+      "name": "Stock DB",
+      "pos": {
+        "x": 335,
+        "y": 340
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "web",
+      "to": "tm",
+      "config": {
+        "timeoutMs": 3000
+      }
+    },
+    {
+      "id": "e2",
+      "from": "tm",
+      "to": "orders"
+    },
+    {
+      "id": "e3",
+      "from": "tm",
+      "to": "payments"
+    },
+    {
+      "id": "e4",
+      "from": "tm",
+      "to": "stock"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 300,
+    "sources": [
+      {
+        "id": "s1",
+        "node": "web",
+        "shape": {
+          "kind": "constant",
+          "rps": 50
+        },
+        "readRatio": 0
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "shop.example",
+    "read": {
+      "path": "/api/orders/{key}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/checkout",
+      "reqBody": "{\"cart_id\": {key}, \"card\": \"tok_visa\"}",
+      "status": 201,
+      "body": "{\"order_id\": {key}, \"status\": \"committed\"}"
+    },
+    "table": "orders",
+    "valCol": "status"
+  }
+}

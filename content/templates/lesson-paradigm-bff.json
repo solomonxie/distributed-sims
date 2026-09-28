@@ -1,0 +1,155 @@
+{
+  "schemaVersion": 1,
+  "id": "lesson-paradigm-bff",
+  "name": "Backend for frontend",
+  "description": "The mobile BFF calls only what the phone screen needs (profile + feed); the web BFF also pulls recommendations. Each client team owns its BFF, so a slow recommendations service hurts web but not mobile.",
+  "nodes": [
+    {
+      "id": "mob",
+      "type": "mobile-client",
+      "name": "Mobile",
+      "pos": {
+        "x": 100,
+        "y": 20
+      },
+      "skin": "ios-app"
+    },
+    {
+      "id": "web",
+      "type": "web-client",
+      "name": "Web",
+      "pos": {
+        "x": 290,
+        "y": 20
+      },
+      "skin": "react-spa"
+    },
+    {
+      "id": "bffM",
+      "type": "service",
+      "name": "Mobile BFF",
+      "pos": {
+        "x": 100,
+        "y": 140
+      },
+      "skin": "node-service"
+    },
+    {
+      "id": "bffW",
+      "type": "service",
+      "name": "Web BFF",
+      "pos": {
+        "x": 290,
+        "y": 140
+      },
+      "skin": "node-service"
+    },
+    {
+      "id": "users",
+      "type": "service",
+      "name": "Profile",
+      "pos": {
+        "x": 60,
+        "y": 290
+      },
+      "skin": "go-service"
+    },
+    {
+      "id": "feed",
+      "type": "service",
+      "name": "Feed",
+      "pos": {
+        "x": 195,
+        "y": 290
+      },
+      "skin": "go-service"
+    },
+    {
+      "id": "recs",
+      "type": "service",
+      "name": "Recommendations",
+      "pos": {
+        "x": 330,
+        "y": 290
+      },
+      "skin": "java-service"
+    }
+  ],
+  "edges": [
+    {
+      "id": "mob->bffM",
+      "from": "mob",
+      "to": "bffM"
+    },
+    {
+      "id": "web->bffW",
+      "from": "web",
+      "to": "bffW"
+    },
+    {
+      "id": "bffM->users",
+      "from": "bffM",
+      "to": "users"
+    },
+    {
+      "id": "bffM->feed",
+      "from": "bffM",
+      "to": "feed"
+    },
+    {
+      "id": "bffW->users",
+      "from": "bffW",
+      "to": "users"
+    },
+    {
+      "id": "bffW->feed",
+      "from": "bffW",
+      "to": "feed"
+    },
+    {
+      "id": "bffW->recs",
+      "from": "bffW",
+      "to": "recs",
+      "config": {
+        "timeoutMs": 3000
+      }
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 60,
+    "sources": [
+      {
+        "id": "sm",
+        "node": "mob",
+        "shape": {
+          "kind": "constant",
+          "rps": 200
+        }
+      },
+      {
+        "id": "sw",
+        "node": "web",
+        "shape": {
+          "kind": "constant",
+          "rps": 200
+        }
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "m.social.example",
+    "read": {
+      "path": "/bff/home?user={key}",
+      "body": "{\"profile\": {\"id\": {key}}, \"feed\": [ … ]}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/bff/posts",
+      "reqBody": "{\"text\": \"hello #{value}\"}",
+      "status": 201,
+      "body": "{\"post_id\": {key}}"
+    }
+  }
+}

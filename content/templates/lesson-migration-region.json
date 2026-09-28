@@ -1,0 +1,190 @@
+{
+  "schemaVersion": 1,
+  "id": "lesson-migration-region",
+  "name": "Region move",
+  "description": "The app runs in us-east-1, and us-west-2 already has a replicated copy. DNS (failover, TTL 20s) points at the old region. Take the old load balancer out: health checks notice in ~4s, but anything that cached the old answer keeps going there until the TTL runs out.",
+  "nodes": [
+    {
+      "id": "users",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 195,
+        "y": 40
+      }
+    },
+    {
+      "id": "dns",
+      "type": "dns",
+      "name": "DNS · TTL 20s",
+      "pos": {
+        "x": 195,
+        "y": 160
+      },
+      "skin": "route53",
+      "config": {
+        "routing": "failover",
+        "ttlSec": 20,
+        "healthIntervalMs": 2000,
+        "unhealthyThreshold": 2
+      }
+    },
+    {
+      "id": "lb-old",
+      "type": "load-balancer",
+      "name": "LB (old)",
+      "pos": {
+        "x": 85,
+        "y": 300
+      },
+      "skin": "aws-alb",
+      "parent": "east"
+    },
+    {
+      "id": "app-old",
+      "type": "service",
+      "name": "App",
+      "pos": {
+        "x": 85,
+        "y": 420
+      },
+      "parent": "east",
+      "config": {
+        "instances": 2
+      }
+    },
+    {
+      "id": "db-old",
+      "type": "relational-db",
+      "name": "DB",
+      "pos": {
+        "x": 85,
+        "y": 540
+      },
+      "skin": "postgres",
+      "parent": "east"
+    },
+    {
+      "id": "lb-new",
+      "type": "load-balancer",
+      "name": "LB (new)",
+      "pos": {
+        "x": 305,
+        "y": 300
+      },
+      "skin": "aws-alb",
+      "parent": "west"
+    },
+    {
+      "id": "app-new",
+      "type": "service",
+      "name": "App",
+      "pos": {
+        "x": 305,
+        "y": 420
+      },
+      "parent": "west",
+      "config": {
+        "instances": 2
+      }
+    },
+    {
+      "id": "db-new",
+      "type": "relational-db",
+      "name": "DB (replica)",
+      "pos": {
+        "x": 305,
+        "y": 540
+      },
+      "skin": "postgres",
+      "parent": "west"
+    }
+  ],
+  "edges": [
+    {
+      "id": "users->dns",
+      "from": "users",
+      "to": "dns",
+      "config": {
+        "timeoutMs": 3000
+      }
+    },
+    {
+      "id": "dns->lb-old",
+      "from": "dns",
+      "to": "lb-old",
+      "config": {
+        "timeoutMs": 1000
+      }
+    },
+    {
+      "id": "dns->lb-new",
+      "from": "dns",
+      "to": "lb-new",
+      "config": {
+        "timeoutMs": 1000
+      }
+    },
+    {
+      "id": "lb-old->app-old",
+      "from": "lb-old",
+      "to": "app-old"
+    },
+    {
+      "id": "app-old->db-old",
+      "from": "app-old",
+      "to": "db-old"
+    },
+    {
+      "id": "lb-new->app-new",
+      "from": "lb-new",
+      "to": "app-new"
+    },
+    {
+      "id": "app-new->db-new",
+      "from": "app-new",
+      "to": "db-new"
+    }
+  ],
+  "containers": [
+    {
+      "id": "east",
+      "kind": "region",
+      "name": "us-east-1"
+    },
+    {
+      "id": "west",
+      "kind": "region",
+      "name": "us-west-2"
+    }
+  ],
+  "scenario": {
+    "durationSec": 150,
+    "sources": [
+      {
+        "id": "s1",
+        "node": "users",
+        "shape": {
+          "kind": "constant",
+          "rps": 150
+        }
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "app.example.com",
+    "read": {
+      "path": "/api/projects/{key}"
+    },
+    "write": {
+      "method": "PUT",
+      "path": "/api/projects/{key}",
+      "reqBody": "{\"name\": \"Project {value}\"}",
+      "status": 200,
+      "body": "{\"id\": {key}, \"updated\": true}"
+    },
+    "table": "projects",
+    "valCol": "name"
+  }
+}

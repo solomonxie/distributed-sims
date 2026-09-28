@@ -1,0 +1,187 @@
+{
+  "schemaVersion": 1,
+  "id": "tech-es-aggregation",
+  "name": "Elasticsearch: heavy aggregations",
+  "description": "An app runs cheap match queries. A Kibana dashboard with a big terms aggregation shares the same coordinating and data nodes.",
+  "nodes": [
+    {
+      "id": "users",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 100,
+        "y": 10
+      },
+      "config": {}
+    },
+    {
+      "id": "kibana",
+      "type": "web-client",
+      "name": "Analysts",
+      "pos": {
+        "x": 290,
+        "y": 10
+      },
+      "config": {}
+    },
+    {
+      "id": "app",
+      "type": "es-app",
+      "name": "app (search)",
+      "pos": {
+        "x": 100,
+        "y": 80
+      },
+      "config": {}
+    },
+    {
+      "id": "dash",
+      "type": "es-app",
+      "name": "Kibana dashboard",
+      "pos": {
+        "x": 290,
+        "y": 80
+      },
+      "config": {
+        "query": "terms-agg"
+      }
+    },
+    {
+      "id": "coord",
+      "type": "es-coord",
+      "name": "coordinating",
+      "pos": {
+        "x": 195,
+        "y": 170
+      },
+      "config": {}
+    },
+    {
+      "id": "m1",
+      "type": "es-master",
+      "name": "master-1",
+      "pos": {
+        "x": 70,
+        "y": 290
+      },
+      "config": {}
+    },
+    {
+      "id": "d1",
+      "type": "es-data",
+      "name": "data-1",
+      "pos": {
+        "x": 70,
+        "y": 420
+      },
+      "config": {}
+    },
+    {
+      "id": "d2",
+      "type": "es-data",
+      "name": "data-2",
+      "pos": {
+        "x": 195,
+        "y": 420
+      },
+      "config": {}
+    },
+    {
+      "id": "d3",
+      "type": "es-data",
+      "name": "data-3",
+      "pos": {
+        "x": 320,
+        "y": 420
+      },
+      "config": {}
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-users-app",
+      "from": "users",
+      "to": "app"
+    },
+    {
+      "id": "e-kibana-dash",
+      "from": "kibana",
+      "to": "dash"
+    },
+    {
+      "id": "e-app-coord",
+      "from": "app",
+      "to": "coord"
+    },
+    {
+      "id": "e-dash-coord",
+      "from": "dash",
+      "to": "coord"
+    },
+    {
+      "id": "e-coord-d1",
+      "from": "coord",
+      "to": "d1",
+      "config": {
+        "timeoutMs": 1000
+      }
+    },
+    {
+      "id": "e-coord-d2",
+      "from": "coord",
+      "to": "d2",
+      "config": {
+        "timeoutMs": 1000
+      }
+    },
+    {
+      "id": "e-coord-d3",
+      "from": "coord",
+      "to": "d3",
+      "config": {
+        "timeoutMs": 1000
+      }
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 120,
+    "sources": [
+      {
+        "id": "s-users",
+        "node": "users",
+        "shape": {
+          "kind": "constant",
+          "rps": 400
+        },
+        "readRatio": 1.0
+      },
+      {
+        "id": "s-kibana",
+        "node": "kibana",
+        "shape": {
+          "kind": "constant",
+          "rps": 0
+        },
+        "readRatio": 1.0
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "jobs.example.com",
+    "read": {
+      "method": "GET",
+      "path": "/api/jobs/search?q=engineer&page={key}",
+      "status": 200,
+      "body": "{\"total\": 1284, \"hits\": [{\"id\": {key}}]}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/jobs",
+      "reqBody": "{\"title\": \"Backend Engineer\", \"salary_k\": {value}}",
+      "status": 201,
+      "body": "{\"id\": {key}}"
+    }
+  }
+}

@@ -1,0 +1,140 @@
+{
+  "schemaVersion": 1,
+  "id": "lesson-network-splitbrain",
+  "name": "Partitions & split brain",
+  "description": "Two primary/replica databases with automatic failover. A partition cuts the failover monitor off from the primary, but clients can still reach it (an asymmetric partition), so a replica gets promoted and there are now two primaries. Left: async replication, so both sides accept writes and diverge. Right: synchronous replication, so the cut-off side cannot get acks and refuses writes.",
+  "nodes": [
+    {
+      "id": "users-a",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 75,
+        "y": 60
+      }
+    },
+    {
+      "id": "app-a",
+      "type": "service",
+      "name": "App",
+      "pos": {
+        "x": 75,
+        "y": 200
+      }
+    },
+    {
+      "id": "db-async",
+      "type": "relational-db",
+      "name": "DB · async",
+      "pos": {
+        "x": 75,
+        "y": 340
+      },
+      "skin": "mysql",
+      "config": {
+        "replication": "async",
+        "replicas": 2
+      }
+    },
+    {
+      "id": "users-b",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 315,
+        "y": 60
+      }
+    },
+    {
+      "id": "app-b",
+      "type": "service",
+      "name": "App",
+      "pos": {
+        "x": 315,
+        "y": 200
+      }
+    },
+    {
+      "id": "db-sync",
+      "type": "relational-db",
+      "name": "DB · sync",
+      "pos": {
+        "x": 315,
+        "y": 340
+      },
+      "skin": "postgres",
+      "config": {
+        "replication": "sync",
+        "replicas": 2
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "users-a->app-a",
+      "from": "users-a",
+      "to": "app-a",
+      "config": {
+        "timeoutMs": 3000
+      }
+    },
+    {
+      "id": "app-a->db-async",
+      "from": "app-a",
+      "to": "db-async"
+    },
+    {
+      "id": "users-b->app-b",
+      "from": "users-b",
+      "to": "app-b",
+      "config": {
+        "timeoutMs": 3000
+      }
+    },
+    {
+      "id": "app-b->db-sync",
+      "from": "app-b",
+      "to": "db-sync"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 120,
+    "sources": [
+      {
+        "id": "s1",
+        "node": "users-a",
+        "shape": {
+          "kind": "constant",
+          "rps": 200
+        },
+        "readRatio": 0.5
+      },
+      {
+        "id": "s2",
+        "node": "users-b",
+        "shape": {
+          "kind": "constant",
+          "rps": 200
+        },
+        "readRatio": 0.5
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "bank.example",
+    "read": {
+      "path": "/api/accounts/{key}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/accounts/{key}/transfers",
+      "reqBody": "{\"to\": 42, \"amount_cents\": {value}}",
+      "status": 201,
+      "body": "{\"transfer_id\": {key}, \"status\": \"done\"}"
+    },
+    "table": "accounts",
+    "valCol": "balance_cents"
+  }
+}

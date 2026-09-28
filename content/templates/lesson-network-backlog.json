@@ -1,0 +1,162 @@
+{
+  "schemaVersion": 1,
+  "id": "lesson-network-backlog",
+  "name": "Socket accept queue",
+  "description": "Three servers, each with 8 worker threads. Connections the workers can't take yet wait in the listen backlog (accept queue). Left: backlog 16. Middle: backlog 1024. Right: backlog 16 but 3 instances. When the backlog is full the kernel drops the SYN and the client resends it after 1s, then 2s more.",
+  "nodes": [
+    {
+      "id": "users-a",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 25,
+        "y": 60
+      }
+    },
+    {
+      "id": "srv-a",
+      "type": "service",
+      "name": "Backlog 16",
+      "pos": {
+        "x": 25,
+        "y": 200
+      },
+      "config": {
+        "instances": 1,
+        "slots": 8,
+        "p50Ms": 20,
+        "p99Ms": 40,
+        "queueLimit": 16
+      }
+    },
+    {
+      "id": "users-b",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 195,
+        "y": 60
+      }
+    },
+    {
+      "id": "srv-b",
+      "type": "service",
+      "name": "Backlog 1024",
+      "pos": {
+        "x": 195,
+        "y": 200
+      },
+      "config": {
+        "instances": 1,
+        "slots": 8,
+        "p50Ms": 20,
+        "p99Ms": 40,
+        "queueLimit": 1024
+      }
+    },
+    {
+      "id": "users-c",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 365,
+        "y": 60
+      }
+    },
+    {
+      "id": "srv-c",
+      "type": "service",
+      "name": "Backlog 16 ×3",
+      "pos": {
+        "x": 365,
+        "y": 200
+      },
+      "config": {
+        "instances": 3,
+        "slots": 8,
+        "p50Ms": 20,
+        "p99Ms": 40,
+        "queueLimit": 16
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "users-a->srv-a",
+      "from": "users-a",
+      "to": "srv-a",
+      "config": {
+        "timeoutMs": 5000,
+        "retries": 2,
+        "backoffMs": 1000,
+        "jitter": false
+      }
+    },
+    {
+      "id": "users-b->srv-b",
+      "from": "users-b",
+      "to": "srv-b",
+      "config": {
+        "timeoutMs": 5000,
+        "retries": 2,
+        "backoffMs": 1000,
+        "jitter": false
+      }
+    },
+    {
+      "id": "users-c->srv-c",
+      "from": "users-c",
+      "to": "srv-c",
+      "config": {
+        "timeoutMs": 5000,
+        "retries": 2,
+        "backoffMs": 1000,
+        "jitter": false
+      }
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 120,
+    "sources": [
+      {
+        "id": "s1",
+        "node": "users-a",
+        "shape": {
+          "kind": "constant",
+          "rps": 200
+        }
+      },
+      {
+        "id": "s2",
+        "node": "users-b",
+        "shape": {
+          "kind": "constant",
+          "rps": 200
+        }
+      },
+      {
+        "id": "s3",
+        "node": "users-c",
+        "shape": {
+          "kind": "constant",
+          "rps": 200
+        }
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "shop.example",
+    "read": {
+      "path": "/api/orders/{key}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/orders",
+      "reqBody": "{\"sku\": {key}, \"qty\": 1}",
+      "status": 201,
+      "body": "{\"order_id\": {value}}"
+    }
+  }
+}

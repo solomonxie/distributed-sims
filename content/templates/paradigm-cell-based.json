@@ -1,0 +1,195 @@
+{
+  "schemaVersion": 1,
+  "id": "paradigm-cell-based",
+  "name": "Cell-based architecture",
+  "description": "Each cell is a full copy of the stack; the router pins every tenant to one cell by hash. At 20 s cell A goes down: only its tenants fail (blast radius ~33% on the router), the rest never notice. Turn on router failover to trade blast radius for spill-over load.",
+  "nodes": [
+    {
+      "id": "web",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 195,
+        "y": 20
+      }
+    },
+    {
+      "id": "router",
+      "type": "cell-router",
+      "name": "Cell router",
+      "pos": {
+        "x": 195,
+        "y": 140
+      },
+      "skin": "cell-router"
+    },
+    {
+      "id": "api-a",
+      "type": "service",
+      "name": "API A",
+      "pos": {
+        "x": 55,
+        "y": 300
+      },
+      "parent": "cell-a"
+    },
+    {
+      "id": "db-a",
+      "type": "relational-db",
+      "name": "DB A",
+      "pos": {
+        "x": 55,
+        "y": 440
+      },
+      "skin": "postgres",
+      "parent": "cell-a"
+    },
+    {
+      "id": "api-b",
+      "type": "service",
+      "name": "API B",
+      "pos": {
+        "x": 195,
+        "y": 300
+      },
+      "parent": "cell-b"
+    },
+    {
+      "id": "db-b",
+      "type": "relational-db",
+      "name": "DB B",
+      "pos": {
+        "x": 195,
+        "y": 440
+      },
+      "skin": "postgres",
+      "parent": "cell-b"
+    },
+    {
+      "id": "api-c",
+      "type": "service",
+      "name": "API C",
+      "pos": {
+        "x": 335,
+        "y": 300
+      },
+      "parent": "cell-c"
+    },
+    {
+      "id": "db-c",
+      "type": "relational-db",
+      "name": "DB C",
+      "pos": {
+        "x": 335,
+        "y": 440
+      },
+      "skin": "postgres",
+      "parent": "cell-c"
+    }
+  ],
+  "edges": [
+    {
+      "id": "web->router",
+      "from": "web",
+      "to": "router"
+    },
+    {
+      "id": "router->api-a",
+      "from": "router",
+      "to": "api-a"
+    },
+    {
+      "id": "api-a->db-a",
+      "from": "api-a",
+      "to": "db-a"
+    },
+    {
+      "id": "router->api-b",
+      "from": "router",
+      "to": "api-b"
+    },
+    {
+      "id": "api-b->db-b",
+      "from": "api-b",
+      "to": "db-b"
+    },
+    {
+      "id": "router->api-c",
+      "from": "router",
+      "to": "api-c"
+    },
+    {
+      "id": "api-c->db-c",
+      "from": "api-c",
+      "to": "db-c"
+    }
+  ],
+  "containers": [
+    {
+      "id": "cell-a",
+      "kind": "cell",
+      "name": "Cell A"
+    },
+    {
+      "id": "cell-b",
+      "kind": "cell",
+      "name": "Cell B"
+    },
+    {
+      "id": "cell-c",
+      "kind": "cell",
+      "name": "Cell C"
+    }
+  ],
+  "scenario": {
+    "durationSec": 60,
+    "sources": [
+      {
+        "id": "s1",
+        "node": "web",
+        "shape": {
+          "kind": "constant",
+          "rps": 300
+        },
+        "tenants": {
+          "acme": 1,
+          "globex": 1,
+          "initech": 1,
+          "umbrella": 1,
+          "hooli": 1,
+          "stark": 1,
+          "wayne": 1,
+          "wonka": 1,
+          "tyrell": 1
+        }
+      }
+    ],
+    "events": [
+      {
+        "atSec": 20,
+        "event": {
+          "kind": "cell-down",
+          "target": "cell-a",
+          "durationSec": 20
+        }
+      }
+    ]
+  },
+  "wire": {
+    "host": "app.saas.io",
+    "read": {
+      "method": "GET",
+      "path": "/api/workspaces/{key}/projects",
+      "body": "{\"workspace\": {key}, \"cell\": \"b\", \"projects\": 12}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/workspaces/{key}/projects",
+      "reqBody": "{\"name\": \"Q3 plan\"}",
+      "status": 201,
+      "body": "{\"id\": {key}, \"cell\": \"b\"}"
+    },
+    "table": "projects",
+    "valCol": "name"
+  }
+}

@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "id": "consensus-raft-5",
+  "name": "Raft: 5-member etcd",
+  "description": "An API writes and reads through 5 etcd members. Kill the leader at 20s and watch the election; at 40s Zone B is cut off: the minority can't commit, and after the heal it catches up. Open the sequence view to see RequestVote / AppendEntries.",
+  "nodes": [
+    { "id": "web", "type": "web-client", "name": "Clients", "pos": { "x": 195, "y": 40 } },
+    { "id": "api", "type": "service", "name": "Config API", "pos": { "x": 195, "y": 170 }, "config": { "fanout": "one" } },
+    { "id": "etcd-1", "type": "consensus-member", "skin": "etcd", "name": "etcd-1", "parent": "az-a", "pos": { "x": 55, "y": 320 } },
+    { "id": "etcd-2", "type": "consensus-member", "skin": "etcd", "name": "etcd-2", "parent": "az-a", "pos": { "x": 195, "y": 320 } },
+    { "id": "etcd-3", "type": "consensus-member", "skin": "etcd", "name": "etcd-3", "parent": "az-a", "pos": { "x": 335, "y": 320 } },
+    { "id": "etcd-4", "type": "consensus-member", "skin": "etcd", "name": "etcd-4", "parent": "az-b", "pos": { "x": 125, "y": 480 } },
+    { "id": "etcd-5", "type": "consensus-member", "skin": "etcd", "name": "etcd-5", "parent": "az-b", "pos": { "x": 265, "y": 480 } }
+  ],
+  "edges": [
+    { "id": "e0", "from": "web", "to": "api", "config": { "timeoutMs": 5000 } },
+    { "id": "e1", "from": "api", "to": "etcd-1", "config": { "timeoutMs": 3000 } },
+    { "id": "e2", "from": "api", "to": "etcd-2", "config": { "timeoutMs": 3000 } },
+    { "id": "e3", "from": "api", "to": "etcd-3", "config": { "timeoutMs": 3000 } },
+    { "id": "e4", "from": "api", "to": "etcd-4", "config": { "timeoutMs": 3000 } },
+    { "id": "e5", "from": "api", "to": "etcd-5", "config": { "timeoutMs": 3000 } }
+  ],
+  "containers": [
+    { "id": "az-a", "kind": "availability-zone", "name": "Zone A", "config": { "zone": "a" } },
+    { "id": "az-b", "kind": "availability-zone", "name": "Zone B", "config": { "zone": "b" } }
+  ],
+  "scenario": {
+    "durationSec": 70,
+    "sources": [{ "id": "s1", "node": "web", "shape": { "kind": "constant", "rps": 100 }, "readRatio": 0.5 }],
+    "events": [
+      { "atSec": 20, "event": { "kind": "kill-leader", "target": "etcd-1", "durationSec": 10 } },
+      { "atSec": 40, "event": { "kind": "partition", "target": "az-a", "target2": "az-b", "durationSec": 12 } }
+    ]
+  },
+  "wire": {
+    "host": "config.internal",
+    "read": {
+      "method": "GET",
+      "path": "/v1/config/flags/{key}",
+      "body": "{\"key\": \"flags/{key}\", \"value\": {value}, \"revision\": 812}"
+    },
+    "write": {
+      "method": "PUT",
+      "path": "/v1/config/flags/{key}",
+      "reqBody": "{\"value\": {value}}",
+      "status": 200,
+      "body": "{\"revision\": 813}"
+    }
+  }
+}

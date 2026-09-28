@@ -1,0 +1,65 @@
+group: { id: tech, label: Under the hood, order: 14 }
+# Redis Cluster (deep) (technologies.md v1.1): 16384 hash slots, primaries + replicas, gossip bus,
+# MOVED / ASK redirects, live resharding. Protocol kinds: cluster.* (PING/PONG, FAIL, AUTH, SLOTS, MIGRATE), redis.*.
+types:
+  - type: redis-cluster-node
+    label: Redis Cluster node
+    description: Primary owning a set of the 16384 hash slots, or an async replica of one; gossips over the cluster bus and fails over by election
+    icon: database
+    costPerInstanceMonth: 120
+    knobs:
+      - { key: role, label: Role, kind: enum, default: primary, options: [primary, replica] }
+      - { key: slotRange, label: Slots, kind: string, default: "", help: "Primary only, e.g. 0-5460 (comma list of ranges)" }
+      - { key: replicaOf, label: Replica of, kind: string, default: "", help: Replica only — the primary's node id }
+      - { key: nodeTimeoutMs, label: cluster-node-timeout, kind: ms, default: 3000, min: 200, max: 120000, help: "No PONG this long → PFAIL (real default 15s; scaled down)" }
+      - { key: requireFullCoverage, label: Require full coverage, kind: bool, default: true, help: "Refuse all queries while any slot's primary is FAIL" }
+      - { key: execUs, label: Command time, kind: number, default: 20, min: 0.1, max: 100000, unit: µs, help: Single event-loop thread per node }
+      - { key: replLagMs, label: Replication interval, kind: ms, default: 100, min: 1, max: 60000, advanced: true, help: Async replication; writes inside this window are lost if the primary dies }
+      - { key: pingMs, label: Gossip interval, kind: ms, default: 100, min: 10, max: 10000, advanced: true }
+      - { key: queueLimit, label: Queue limit, kind: int, default: 1000, min: 1, max: 1000000, advanced: true }
+      - { key: costMonth, label: Cost / month, kind: number, default: 120, min: 0, max: 100000, unit: $ }
+  - type: redis-cluster-client
+    label: Redis Cluster client
+    description: Smart client (Lettuce, redis-py cluster) that caches the slot map and follows MOVED / ASK redirects
+    icon: plug
+    costPerInstanceMonth: 0
+    knobs:
+      - { key: multiKeyPct, label: Multi-key commands, kind: percent, default: 0, min: 0, max: 100, help: "Share of requests doing MGET/MSET of user:N:cart + user:N:profile" }
+      - { key: hashTags, label: Hash tags, kind: bool, default: false, help: "{user:N}:cart — only the {…} part is hashed, so related keys share a slot" }
+      - { key: timeoutMs, label: Command timeout, kind: ms, default: 500, min: 10, max: 60000 }
+      - { key: slots, label: Slots, kind: int, default: 256, min: 1, max: 100000, advanced: true }
+      - { key: p50Ms, label: Client p50, kind: ms, default: 0.2, min: 0.01, max: 1000, advanced: true }
+      - { key: p99Ms, label: Client p99, kind: ms, default: 1, min: 0.01, max: 5000, advanced: true }
+      - { key: costMonth, label: Cost / month, kind: number, default: 0, min: 0, max: 100000, unit: $, advanced: true }
+skins:
+  - { name: redis-cluster-primary, type: redis-cluster-node, label: Redis Cluster primary, description: Primary owning a slot range, icon: brand:redis, tags: [redis, cluster], defaults: { role: primary } }
+  - { name: redis-cluster-replica, type: redis-cluster-node, label: Redis Cluster replica, description: Async replica; promoted by election if its primary fails, icon: brand:redis, tags: [redis, cluster], defaults: { role: replica } }
+  - { name: redis-cluster-lettuce, type: redis-cluster-client, label: Cluster client (Lettuce), description: Smart client with a cached slot map, icon: plug, tags: [redis, cluster, java], defaults: {} }
+  - name: redis-cluster
+    type: redis-cluster-client
+    label: Redis Cluster
+    description: 3 primaries × 1 replica over 16384 hash slots, gossip + automatic failover (tap ⤢ to drill in)
+    icon: brand:redis
+    tags: [redis, cluster, composite]
+    defaults: {}
+    ports: { in: client }
+    internals:
+      schemaVersion: 1
+      id: redis-cluster-internals
+      name: Redis Cluster internals
+      nodes:
+        - { id: client, type: redis-cluster-client, skin: redis-cluster-lettuce, name: cluster client, pos: { x: 195, y: 30 } }
+        - { id: rc1, type: redis-cluster-node, skin: redis-cluster-primary, name: rc-1, pos: { x: 55, y: 150 }, config: { slotRange: "0-5460" } }
+        - { id: rc2, type: redis-cluster-node, skin: redis-cluster-primary, name: rc-2, pos: { x: 195, y: 150 }, config: { slotRange: "5461-10922" } }
+        - { id: rc3, type: redis-cluster-node, skin: redis-cluster-primary, name: rc-3, pos: { x: 335, y: 150 }, config: { slotRange: "10923-16383" } }
+        - { id: rc4, type: redis-cluster-node, skin: redis-cluster-replica, name: rc-4, pos: { x: 55, y: 270 }, config: { replicaOf: rc1 } }
+        - { id: rc5, type: redis-cluster-node, skin: redis-cluster-replica, name: rc-5, pos: { x: 195, y: 270 }, config: { replicaOf: rc2 } }
+        - { id: rc6, type: redis-cluster-node, skin: redis-cluster-replica, name: rc-6, pos: { x: 335, y: 270 }, config: { replicaOf: rc3 } }
+      edges:
+        - { id: c1, from: client, to: rc1 }
+        - { id: c2, from: client, to: rc2 }
+        - { id: c3, from: client, to: rc3 }
+        - { id: r1, from: rc1, to: rc4, config: { mode: async } }
+        - { id: r2, from: rc2, to: rc5, config: { mode: async } }
+        - { id: r3, from: rc3, to: rc6, config: { mode: async } }
+      containers: []

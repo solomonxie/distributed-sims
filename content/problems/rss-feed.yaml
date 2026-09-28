@@ -1,0 +1,50 @@
+id: rss-feed
+title: RSS news feed
+icon: rss
+category: classic
+order: 3
+summary: Poll 50k feeds politely and serve merged timelines fast.
+requirements:
+  - Poll each subscribed feed every ~15 min; dedupe items by GUID
+  - Timeline = newest items across a user's subscriptions
+  - Never exceed a publisher's crawl budget (they block you)
+  - 50k feeds · 5M readers · 20 subscriptions each
+  - Timeline p99 < 300ms · 99.9% available
+estimates:
+  - Fetches 50k / 900s ≈ 55/s, all due at once on the hour
+  - Reads ~3k/s, heavily skewed to popular feeds
+  - Items 50k × 20/day × 2 KB ≈ 2 GB/day
+designs:
+  - { id: v1, title: "Naive: fetch everything now, merge in SQL", template: problem-rss-feed-v1 }
+  - { id: v2, title: "Reference: fetch queue, bounded crawlers, cache", template: problem-rss-feed-v2 }
+challenges:
+  - id: top-of-hour
+    title: "50k feeds due at once, polite crawl rate"
+    template: problem-rss-feed-v2
+    scenario:
+      durationSec: 60
+      sources:
+        - { id: readers, node: users, shape: { kind: constant, rps: 3000 }, readRatio: 1, keys: { kind: zipf, s: 1.1 } }
+        - { id: due-feeds, node: scheduler, shape: { kind: constant, rps: 60 }, readRatio: 0, keys: { kind: uniform } }
+      events: [{ atSec: 30, event: { kind: traffic, source: due-feeds, action: burst, params: { x: 10 }, durationSec: 30 } }]
+    pass:
+      - { metric: availability, op: '>=', value: 99.9 }
+      - { metric: p99, op: '<', value: 300 }
+  - id: morning-read
+    title: "Morning read spike 4×"
+    template: problem-rss-feed-v2
+    scenario:
+      durationSec: 60
+      sources:
+        - { id: readers, node: users, shape: { kind: constant, rps: 3000 }, readRatio: 1, keys: { kind: zipf, s: 1.1 } }
+        - { id: due-feeds, node: scheduler, shape: { kind: constant, rps: 60 }, readRatio: 0, keys: { kind: uniform } }
+      events: [{ atSec: 20, event: { kind: traffic, source: readers, action: ramp, params: { x: 4 }, durationSec: 20 } }]
+    pass:
+      - { metric: p99, op: '<', value: 300 }
+      - { metric: availability, op: '>=', value: 99.9 }
+      - { metric: costMonth, op: '<=', value: 1500 }
+keyIdeas:
+  - { label: Fetch frontier as a queue, link: "lesson:message-queue/consumer-lag" }
+  - { label: Politeness = bounded crawl rate, link: "algo:token-bucket" }
+  - { label: Dedupe items by GUID, link: "algo:bloom-filter" }
+  - { label: Fan-out on read + cache hot feeds, link: "lesson:caching/cache-aside" }

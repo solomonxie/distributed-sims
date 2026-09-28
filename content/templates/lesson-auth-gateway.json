@@ -1,0 +1,268 @@
+{
+  "schemaVersion": 1,
+  "id": "lesson-auth-gateway",
+  "name": "Auth at the gateway vs in every service",
+  "description": "Left: the gateway validates the session once and the services trust it. Right: every service re-validates with the IdP, so one user request costs three IdP lookups and three extra hops of latency.",
+  "nodes": [
+    {
+      "id": "web",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 100,
+        "y": 20
+      },
+      "skin": "react-spa"
+    },
+    {
+      "id": "gw",
+      "type": "auth-middleware",
+      "name": "Gateway auth",
+      "pos": {
+        "x": 100,
+        "y": 110
+      },
+      "skin": "oauth2-proxy",
+      "config": {
+        "authMode": "session"
+      }
+    },
+    {
+      "id": "a",
+      "type": "service",
+      "name": "Orders",
+      "pos": {
+        "x": 100,
+        "y": 200
+      }
+    },
+    {
+      "id": "b",
+      "type": "service",
+      "name": "Billing",
+      "pos": {
+        "x": 100,
+        "y": 290
+      }
+    },
+    {
+      "id": "c",
+      "type": "service",
+      "name": "Ledger",
+      "pos": {
+        "x": 100,
+        "y": 380
+      }
+    },
+    {
+      "id": "idp",
+      "type": "identity-provider",
+      "name": "IdP",
+      "pos": {
+        "x": 100,
+        "y": 480
+      },
+      "skin": "keycloak",
+      "config": {
+        "mode": "session"
+      }
+    },
+    {
+      "id": "web2",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 290,
+        "y": 20
+      },
+      "skin": "react-spa"
+    },
+    {
+      "id": "au1",
+      "type": "auth-middleware",
+      "name": "Orders auth",
+      "pos": {
+        "x": 290,
+        "y": 110
+      },
+      "skin": "oauth2-proxy",
+      "config": {
+        "authMode": "session"
+      }
+    },
+    {
+      "id": "a2",
+      "type": "service",
+      "name": "Orders",
+      "pos": {
+        "x": 290,
+        "y": 170
+      }
+    },
+    {
+      "id": "au2",
+      "type": "auth-middleware",
+      "name": "Billing auth",
+      "pos": {
+        "x": 290,
+        "y": 230
+      },
+      "skin": "oauth2-proxy",
+      "config": {
+        "authMode": "session"
+      }
+    },
+    {
+      "id": "b2",
+      "type": "service",
+      "name": "Billing",
+      "pos": {
+        "x": 290,
+        "y": 290
+      }
+    },
+    {
+      "id": "au3",
+      "type": "auth-middleware",
+      "name": "Ledger auth",
+      "pos": {
+        "x": 290,
+        "y": 350
+      },
+      "skin": "oauth2-proxy",
+      "config": {
+        "authMode": "session"
+      }
+    },
+    {
+      "id": "c2",
+      "type": "service",
+      "name": "Ledger",
+      "pos": {
+        "x": 290,
+        "y": 410
+      }
+    },
+    {
+      "id": "idp2",
+      "type": "identity-provider",
+      "name": "IdP",
+      "pos": {
+        "x": 290,
+        "y": 480
+      },
+      "skin": "keycloak",
+      "config": {
+        "mode": "session"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "web->gw",
+      "from": "web",
+      "to": "gw"
+    },
+    {
+      "id": "gw->idp",
+      "from": "gw",
+      "to": "idp"
+    },
+    {
+      "id": "gw->a",
+      "from": "gw",
+      "to": "a"
+    },
+    {
+      "id": "a->b",
+      "from": "a",
+      "to": "b"
+    },
+    {
+      "id": "b->c",
+      "from": "b",
+      "to": "c"
+    },
+    {
+      "id": "web2->au1",
+      "from": "web2",
+      "to": "au1"
+    },
+    {
+      "id": "au1->idp2",
+      "from": "au1",
+      "to": "idp2"
+    },
+    {
+      "id": "au1->a2",
+      "from": "au1",
+      "to": "a2"
+    },
+    {
+      "id": "a2->au2",
+      "from": "a2",
+      "to": "au2"
+    },
+    {
+      "id": "au2->idp2",
+      "from": "au2",
+      "to": "idp2"
+    },
+    {
+      "id": "au2->b2",
+      "from": "au2",
+      "to": "b2"
+    },
+    {
+      "id": "b2->au3",
+      "from": "b2",
+      "to": "au3"
+    },
+    {
+      "id": "au3->idp2",
+      "from": "au3",
+      "to": "idp2"
+    },
+    {
+      "id": "au3->c2",
+      "from": "au3",
+      "to": "c2"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 60,
+    "sources": [
+      {
+        "id": "s1",
+        "node": "web",
+        "shape": {
+          "kind": "constant",
+          "rps": 200
+        }
+      },
+      {
+        "id": "s2",
+        "node": "web2",
+        "shape": {
+          "kind": "constant",
+          "rps": 200
+        }
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "shop.example",
+    "read": {
+      "path": "/api/orders/{key}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/orders",
+      "reqBody": "{\"sku\": \"SKU-{key}\", \"qty\": 1}",
+      "status": 201,
+      "body": "{\"order_id\": {key}, \"status\": \"placed\"}"
+    }
+  }
+}

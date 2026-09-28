@@ -1,0 +1,199 @@
+{
+  "schemaVersion": 1,
+  "id": "tech-rabbitmq-node-loss",
+  "name": "RabbitMQ: node loss — quorum vs mirrored",
+  "description": "A fanout exchange copies every message into a quorum queue (3 members) and a classic mirrored queue (leader + 1 mirror). Both are led by rmq-1 and build a backlog.",
+  "nodes": [
+    {
+      "id": "users",
+      "type": "web-client",
+      "skin": "react-spa",
+      "name": "Users",
+      "pos": {
+        "x": 40,
+        "y": 30
+      },
+      "config": {}
+    },
+    {
+      "id": "pub",
+      "type": "rabbitmq-publisher",
+      "skin": "rabbitmq-app-publisher",
+      "name": "shop (publisher)",
+      "pos": {
+        "x": 40,
+        "y": 140
+      },
+      "config": {}
+    },
+    {
+      "id": "ex",
+      "type": "rabbitmq-exchange",
+      "skin": "rabbitmq-fanout-exchange",
+      "name": "orders (fanout)",
+      "pos": {
+        "x": 195,
+        "y": 140
+      },
+      "config": {}
+    },
+    {
+      "id": "rmq1",
+      "type": "rabbitmq-node",
+      "skin": "rabbitmq-broker-node",
+      "name": "rmq-1",
+      "pos": {
+        "x": 195,
+        "y": 30
+      },
+      "config": {}
+    },
+    {
+      "id": "rmq2",
+      "type": "rabbitmq-node",
+      "skin": "rabbitmq-broker-node",
+      "name": "rmq-2",
+      "pos": {
+        "x": 275,
+        "y": 30
+      },
+      "config": {}
+    },
+    {
+      "id": "rmq3",
+      "type": "rabbitmq-node",
+      "skin": "rabbitmq-broker-node",
+      "name": "rmq-3",
+      "pos": {
+        "x": 355,
+        "y": 30
+      },
+      "config": {}
+    },
+    {
+      "id": "qq",
+      "type": "rabbitmq-queue",
+      "skin": "rabbitmq-quorum-queue",
+      "name": "orders-qq",
+      "pos": {
+        "x": 110,
+        "y": 260
+      },
+      "config": {
+        "leader": "rmq1"
+      }
+    },
+    {
+      "id": "mq",
+      "type": "rabbitmq-queue",
+      "skin": "rabbitmq-mirrored-queue",
+      "name": "orders-ha",
+      "pos": {
+        "x": 280,
+        "y": 260
+      },
+      "config": {
+        "leader": "rmq1"
+      }
+    },
+    {
+      "id": "c-qq",
+      "type": "rabbitmq-consumer",
+      "skin": "rabbitmq-worker",
+      "name": "worker A",
+      "pos": {
+        "x": 110,
+        "y": 380
+      },
+      "config": {
+        "slots": 1,
+        "p50Ms": 25,
+        "p99Ms": 60
+      }
+    },
+    {
+      "id": "c-mq",
+      "type": "rabbitmq-consumer",
+      "skin": "rabbitmq-worker",
+      "name": "worker B",
+      "pos": {
+        "x": 280,
+        "y": 380
+      },
+      "config": {
+        "slots": 1,
+        "p50Ms": 25,
+        "p99Ms": 60
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-users-pub",
+      "from": "users",
+      "to": "pub"
+    },
+    {
+      "id": "e-pub-ex",
+      "from": "pub",
+      "to": "ex"
+    },
+    {
+      "id": "e-ex-qq",
+      "from": "ex",
+      "to": "qq"
+    },
+    {
+      "id": "e-ex-mq",
+      "from": "ex",
+      "to": "mq"
+    },
+    {
+      "id": "e-qq-c-qq",
+      "from": "qq",
+      "to": "c-qq",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "e-mq-c-mq",
+      "from": "mq",
+      "to": "c-mq",
+      "config": {
+        "mode": "async"
+      }
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 120,
+    "sources": [
+      {
+        "id": "s-users",
+        "node": "users",
+        "shape": {
+          "kind": "constant",
+          "rps": 80
+        },
+        "readRatio": 0
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "api.pingme.app",
+    "read": {
+      "path": "/v1/notifications/{key}",
+      "body": "{\"id\": {key}, \"delivered\": true}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/v1/notifications",
+      "reqBody": "{\"user_id\": {key}, \"text\": \"Your ride is here\"}",
+      "status": 202,
+      "body": "{\"id\": {key}, \"status\": \"queued\"}"
+    },
+    "topic": "notifications"
+  }
+}

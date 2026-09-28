@@ -1,0 +1,94 @@
+{
+  "schemaVersion": 1,
+  "id": "lesson-auth-oauth",
+  "name": "OAuth2: login and token exchange",
+  "description": "Most requests carry a valid access token and pass the gateway locally. ~10% have an expired one: the gateway sends them through the IdP (authorization code / refresh exchange, 80–400 ms), which is where login latency and IdP outages show up.",
+  "nodes": [
+    {
+      "id": "app",
+      "type": "mobile-client",
+      "name": "Mobile app",
+      "pos": {
+        "x": 195,
+        "y": 20
+      },
+      "skin": "ios-app"
+    },
+    {
+      "id": "gw",
+      "type": "api-gateway",
+      "name": "API gateway",
+      "pos": {
+        "x": 195,
+        "y": 150
+      },
+      "skin": "kong"
+    },
+    {
+      "id": "idp",
+      "type": "identity-provider",
+      "name": "Auth0",
+      "pos": {
+        "x": 60,
+        "y": 290
+      },
+      "skin": "auth0"
+    },
+    {
+      "id": "api",
+      "type": "service",
+      "name": "API",
+      "pos": {
+        "x": 330,
+        "y": 290
+      },
+      "skin": "go-service"
+    }
+  ],
+  "edges": [
+    {
+      "id": "app->gw",
+      "from": "app",
+      "to": "gw"
+    },
+    {
+      "id": "gw->idp",
+      "from": "gw",
+      "to": "idp"
+    },
+    {
+      "id": "gw->api",
+      "from": "gw",
+      "to": "api"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 60,
+    "sources": [
+      {
+        "id": "s",
+        "node": "app",
+        "shape": {
+          "kind": "constant",
+          "rps": 200
+        },
+        "expiredAuth": 0.1
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "api.fitapp.io",
+    "read": {
+      "path": "/v1/workouts/{key}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/v1/workouts",
+      "reqBody": "{\"type\": \"run\", \"km\": {value}}",
+      "status": 201,
+      "body": "{\"id\": {key}, \"type\": \"run\"}"
+    }
+  }
+}

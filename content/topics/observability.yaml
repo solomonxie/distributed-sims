@@ -1,0 +1,99 @@
+id: observability
+title: Observability
+group: topics
+icon: activity
+order: 15
+summary: Metrics, traces and alerts that tell you what broke, and what they cost.
+info: Four golden signals (latency, traffic, errors, saturation) cover most services. Traces follow one request across services to find the slow hop, but you can only afford to keep a sample. Good alerts page on user pain (SLO burn), not on every blip, and the telemetry pipeline itself can drop data under load.
+problems: [telemetry]
+lessons:
+  - id: golden-signals
+    title: Golden signals
+    minutes: 5
+    template: lesson-obs-golden
+    steps:
+      - title: Four numbers per service
+        body: Latency (p99), traffic (rps), errors (%) and saturation (util) for the API. Three alerts watch them.
+        watch: API util sits near 60%, busy but with headroom.
+        check: { metric: util, target: api, op: '>=', value: 40 }
+      - title: Traffic spike
+        body: Triple the traffic for 10 s. Saturation moves first, then queues overflow into latency and errors.
+        action: { event: { kind: traffic, action: burst, params: { x: 3 }, durationSec: 10 } }
+        watch: Util, latency and error alerts all fire.
+        check: { metric: alerts, op: '>=', value: 2 }
+      - title: Back to normal
+        body: When the spike passes, every signal returns and the alerts resolve by themselves.
+        check: { metric: alerts, op: '=', value: 0 }
+      - title: A slow dependency
+        body: Slow Postgres 20× for 15 s. Traffic and saturation look fine, but latency alone gives it away.
+        action: { event: { kind: slow, target: db, params: { x: 20 }, durationSec: 15 } }
+        watch: Only the p99 alert fires this time.
+        check: { metric: 'eventMatch:System p99 >', op: '>=', value: 2 }
+
+  - id: tracing
+    title: Tracing
+    minutes: 4
+    template: obs-tracing
+    steps:
+      - title: Follow one request
+        body: Tap a moving dot to open its trace (gateway → orders → payments → Stripe, one span per hop). Spans also flow to the OTel collector.
+        check: { metric: time, op: '>=', value: 5 }
+      - title: Find the slow span
+        body: Most of the time is spent waiting on Stripe, an external API with a 1 s tail. The trace waterfall makes that obvious.
+        watch: Stripe's p99 dwarfs every internal service.
+        check: { metric: p99, target: stripe, op: '>=', value: 500 }
+      - title: Errors show up too
+        body: At 10 s Payments starts failing 10% of calls. The failing span turns red in the trace.
+        check: { metric: errRate, target: pay, op: '>=', value: 5 }
+
+  - id: sampling
+    title: Sampling
+    minutes: 4
+    template: lesson-obs-sampling
+    steps:
+      - title: Keep 10% of traces
+        body: Both collectors keep 10% of traces. Head sampling decides when a trace starts; tail sampling waits until it ends.
+        check: { metric: gauge:keptPct, target: head, op: '>=', value: 5 }
+      - title: Payments starts failing
+        body: A bad deploy makes Payments fail 10% of calls. Head sampling decided before anyone knew, so it keeps only 10% of the error traces.
+        action: { event: { kind: bad-deploy, target: pay, params: { errPct: 10 }, durationSec: 40 } }
+        watch: errorsKeptPct on Head reads ~10.
+        check: { metric: gauge:errorsKeptPct, target: head, op: '<=', value: 20 }
+      - title: Tail keeps every error
+        body: Tail sampling sees the error and keeps the whole trace, plus 10% of the healthy ones. It buffers complete traces, so it costs more memory and CPU.
+        watch: errorsKeptPct on Tail stays at 100; keptPct rises a bit.
+        check: { metric: gauge:errorsKeptPct, target: tail, op: '>=', value: 95 }
+
+  - id: alert-design
+    title: Alert design
+    minutes: 4
+    template: lesson-obs-alerts
+    steps:
+      - title: A noisy alert
+        body: '"API p99 > 30 ms" with no hold time fires on normal tail jitter. It resolves by itself a few seconds later, again and again.'
+        watch: The event log fills with fire/resolve pairs.
+        check: { metric: 'eventMatch:Resolved: API p99', op: '>=', value: 2 }
+      - title: A real incident
+        body: Ship a bad deploy that fails 20% of requests. The noisy alert keeps flapping as before and tells you nothing new.
+        action: { event: { kind: bad-deploy, target: api, params: { errPct: 20 }, durationSec: 30 } }
+        check: { metric: errRate, target: web, op: '>=', value: 10 }
+      - title: SLO burn fires
+        body: The error-budget alert (errors > 2% for 10 s) only fires when users are hurt, and stays firing until they aren't. Page on this one.
+        check: { metric: 'eventMatch:System errRate > 2', op: '>=', value: 1 }
+
+  - id: telemetry-overload
+    title: Telemetry overload
+    minutes: 3
+    template: lesson-obs-overload
+    steps:
+      - title: Three pipelines
+        body: Every request emits a span, a log line and metrics. OTel and Loki have ingest caps of 1000 and 1500 per second.
+        check: { metric: gauge:keptPct, target: otel, op: '>=', value: 99 }
+      - title: Burst
+        body: Multiply traffic by 6 for 10 s. The collectors drop what they can't ingest rather than slow the app down.
+        action: { event: { kind: traffic, action: burst, params: { x: 6 }, durationSec: 10 } }
+        watch: droppedPct on OTel passes 50%.
+        check: { metric: gauge:droppedPct, target: otel, op: '>=', value: 20 }
+      - title: Blind during the incident
+        body: Users are fine, but half the traces are gone exactly when you'd want them. Sample at the source and size collectors for peaks.
+        check: { metric: availability, target: web, op: '>=', value: 99 }

@@ -1,0 +1,161 @@
+{
+  "schemaVersion": 1,
+  "id": "sec-kms-envelope",
+  "name": "Envelope encryption vs KMS quota",
+  "description": "Both services encrypt every record through KMS (1000 rps quota). A 10x burst at 15s makes the top one hit 429 throttling; the bottom caches data keys (1 KMS call per 1000 messages) and never notices. At 45s the top key rotates and a re-encrypt job eats half its quota.",
+  "nodes": [
+    {
+      "id": "web",
+      "type": "web-client",
+      "name": "Writers",
+      "pos": {
+        "x": 55,
+        "y": 60
+      }
+    },
+    {
+      "id": "api",
+      "type": "service",
+      "name": "Records API",
+      "pos": {
+        "x": 195,
+        "y": 60
+      },
+      "config": {
+        "instances": 4
+      }
+    },
+    {
+      "id": "kms",
+      "type": "kms",
+      "skin": "aws-kms",
+      "name": "KMS",
+      "pos": {
+        "x": 335,
+        "y": 60
+      },
+      "config": {
+        "quotaRps": 1000
+      }
+    },
+    {
+      "id": "web2",
+      "type": "web-client",
+      "name": "Writers",
+      "pos": {
+        "x": 55,
+        "y": 200
+      }
+    },
+    {
+      "id": "api2",
+      "type": "service",
+      "name": "Records API (cached keys)",
+      "pos": {
+        "x": 195,
+        "y": 200
+      },
+      "config": {
+        "instances": 4
+      }
+    },
+    {
+      "id": "kms2",
+      "type": "kms",
+      "skin": "aws-kms",
+      "name": "KMS + data-key cache",
+      "pos": {
+        "x": 335,
+        "y": 200
+      },
+      "config": {
+        "quotaRps": 1000,
+        "dataKeyCache": true
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "web-api",
+      "from": "web",
+      "to": "api"
+    },
+    {
+      "id": "api-kms",
+      "from": "api",
+      "to": "kms"
+    },
+    {
+      "id": "web2-api2",
+      "from": "web2",
+      "to": "api2"
+    },
+    {
+      "id": "api2-kms2",
+      "from": "api2",
+      "to": "kms2"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 80,
+    "sources": [
+      {
+        "id": "s1",
+        "node": "web",
+        "shape": {
+          "kind": "constant",
+          "rps": 300
+        },
+        "readRatio": 0.2
+      },
+      {
+        "id": "s2",
+        "node": "web2",
+        "shape": {
+          "kind": "constant",
+          "rps": 300
+        },
+        "readRatio": 0.2
+      }
+    ],
+    "events": [
+      {
+        "atSec": 15,
+        "event": {
+          "kind": "traffic",
+          "action": "burst",
+          "params": {
+            "x": 10
+          },
+          "durationSec": 10
+        }
+      },
+      {
+        "atSec": 45,
+        "event": {
+          "kind": "key-rotation",
+          "target": "kms",
+          "params": {
+            "objects": 30000
+          }
+        }
+      }
+    ]
+  },
+  "wire": {
+    "host": "records.acme.io",
+    "read": {
+      "method": "GET",
+      "path": "/api/records/{key}",
+      "body": "{\"id\": {key}, \"ssn\": \"***-**-1234\"}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/records",
+      "reqBody": "{\"patient\": {key}, \"ssn\": \"123-45-6789\"}",
+      "status": 201,
+      "body": "{\"id\": {key}, \"enc\": \"AES256-GCM\"}"
+    }
+  }
+}
