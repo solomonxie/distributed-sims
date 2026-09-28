@@ -26,16 +26,16 @@ function steps(): Step[] {
   const tiny = problems.find(p => p.id === 'tinyurl') ?? problems[0];
   const demoDoc = tpl('problem-tinyurl-v2', 'edge-lb-algorithms');
   const s: Step[] = [
-    { name: 'learn', run: nav => nav.navigate('Tabs', { screen: 'Learn' } as any) },
+    { name: 'home', run: nav => nav.navigate('Home') },
     ...(consensus ? [{ name: 'topic', run: (nav: Nav) => nav.navigate('Topic', { topicId: consensus.id }) }] : []),
-    { name: 'problems', run: nav => (nav.goBack(), nav.navigate('Tabs', { screen: 'Problems' } as any)) },
+    { name: 'problems', run: nav => (nav.goBack(), nav.navigate('Problems')) },
     ...(tiny ? [{ name: 'problem-brief', run: (nav: Nav) => nav.navigate('Problem', { problemId: tiny.id }) }] : []),
-    { name: 'algorithms', run: nav => (nav.goBack(), nav.navigate('Tabs', { screen: 'Algorithms' } as any)) },
+    { name: 'algorithms', run: nav => (nav.goBack(), nav.navigate('Algorithms', {})) },
     { name: 'player-dijkstra', run: nav => nav.navigate('AlgorithmPlayer', { slug: 'dijkstra' }), settle: 1200 },
     { name: 'player-dijkstra-step', run: () => bus.emit('player:steps', 4), settle: 1500 },
     { name: 'player-paging', run: nav => (nav.goBack(), nav.navigate('AlgorithmPlayer', { slug: 'mem-paging' })), settle: 1200 },
     { name: 'player-paging-step', run: () => bus.emit('player:steps', 3), settle: 1500 },
-    { name: 'mine', run: nav => (nav.goBack(), nav.navigate('Tabs', { screen: 'Mine' } as any)) },
+    { name: 'mine', run: nav => (nav.goBack(), nav.navigate('Mine')) },
     { name: 'settings', run: nav => nav.navigate('Settings') },
     { name: 'editor-empty', run: nav => (nav.goBack(), nav.navigate('Editor', { doc: blankDoc('Tour: blank'), readOnly: true })), settle: 1500 },
     { name: 'editor-palette', run: () => bus.emit('editor:sheet', 'palette'), settle: 1200 },

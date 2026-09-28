@@ -1,28 +1,19 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useState } from 'react';
 import { ActionSheetIOS, Alert, Pressable, Share, StyleSheet, TextInput, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { pick, types as docTypes } from '@react-native-documents/picker';
-import { templates } from '@dsims/content';
 import type { RootStackParamList } from '../navigation/types';
 import { useTheme, space, type as typo } from '../theme';
 import { Screen } from '../ui/Screen';
 import { Button, Card, Empty, IconButton, Text } from '../ui/primitives';
 import { Icon } from '../ui/Icon';
 import { MiniGraph } from '../ui/MiniGraph';
-import { useLibrary, blankDoc, forkDoc, saveSystem, deleteSystem, importFile, pathFor } from '../state/library';
+import { useLibrary, forkDoc, saveSystem, deleteSystem, importFile, pathFor } from '../state/library';
+import { createSystem, templateMenu } from './HomeScreen';
 import { ago } from './ProblemScreen';
 import { toast, ToastHost } from '../ui/Toast';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
-const STARTERS = [
-  { slug: 'paradigm-layered', label: 'Layered monolith' },
-  { slug: 'edge-lb-algorithms', label: 'API behind a load balancer' },
-  { slug: 'compute-serverless', label: 'Serverless' },
-  { slug: 'mq-fanout', label: 'Event-driven fan-out' },
-  { slug: 'paradigm-ddd', label: 'DDD bounded contexts' },
-  { slug: 'paradigm-cell-based', label: 'Cell-based' },
-];
 
 export function MySystemsScreen() {
   const { c } = useTheme();
@@ -34,23 +25,16 @@ export function MySystemsScreen() {
     refresh();
   }, [refresh]);
 
-  const create = async (slug?: string) => {
-    const doc = slug && templates[slug] ? forkDoc(templates[slug], STARTERS.find(s => s.slug === slug)?.label ?? templates[slug].name) : blankDoc();
-    await saveSystem(doc);
-    nav.navigate('Editor', { doc });
-  };
+  const create = (slug?: string) => createSystem(nav, slug);
   const plusMenu = () =>
     ActionSheetIOS.showActionSheetWithOptions({ options: ['New blank system', 'From template…', 'Import from Files…', 'Cancel'], cancelButtonIndex: 3 }, i => {
       if (i === 0) create();
-      if (i === 1) templateMenu();
+      if (i === 1) templateMenu(nav);
       if (i === 2) doImport();
     });
-  const templateMenu = () => {
-    const avail = STARTERS.filter(s => templates[s.slug]);
-    ActionSheetIOS.showActionSheetWithOptions({ title: 'Start from a template', options: [...avail.map(s => s.label), 'Cancel'], cancelButtonIndex: avail.length }, i => {
-      if (i < avail.length) create(avail[i].slug);
-    });
-  };
+  useLayoutEffect(() => {
+    nav.setOptions({ headerRight: () => <IconButton name="plus" size={26} color={c.accent} onPress={plusMenu} label="New system" /> });
+  });
   const doImport = async () => {
     try {
       const [f] = await pick({ type: [docTypes.json, docTypes.allFiles] });
@@ -78,15 +62,7 @@ export function MySystemsScreen() {
   const list = items.filter(i => !q || i.name.toLowerCase().includes(q.toLowerCase()));
   return (
     <View style={{ flex: 1 }}>
-      <Screen
-        title="Mine"
-        right={
-          <View style={{ flexDirection: 'row' }}>
-            <IconButton name="settings" onPress={() => nav.navigate('Settings')} label="Settings" />
-            <IconButton name="plus" size={26} color={c.accent} onPress={plusMenu} label="New system" />
-          </View>
-        }
-      >
+      <Screen>
         {items.length > 0 && (
           <View style={[styles.search, { backgroundColor: c.surface1, borderColor: c.hairline }]}>
             <Icon name="search" size={16} color={c.text3} />
@@ -96,8 +72,8 @@ export function MySystemsScreen() {
         {loaded && !items.length ? (
           <Empty icon="layers" title="Nothing built yet" body="Start blank, or fork any problem's design.">
             <Button kind="primary" title="New system" icon="plus" onPress={() => create()} />
-            <Button title="Browse problems" onPress={() => nav.navigate('Tabs', { screen: 'Problems' } as any)} />
-            <Button kind="text" title="From a template…" onPress={templateMenu} />
+            <Button title="Browse problems" onPress={() => nav.navigate('Problems')} />
+            <Button kind="text" title="From a template…" onPress={() => templateMenu(nav)} />
           </Empty>
         ) : (
           <View style={{ gap: 10, marginTop: space.m }}>

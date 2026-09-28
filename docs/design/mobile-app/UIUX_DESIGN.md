@@ -7,16 +7,16 @@ Drawings live in `uiux/`; this file is the map, flows and rules.
 ## Screen map
 
 ```
-                ┌──────────── tab bar ─────────────┐
-                │ Learn │ Problems │ Algos │ Mine  │
-                └──┬────────┬──────────┬───────┬───┘
-                   │        │          │       │
-             Topic list  Problem    Algo list  My systems ──⚙──▶ Settings
-                   │     list          │       │
-                   ▼        ▼          ▼       │  [ + New ] / open
-             Topic page  Problem     Algo      │
-                   │     brief       player    │
-                   │        │                  │
+                ┌──────────── Home (one page) ─────────────┐
+                │ search · continue · sections × 2 rows    │──⚙──▶ Settings
+                └──┬──────────┬───────────┬──────────┬─────┘
+                   │ See all  │ See all   │ See all  │ See all
+             Topics grid  Problems   Animations   My systems
+                   │        │         groups         │
+                   ▼        ▼          ▼             │  [ + New ] / open
+             Topic page  Problem    Group list →     │
+                   │     brief      Algo player      │
+                   │        │                        │
                    └──tap lesson / design──────┴──────▶ Editor (page)
                                                           │
                      ┌────────────────────────────────────┤

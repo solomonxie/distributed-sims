@@ -4,12 +4,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme, space } from '../theme';
 import { Text } from './primitives';
 
-/** Tab page with an iOS-style large title. */
+/** Scrolling page; with `title`, a full-screen page with an iOS-style large title, else a pushed page under the nav header. */
 export function Screen({ title, right, children, contentStyle, subtitle }: { title?: string; right?: React.ReactNode; children: React.ReactNode; contentStyle?: StyleProp<ViewStyle>; subtitle?: string }) {
   const { c } = useTheme();
   const insets = useSafeAreaInsets();
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: c.canvas }} contentContainerStyle={[{ paddingTop: insets.top + 8, paddingHorizontal: space.l, paddingBottom: insets.bottom + 110 }, contentStyle]} contentInsetAdjustmentBehavior="never">
+    <ScrollView style={{ flex: 1, backgroundColor: c.canvas }} contentContainerStyle={[{ paddingTop: title ? insets.top + 8 : space.m, paddingHorizontal: space.l, paddingBottom: insets.bottom + 40 }, contentStyle]} contentInsetAdjustmentBehavior="never">
       {title ? (
         <View style={styles.head}>
           <View style={{ flex: 1 }}>

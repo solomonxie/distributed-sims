@@ -1,6 +1,6 @@
 # Algorithm visualizer
 
-Algos tab → list → player. Spec: `../algorithms.md`.
+Home → Animations → group → player. Spec: `../algorithms.md`.
 
 ## List — `AlgorithmsScreen`
 
@@ -65,8 +65,8 @@ Algos tab → list → player. Spec: `../algorithms.md`.
  │ └────────────────────────────────┘ │
 ```
 
-- List has three segments: Algorithms · Machine · C++ (`cpp-*` groups and
-  `machine-cpp`).
+- Reached from Home → ANIMATIONS: all groups as tiles under Algorithms ·
+  Machine level · C++ (`cpp-*` + `machine-cpp`); a group tile opens its list.
 
 States:
 ```

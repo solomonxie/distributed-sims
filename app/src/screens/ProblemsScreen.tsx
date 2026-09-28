@@ -19,7 +19,10 @@ export function ProblemsScreen() {
   const list = [...problems].sort((a, b) => a.order - b.order).filter(p => f === 'all' || p.category === f);
   const stars = (p: ProblemDef) => p.challenges.filter(ch => challenges[`${p.id}/${ch.id}`]?.passed).length;
   return (
-    <Screen title="Problems" subtitle="Real systems. Build, then survive the challenge.">
+    <Screen>
+      <Text v="callout" color={c.text2} style={{ marginBottom: space.m }}>
+        Real systems. Build, then survive the challenge.
+      </Text>
       <Segmented options={['all', 'classic', 'product', 'infra'] as const} value={f} onChange={setF} labels={{ all: 'All', classic: 'Classic', product: 'Product', infra: 'Infra' }} />
       <View style={{ gap: 10, marginTop: space.l }}>
         {list.map(p => {

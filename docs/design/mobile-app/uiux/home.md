@@ -1,48 +1,44 @@
-# Home tabs, topic page, problem brief, settings
+# Home, see-all pages, topic page, problem brief, settings
 
-## Learn tab — `LearnScreen`
+## Home — `HomeScreen` (single page, no tab bar)
 
 ```
- Learn                                  
- 🔍 Search topics and lessons
- CONTINUE
+ Distributed Sims                     ⚙
+ 🔍 Search lessons, problems, animations
  ╭──────────────────────────────────────╮
- │ ┌──────────────┐ Consensus           │
- │ │ ●──◆──●      │ Split vote          │ ← live mini-render
- │ │  ╲   ╱  👑   │ 3/6 · 3 min left    │   of the lesson preset
- │ │   ●──●      │ ██████████░░░░░      │
- │ └──────────────┘         [[ Resume ]]│
+ │ ▶  Continue · Consensus              │
+ │    Split vote     ██████░░░░         │
  ╰──────────────────────────────────────╯
- TOPICS                         2 of 16 ✓
+ SYSTEM DESIGN 16              See all ›
  ╭─────────────────╮ ╭─────────────────╮
- │ ●─•─●           │ │ ●   ●   ●       │  ← 2-col cards,
- │   ╲ ◉ cache     │ │ ╎   ╎   ╎  ▦    │    each thumbnail a
- │    ●            │ │ ●   ●   ●       │    real preset graph
- │ Caching         │ │ Sharding        │
- │ ████░░  2/6     │ │ ░░░░░░  0/5     │
+ │ [◈]             │ │ [◈]          ✓  │  ← uniform tile:
+ │ Caching         │ │ Sharding        │    icon · 2-line title ·
+ │ ████░░  2/6     │ │ ██████  5/5     │    one meta line
  ╰─────────────────╯ ╰─────────────────╯
- ╭─────────────────╮ ╭─────────────────╮
- │ Consistency     │ │ Consensus       │
- │ ██░░░░  1/6     │ │ ████░░  2/6     │
+ ╭─────────────────╮ ╭─────────────────╮   max 2 rows (4 tiles)
+ │ Consistency     │ │ Consensus       │   per section
  ╰─────────────────╯ ╰─────────────────╯
- … Distributed transaction · Rate limit ·
-   Microservices · Migration · Message
-   queue · Network · Proximity · Search ·
-   Encryption · Authentication ·
-   Observability · System paradigms
- ────────────────────────────────────────
-  🎓 Learn   🧩 Problems   ◇ Algos   ▣ Mine
-  ━━━━━━━━
+ UNDER THE HOOD · MACHINE LEVEL · C++      (same pattern)
+ PROBLEMS 21        tiles: 1/3 ★ · classic
+ ANIMATIONS 180     tiles = demo groups: "12 animations"
+ MY SYSTEMS 3       [+ New system] then systems (parts · edited)
 ```
 
-Long title: "Distributed transaction" wraps to 2 lines in the card, never
-truncates (cards grow to row max height).
+- "See all ›" pushes a page with the full grid (header title = section).
+  Pages: `TopicsScreen` (group), `ProblemsScreen` (category filter),
+  `AlgorithmsScreen` (all groups by Algorithms / Machine level / C++;
+  a group tile → its animation list), `MySystemsScreen` (`+` in header).
+- Search replaces the sections with one result list: lessons, problems,
+  animations (max 40).
+- Tile colours: topics accent (ok when complete), problems warn,
+  animations protocol, systems write, create tiles ok.
 
 States:
 ```
-first-run   CONTINUE section hidden; banner:
-            "New here? Start with Caching › Cache-aside"  ( ✕ )
-search      no match → "No lessons match "raft2"" + ( Clear )
+first-run   Continue card replaced by
+            "New here? Start with Caching › Cache-aside"  ( ✕ ) [[ Start ]]
+search      no match → "Nothing matches "raft2"" + ( Clear )
+no systems  MY SYSTEMS: [+ New system] [From a template]
 ```
 
 ## Topic page — `TopicScreen`
@@ -69,10 +65,10 @@ search      no match → "No lessons match "raft2"" + ( Clear )
 
 Tap lesson → Editor in Run mode, preset loaded, guide card 1/N.
 
-## Problems tab — `ProblemsScreen`
+## Problems — `ProblemsScreen` (see all)
 
 ```
- Problems
+ ‹ Home         Problems
  ────────────────────────────────────────
  [ ALL | Classic | Product | Infra ]
  ╭──────────────────────────────────────╮
@@ -118,10 +114,10 @@ Tap lesson → Editor in Run mode, preset loaded, guide card 1/N.
  [[ Start from v1 ]]      ( Blank canvas )
 ```
 
-## Mine tab — `MySystemsScreen`
+## My systems — `MySystemsScreen` (see all)
 
 ```
- Mine                                ⚙  +
+ ‹ Home        My systems              +
  ────────────────────────────────────────
  🔍 Search
  ╭──────────────────────────────────────╮
