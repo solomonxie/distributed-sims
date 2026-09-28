@@ -1,22 +1,12 @@
 // C++ demos (group 'machine-cpp'): build pipeline, object layout, stack/heap lifetime, move, vector, vtables, atomics, codegen.
 import type { Frame, PanelRow, Shape, Tone } from '../algo/frames';
-import { arrow, box, Film, line, machineDemo, panel, text } from './lib/draw';
+import { arrow, box, code, Film, line, machineDemo, panel, text } from './lib/draw';
 import type { Row } from './lib/draw';
 import { codeMapFrames } from './lib/code';
 import type { CodeMap } from './lib/code';
 
 const G = 'machine-cpp';
 type Panel = { title: string; rows: PanelRow[] };
-
-function code(lines: string[], y0: number, lh: number, hi: number[], x = 28, prefix = 'c', w = 972): Shape[] {
-  const out: Shape[] = [];
-  lines.forEach((l, i) => {
-    const y = y0 + i * lh + lh / 2;
-    if (hi.includes(i)) out.push(box(`${prefix}h${i}`, x - 14, y - lh / 2 + 1, w, lh - 2, undefined, { tone: 'current' }));
-    out.push(text(`${prefix}${i}`, x, y, l, { align: 'left', size: lh >= 38 ? 26 : 24, mono: true, tone: l.trim().startsWith('//') ? 'muted' : undefined }));
-  });
-  return out;
-}
 
 // ---------------- compile & link ----------------
 type BuildMode = 'ok' | 'undefined' | 'duplicate';
