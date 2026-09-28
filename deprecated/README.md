@@ -1,3 +1,5 @@
+> **Deprecated** — v0 web prototype, superseded by the iOS app (`docs/design/mobile-app/`). Kept for its catalog data and icons.
+
 # Distributed Systems Simulator
 
 An interactive web UI for drawing real distributed-system topologies —
