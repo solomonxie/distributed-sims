@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -23,6 +23,8 @@ export function ProblemScreen() {
   const opened = useProgress(s => s.designsOpened);
   const mine = useLibrary(s => s.items.find(i => (i.doc as any).problemId === route.params.problemId));
   const [estOpen, setEstOpen] = useState(false);
+  const problemId = route.params.problemId;
+  useEffect(() => useProgress.getState().visit({ kind: 'problem', id: problemId }), [problemId]);
   if (!p) return null;
   const v1 = p.designs.find(d => d.id === 'v1');
   const v2 = p.designs.find(d => d.id === 'v2');

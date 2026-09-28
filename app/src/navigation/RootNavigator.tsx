@@ -6,6 +6,8 @@ import type { RootStackParamList } from './types';
 import { useTheme } from '../theme';
 import { HomeScreen, TOPIC_SECTIONS } from '../screens/HomeScreen';
 import { TopicsScreen } from '../screens/TopicsScreen';
+import { LanguageScreen } from '../screens/LanguageScreen';
+import { langName } from '../lib/languages';
 import { TopicScreen } from '../screens/TopicScreen';
 import { ProblemsScreen } from '../screens/ProblemsScreen';
 import { ProblemScreen } from '../screens/ProblemScreen';
@@ -34,6 +36,7 @@ export function RootNavigator() {
     >
       <Stack.Screen name="Home" component={HomeScreen} options={{ headerShown: false, title: 'Home' }} />
       <Stack.Screen name="Topics" component={TopicsScreen} options={({ route }) => ({ title: TOPIC_SECTIONS.find(s => s.id === route.params.group)?.title ?? 'Topics' })} />
+      <Stack.Screen name="Language" component={LanguageScreen} options={({ route }) => ({ title: langName(route.params.id) })} />
       <Stack.Screen name="Problems" component={ProblemsScreen} />
       <Stack.Screen name="Algorithms" component={AlgorithmsScreen} options={({ route }) => ({ title: route.params?.group ? groupLabel(route.params.group) : 'Animations' })} />
       <Stack.Screen name="Mine" component={MySystemsScreen} options={{ title: 'My systems' }} />

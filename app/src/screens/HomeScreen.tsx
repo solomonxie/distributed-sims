@@ -4,25 +4,28 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { problems, templates, topics, type ProblemDef, type TopicDef } from '@dsims/content';
+import { algo } from '@dsims/engine';
 import type { RootStackParamList } from '../navigation/types';
 import { useTheme, space, type as typo } from '../theme';
-import { Button, Card, IconButton, Progress, Text } from '../ui/primitives';
+import { Button, Card, IconButton, Text } from '../ui/primitives';
 import { Icon } from '../ui/Icon';
 import { Section, Tile } from '../ui/Tile';
-import { useProgress } from '../state/progress';
+import { useProgress, visitKey, type Visit } from '../state/progress';
 import { useSettings } from '../state/settings';
 import { useLibrary, blankDoc, forkDoc, saveSystem } from '../state/library';
 import { openLesson } from '../learn/open';
-import { demoGroups } from '../lib/demoGroups';
+import { demoGroups, groupIcon } from '../lib/demoGroups';
+import { LANGUAGES, langTopics, type LangId } from '../lib/languages';
 import { ago } from './ProblemScreen';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
-export const TOPIC_SECTIONS: { id: TopicDef['group']; title: string }[] = [
-  { id: 'topics', title: 'System design' },
-  { id: 'under-the-hood', title: 'Under the hood' },
+export type TopicGroup = Exclude<TopicDef['group'], 'languages'>;
+export const TOPIC_SECTIONS: { id: TopicGroup; title: string }[] = [
+  { id: 'topics', title: 'Topics' },
+  { id: 'under-the-hood', title: 'Tech stack' },
+  { id: 'network', title: 'Network' },
   { id: 'machine', title: 'Machine level' },
-  { id: 'cpp', title: 'C++' },
 ];
 
 export const STARTERS = [
@@ -51,7 +54,50 @@ export function ProblemTile({ p, nav }: { p: ProblemDef; nav: Nav }) {
   const { c } = useTheme();
   const challenges = useProgress(s => s.challenges);
   const stars = p.challenges.filter(ch => challenges[`${p.id}/${ch.id}`]?.passed).length;
-  return <Tile icon={p.icon} title={p.title} meta={`${stars}/${p.challenges.length} ★ · ${p.category}`} done={p.challenges.length > 0 && stars === p.challenges.length} tint={c.warn} onPress={() => nav.navigate('Problem', { problemId: p.id })} />;
+  return <Tile icon={p.icon} title={p.title} meta={`${stars}/${p.challenges.length} ★`} done={p.challenges.length > 0 && stars === p.challenges.length} tint={c.warn} onPress={() => nav.navigate('Problem', { problemId: p.id })} />;
+}
+
+export function LanguageTile({ id, nav }: { id: LangId; nav: Nav }) {
+  const doneIn = useTopicDone();
+  const l = LANGUAGES.find(x => x.id === id)!;
+  const ts = langTopics(id);
+  const n = ts.reduce((a, t) => a + t.lessons.length, 0);
+  const done = ts.reduce((a, t) => a + doneIn(t), 0);
+  return <Tile icon={l.icon} title={l.name} meta={n ? `${ts.length} topics` : 'soon'} progress={n ? done / n : undefined} done={n > 0 && done === n} onPress={() => nav.navigate('Language', { id })} />;
+}
+
+/** False when the visited content no longer exists in this build. */
+function isLive(v: Visit) {
+  if (v.kind === 'lesson') return !!topics.find(x => x.id === v.topic)?.lessons.some(x => x.id === v.lesson);
+  if (v.kind === 'topic') return topics.some(x => x.id === v.id);
+  if (v.kind === 'problem') return problems.some(x => x.id === v.id);
+  if (v.kind === 'demo') return !!algo.getDemo(v.slug);
+  return LANGUAGES.some(x => x.id === v.id);
+}
+
+/** One recent visit. */
+function RecentTile({ v, nav }: { v: Visit; nav: Nav }) {
+  const { c } = useTheme();
+  if (v.kind === 'lesson') {
+    const t = topics.find(x => x.id === v.topic);
+    const l = t?.lessons.find(x => x.id === v.lesson);
+    if (!t || !l) return null;
+    return <Tile icon="play" title={l.title} meta={t.title} tint={c.accent} onPress={() => openLesson(nav, t, l)} />;
+  }
+  if (v.kind === 'topic') {
+    const t = topics.find(x => x.id === v.id);
+    return t ? <Tile icon={t.icon} title={t.title} meta="Topic" onPress={() => nav.navigate('Topic', { topicId: t.id })} /> : null;
+  }
+  if (v.kind === 'problem') {
+    const p = problems.find(x => x.id === v.id);
+    return p ? <Tile icon={p.icon} title={p.title} meta="Problem" tint={c.warn} onPress={() => nav.navigate('Problem', { problemId: p.id })} /> : null;
+  }
+  if (v.kind === 'demo') {
+    const d = algo.getDemo(v.slug);
+    return d ? <Tile icon={groupIcon(d.group)} title={d.title} meta="Animation" tint={c.protocol} onPress={() => nav.navigate('AlgorithmPlayer', { slug: d.slug })} /> : null;
+  }
+  const l = LANGUAGES.find(x => x.id === v.id);
+  return l ? <Tile icon={l.icon} title={l.name} meta="Language" onPress={() => nav.navigate('Language', { id: l.id })} /> : null;
 }
 
 export async function createSystem(nav: Nav, slug?: string) {
@@ -71,8 +117,7 @@ export function HomeScreen() {
   const { c } = useTheme();
   const nav = useNavigation<Nav>();
   const insets = useSafeAreaInsets();
-  const doneIn = useTopicDone();
-  const last = useProgress(s => s.lastLesson);
+  const recent = useProgress(s => s.recent ?? []).filter(isLive);
   const firstRunDismissed = useSettings(s => s.firstRunDismissed);
   const { items: systems, refresh } = useLibrary();
   const [q, setQ] = useState('');
@@ -83,8 +128,6 @@ export function HomeScreen() {
   const all = useMemo(sortedTopics, []);
   const groups = useMemo(demoGroups, []);
   const probs = useMemo(() => [...problems].sort((a, b) => a.order - b.order), []);
-  const lastTopic = last ? topics.find(t => t.id === last.topic) : undefined;
-  const lastLesson = lastTopic?.lessons.find(l => l.id === last!.lesson);
 
   return (
     <ScrollView style={{ flex: 1, backgroundColor: c.canvas }} contentContainerStyle={{ paddingTop: insets.top + 8, paddingHorizontal: space.l, paddingBottom: insets.bottom + 40 }} keyboardShouldPersistTaps="handled">
@@ -103,23 +146,12 @@ export function HomeScreen() {
         <SearchResults q={q.trim().toLowerCase()} nav={nav} onClear={() => setQ('')} />
       ) : (
         <>
-          {lastTopic && lastLesson ? (
-            <Card style={{ marginTop: space.l }} onPress={() => openLesson(nav, lastTopic, lastLesson)}>
-              <View style={styles.cont}>
-                <View style={[styles.contIcon, { backgroundColor: c.surface2 }]}>
-                  <Icon name="play" size={18} color={c.accent} />
-                </View>
-                <View style={{ flex: 1, gap: 3 }}>
-                  <Text v="callout" color={c.text2}>
-                    Continue · {lastTopic.title}
-                  </Text>
-                  <Text v="headline" numberOfLines={1}>
-                    {lastLesson.title}
-                  </Text>
-                  <Progress value={doneIn(lastTopic) / Math.max(1, lastTopic.lessons.length)} style={{ marginTop: 4 }} />
-                </View>
-              </View>
-            </Card>
+          {recent.length ? (
+            <Section title="Continue">
+              {recent.map(v => (
+                <RecentTile key={visitKey(v)} v={v} nav={nav} />
+              ))}
+            </Section>
           ) : !firstRunDismissed && all[0]?.lessons[0] ? (
             <Card style={{ marginTop: space.l }}>
               <View style={[styles.cont, { alignItems: 'center' }]}>
@@ -144,6 +176,12 @@ export function HomeScreen() {
               </Section>
             );
           })}
+
+          <Section title="Languages" count={LANGUAGES.length}>
+            {LANGUAGES.map(l => (
+              <LanguageTile key={l.id} id={l.id} nav={nav} />
+            ))}
+          </Section>
 
           <Section title="Problems" count={probs.length} onSeeAll={() => nav.navigate('Problems')}>
             {probs.map(p => (
@@ -208,6 +246,5 @@ const styles = StyleSheet.create({
   head: { flexDirection: 'row', alignItems: 'center', marginBottom: space.m, minHeight: 44 },
   search: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth },
   cont: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12 },
-  contIcon: { width: 40, height: 40, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
   hit: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 11 },
 });

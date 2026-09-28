@@ -1,6 +1,6 @@
 import { algo } from '@dsims/engine';
 
-export type DemoKind = 'algorithms' | 'machine' | 'cpp';
+export type DemoKind = 'algorithms' | 'network' | 'machine' | 'languages';
 
 const ICON: Record<string, string> = {
   Graph: 'route',
@@ -25,6 +25,21 @@ const ICON: Record<string, string> = {
   'cpp-projects': 'network',
   'cpp-patterns': 'shapes',
   'cpp-network': 'server',
+  'lang-go': 'zap',
+  'lang-python': 'terminal',
+  'lang-java': 'coffee',
+  'lang-rust': 'cog',
+  'lang-csharp': 'hash',
+  'net-layers': 'layers',
+  'net-link': 'cable',
+  'net-ip': 'route',
+  'net-tcp': 'arrow-left-right',
+  'net-quic': 'zap',
+  'net-dns': 'signpost',
+  'net-http': 'globe',
+  'net-tls': 'lock',
+  'net-lb': 'split',
+  'net-tools': 'wrench',
 };
 
 const LABEL: Record<string, string> = {
@@ -42,14 +57,30 @@ const LABEL: Record<string, string> = {
   'cpp-cmake': 'CMake',
   'cpp-projects': 'Large projects',
   'cpp-patterns': 'Design patterns',
-  'cpp-network': 'Network servers',
+  'cpp-network': 'C++ network servers',
+  'lang-go': 'Go',
+  'lang-python': 'Python',
+  'lang-java': 'Java',
+  'lang-rust': 'Rust',
+  'lang-csharp': 'C#',
+  'net-layers': 'Layers & encapsulation',
+  'net-link': 'Ethernet & ARP',
+  'net-ip': 'IP & routing',
+  'net-tcp': 'TCP',
+  'net-quic': 'UDP & QUIC',
+  'net-dns': 'DNS',
+  'net-http': 'HTTP & real-time',
+  'net-tls': 'TLS',
+  'net-lb': 'Load balancers & CDNs',
+  'net-tools': 'Debugging tools',
 };
 
-export const KIND_LABEL: Record<DemoKind, string> = { algorithms: 'Algorithms', machine: 'Machine level', cpp: 'C++' };
+export const KIND_LABEL: Record<DemoKind, string> = { algorithms: 'Algorithms', network: 'Network', machine: 'Machine level', languages: 'Languages' };
 
-export const kindOf = (g: string): DemoKind => (g === 'machine-cpp' || g.startsWith('cpp-') ? 'cpp' : g.startsWith('machine') ? 'machine' : 'algorithms');
-export const groupIcon = (g: string) => ICON[g] ?? 'diamond';
-export const groupLabel = (g: string) => LABEL[g] ?? g;
+export const kindOf = (g: string): DemoKind => (g === 'machine-cpp' || g.startsWith('cpp-') || g.startsWith('lang-') ? 'languages' : g.startsWith('net-') ? 'network' : g.startsWith('machine') ? 'machine' : 'algorithms');
+export const groupIcon = (g: string) => ICON[g] ?? (g.startsWith('net-') ? 'network' : 'diamond');
+/** Known label, else the id without its prefix, capitalised (`net-tcp` → `Tcp`). */
+export const groupLabel = (g: string) => LABEL[g] ?? (g.includes('-') ? g.slice(g.indexOf('-') + 1) : g).replace(/-/g, ' ').replace(/^./, ch => ch.toUpperCase());
 
 export interface DemoGroup {
   id: string;
@@ -59,9 +90,9 @@ export interface DemoGroup {
   demos: algo.Demo[];
 }
 
-const KIND_ORDER: DemoKind[] = ['algorithms', 'machine', 'cpp'];
+const KIND_ORDER: DemoKind[] = ['algorithms', 'network', 'machine', 'languages'];
 
-/** All demo groups, algorithms → machine → C++, in registration order within each kind. */
+/** All demo groups, algorithms → network → machine → languages, in registration order within each kind. */
 export function demoGroups(): DemoGroup[] {
   const by = new Map<string, algo.Demo[]>();
   for (const d of algo.allDemos()) by.set(d.group, [...(by.get(d.group) ?? []), d]);

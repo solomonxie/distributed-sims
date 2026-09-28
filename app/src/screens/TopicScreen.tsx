@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -20,6 +20,8 @@ export function TopicScreen() {
   const route = useRoute<RouteProp<RootStackParamList, 'Topic'>>();
   const t = topics.find(x => x.id === route.params.topicId) as (TopicDef & { info?: string; algos?: string[]; problems?: string[] }) | undefined;
   const lessons = useProgress(s => s.lessons);
+  const topicId = route.params.topicId;
+  useEffect(() => useProgress.getState().visit({ kind: 'topic', id: topicId }), [topicId]);
   if (!t) return null;
   const nextIdx = t.lessons.findIndex(l => !lessons[`${t.id}/${l.id}`]);
   const heroTpl = t.lessons.map(l => (l as any).template).find((x: string | undefined) => x && templates[x]);

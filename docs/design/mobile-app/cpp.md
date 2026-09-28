@@ -1,6 +1,7 @@
 # C++ section
 
-Learn tab group `cpp` (title "C++"): ten topics, beginner → project scale.
+Home → Languages → C++ (topics with `group: languages`, `language: cpp`):
+ten topics, beginner → project scale.
 Goal: enough depth to run real, complex C++ codebases. Source ideas:
 `~/workspace/cpp-references` (lessons, language_features, design_patterns,
 hello_cmake, hello_webserver, c10k-challenge).
@@ -18,8 +19,8 @@ hello_cmake, hello_webserver, c10k-challenge).
 | 9 | `cpp-patterns` | Design patterns & idioms | `patterns.ts` |
 | 10 | `cpp-network` | Network servers → C10K | `network.ts` |
 
-- Demo group = topic id (`machine-cpp` keeps its own); Algorithms tab
-  shows them under the C++ segment.
+- Demo group = topic id (`machine-cpp` keeps its own); listed under
+  Animations → Languages.
 - Every lesson opens one demo; steps switch its presets (`step.input`).
 - Drawing helpers (`engine/src/machine/lib/`): `trace.ts` (code + stack +
   heap + output), `board.ts` (box/arrow scenes, `boardDemo`, `N`),
