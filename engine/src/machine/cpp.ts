@@ -1,5 +1,5 @@
 // C++ demos (group 'machine-cpp'): build pipeline, object layout, stack/heap lifetime, move, vector, vtables, atomics, codegen.
-import type { Frame, PanelRow, Shape, Tone } from '../algo/frames';
+import type { Detail, Frame, PanelRow, Shape, Tone } from '../algo/frames';
 import { arrow, box, code, Film, line, machineDemo, panel, text } from './lib/draw';
 import type { Row } from './lib/draw';
 import { codeMapFrames } from './lib/code';
@@ -8,6 +8,67 @@ import type { CodeMap } from './lib/code';
 const G = 'machine-cpp';
 type Panel = { title: string; rows: PanelRow[] };
 
+// Tap-to-explain details, keyed by box label (see machineDemo `details`).
+const MATH_H = 'int square(int x);   // declaration only';
+const DETAILS: Record<string, Detail> = {
+  'main.cpp': {
+    title: 'main.cpp — a source file',
+    text: 'Plain text you write. The compiler reads it plus every header it #includes, and turns it into one object file. main() is where the program starts.',
+    code: '#include <iostream>\n#include "math.h"\n\nint main() {\n  std::cout << square(3) << "\\n";  // 9\n}',
+  },
+  'math.h': {
+    title: 'math.h — a header',
+    text: 'Declarations shared between .cpp files: it says square exists, not how it works. #include literally pastes this text into each file that includes it.',
+    code: '#pragma once        // paste at most once per .cpp\n\n' + MATH_H,
+  },
+  'math.cpp': {
+    title: 'math.cpp — the definition',
+    text: 'The one place the body of square lives. It is compiled on its own into math.o; main.cpp only needs the declaration from math.h.',
+    code: '#include "math.h"\n\nint square(int x) {\n  return x * x;\n}',
+  },
+  'other.cpp': {
+    title: 'other.cpp',
+    text: 'Another source file that includes math.h. If math.h holds a function body (not inline), this file compiles its own copy too.',
+    code: '#include "math.h"   // body pasted here too\n\nint cube(int x) { return x * square(x); }',
+  },
+  'main.cpp + math.h': {
+    title: 'Translation unit',
+    text: 'What the compiler actually sees: main.cpp after the preprocessor pasted in every #include and expanded macros. Try g++ -E main.cpp to print it.',
+    code: '// g++ -E main.cpp  (heavily trimmed)\nint square(int x);        // from math.h\n// … 30,000 lines of <iostream> …\nint main() { std::cout << square(3); }',
+  },
+  'math.cpp + math.h': { title: 'Translation unit', text: 'math.cpp with math.h pasted in. Compiled independently of every other unit, possibly in parallel.', code: 'int square(int x);        // from math.h\nint square(int x) { return x * x; }' },
+  'other.cpp + math.h': { title: 'Translation unit', text: 'other.cpp with the header body pasted in, so this unit defines square as well.', code: 'int square(int x) { return x * x; }  // from math.h\nint cube(int x) { return x * square(x); }' },
+  'main.o': {
+    title: 'main.o — object file',
+    text: 'Machine code for one translation unit, plus a symbol table: what it defines (T) and what it still needs (U). Addresses of external calls are left as holes for the linker.',
+    code: '$ g++ -c main.cpp        # → main.o\n$ nm -C main.o\n                 U square(int)\n0000000000000000 T main',
+  },
+  'math.o': { title: 'math.o — object file', text: 'Defines square. The linker will point main.o’s call at this code.', code: '$ g++ -c math.cpp\n$ nm math.o\n0000000000000000 T _Z6squarei\n$ c++filt _Z6squarei\nsquare(int)' },
+  'other.o': { title: 'other.o — object file', text: 'Also defines _Z6squarei, because the body came in through the header. Two T entries for one name means a link error.', code: '$ nm other.o\n0000000000000000 T _Z6squarei\n0000000000000020 T _Z4cubei' },
+  'T main': { title: 'T — defined symbol', text: 'T means the symbol is defined in this object’s text (code) section.', code: '$ nm main.o | grep main\n0000000000000000 T main' },
+  'U _Z6squarei': { title: 'U — undefined symbol', text: 'main.o calls square but doesn’t contain it. _Z6squarei is the mangled name: _Z, then 6 chars “square”, then i for an int parameter.', code: '$ nm main.o\n                 U _Z6squarei\n$ echo _Z6squarei | c++filt\nsquare(int)' },
+  'T _Z6squarei': { title: 'Definition of square(int)', text: 'The object that actually contains the code for square. Exactly one such definition may exist in the final program (the one-definition rule).', code: '$ nm math.o\n0000000000000000 T _Z6squarei' },
+  'linker (ld)': {
+    title: 'The linker',
+    text: 'Combines object files and libraries into one executable. For every U it finds the single matching T and patches the call address.',
+    code: '$ g++ main.o math.o -o app      # link step\n# same as: g++ main.cpp math.cpp -o app\n\n# errors you will meet:\n# undefined reference to `square(int)`\n# multiple definition of `square(int)`',
+  },
+  'a.out': { title: 'The executable', text: 'The linked program. Sections: .text (code), .rodata (constants), .data/.bss (globals). The OS loader maps it into memory and jumps to its entry point.', code: '$ ./a.out\n9\n$ size a.out\n   text    data     bss\n   1932     600       8' },
+  loader: { title: 'The loader', text: 'Part of the OS. It maps the executable’s segments into pages, loads shared libraries, then calls main.', code: '$ ldd ./a.out\n  libstdc++.so.6 => /lib/x86_64-linux-gnu/…\n  libc.so.6 => /lib/x86_64-linux-gnu/…' },
+  vptr: {
+    title: 'vptr — hidden vtable pointer',
+    text: 'The compiler adds this 8-byte pointer to every object of a class with virtual functions. It points at the class’s vtable, which is how a virtual call finds the right function at run time.',
+    code: 'struct Shape {\n  virtual double area() const = 0;\n  virtual ~Shape() = default;\n};\n// sizeof(Shape) == 8: just the vptr',
+  },
+  'Circle::area': { title: 'Circle::area', text: 'The override the vtable slot points to for Circle objects.', code: 'struct Circle final : Shape {\n  double r;\n  double area() const override {\n    return 3.14159 * r * r;\n  }\n};' },
+  'Square::area': { title: 'Square::area', text: 'Square’s override. Same slot index as Circle::area, different table.', code: 'struct Square : Shape {\n  double side;\n  double area() const override {\n    return side * side;\n  }\n};' },
+  it: { title: 'Iterator', text: 'For a vector, an iterator is just a pointer into its heap block. If the vector reallocates, the block moves and the iterator dangles.', code: 'std::vector<int> v{1, 2, 3};\nauto it = v.begin();\nv.push_back(4);     // may reallocate\n// *it is now undefined behaviour' },
+  'freed block': { title: 'Freed block', text: 'The vector’s old storage, released after growing. Anything still pointing here reads freed memory.', code: 'int* p = &v[0];\nv.reserve(100);   // new block, old one freed\n*p = 5;           // use-after-free' },
+  counter: { title: 'Shared counter', text: 'One int in memory that both threads increment. Without std::atomic or a mutex this is a data race, which is undefined behaviour.', code: 'int counter = 0;              // racy\nstd::atomic<int> safe{0};     // fine\n\nstd::thread a([&] { counter++; safe++; });\nstd::thread b([&] { counter++; safe++; });' },
+  'L1 line': { title: 'Cache line state (MESI)', text: 'Each core caches the 64-byte line holding counter. M = modified (only copy, dirty), E = exclusive, S = shared, I = invalid. Writes need the line in M, which invalidates other cores’ copies.' },
+  eax: { title: 'eax register', text: 'Each thread runs on its own core with its own registers. A plain counter++ loads into a register, adds, and stores back, three separate steps another core can interleave with.' },
+};
+
 // ---------------- compile & link ----------------
 type BuildMode = 'ok' | 'undefined' | 'duplicate';
 
@@ -15,6 +76,7 @@ machineDemo({
   slug: 'cpp-build',
   title: 'Compile & link',
   group: G,
+  details: DETAILS,
   summary: 'Preprocess → compile each .cpp to an object file → link symbols into one executable; undefined and duplicate symbols.',
   linkedFrom: ['C++'],
   inputs: [
@@ -155,6 +217,7 @@ machineDemo({
   slug: 'cpp-layout',
   title: 'Struct layout & padding',
   group: G,
+  details: DETAILS,
   summary: 'sizeof, alignof and padding byte by byte; reordering fields; the hidden vptr.',
   linkedFrom: ['C++', 'CPU'],
   inputs: [
@@ -323,14 +386,18 @@ function sceneFrames(sc: Scene, intro: string, title = 'Memory'): Frame[] {
     let y = top + 30;
     s.frames.forEach((fr, fi) => {
       const h = 48 + Math.max(1, fr.vars.length) * 66;
-      out.push(box(`fr${fi}`, 16, y, 470, h, undefined, { tone: fr.dead ? 'fail' : 'default', filled: false, dashed: fr.dead }));
+      const frame = box(`fr${fi}`, 16, y, 470, h, undefined, { tone: fr.dead ? 'fail' : 'default', filled: false, dashed: fr.dead });
+      if (frame.t === 'rect') frame.detail = { title: `Stack frame of ${fr.fn}()`, text: `Created when ${fr.fn}() is called, destroyed when it returns. Locals live here, so allocating them is just moving the stack pointer.`, code: `void ${fr.fn}() {\n  int x = 1;      // in this frame\n}                 // frame popped, x is gone` };
+      out.push(frame);
       out.push(text(`frn${fi}`, 32, y + 26, fr.dead ? `${fr.fn}() — popped` : `${fr.fn}()`, { align: 'left', size: 26, bold: true, tone: fr.dead ? 'fail' : 'write' }));
       fr.vars.forEach((v, vi) => {
         const vy = y + 48 + vi * 66;
         const id = `${fr.fn}.${v.name}`;
         const changed = !fr.dead && prevVal.get(id) !== v.val + (v.to ?? '');
         out.push(text(`vn${fi}-${vi}`, 36, vy + 30, v.name, { align: 'left', size: 26, mono: true, tone: fr.dead ? 'muted' : undefined }));
-        out.push(box(`vv${fi}-${vi}`, 190, vy + 2, 280, 56, v.val, { mono: true, tone: v.tone ?? (fr.dead ? 'visited' : changed ? 'write' : 'default'), dashed: fr.dead }));
+        const val = box(`vv${fi}-${vi}`, 190, vy + 2, 280, 56, v.val, { mono: true, tone: v.tone ?? (fr.dead ? 'visited' : changed ? 'write' : 'default'), dashed: fr.dead });
+        if (val.t === 'rect') val.detail = v.to ? { title: `${v.name} — a pointer`, text: `${v.name} lives on ${fr.fn}()’s stack and holds an address; the arrow shows what it points to. If that target is freed or its frame popped, ${v.name} dangles.`, code: `int* ${v.name} = new int(5);  // address of a heap int\n*${v.name} = 6;                 // write through it\ndelete ${v.name};               // now it dangles` } : { title: `${v.name} = ${v.val}`, text: `A local variable stored in ${fr.fn}()’s stack frame. It lives until the closing brace of its scope.` };
+        out.push(val);
         pos.set(id, { x: 470, y: vy + 30 });
       });
       y += h + 14;
@@ -338,7 +405,9 @@ function sceneFrames(sc: Scene, intro: string, title = 'Memory'): Frame[] {
     s.heap.forEach((b, bi) => {
       const by = top + 30 + bi * 104;
       const tone: Tone = b.state === 'freed' ? 'visited' : b.state === 'leaked' ? 'fail' : 'read';
-      out.push(box(`hb-${b.id}`, 560, by, 420, 88, b.label, { sub: b.state === 'live' ? b.sub : `${b.sub} · ${b.state}`, mono: true, tone, dashed: b.state === 'freed' }));
+      const blk = box(`hb-${b.id}`, 560, by, 420, 88, b.label, { sub: b.state === 'live' ? b.sub : `${b.sub} · ${b.state}`, mono: true, tone, dashed: b.state === 'freed' });
+      if (blk.t === 'rect') blk.detail = { title: `Heap block (${b.bytes} B, ${b.state})`, text: b.state === 'leaked' ? 'Nothing points here any more and it was never freed: a leak. Owning it with std::unique_ptr or a container frees it automatically.' : b.state === 'freed' ? 'Returned to the allocator. Reading or writing it now is use-after-free, undefined behaviour.' : 'Memory from new or an allocating container. It outlives the function that created it, until delete or the owner’s destructor.', code: 'auto p = std::make_unique<int[]>(4);  // heap, owned\nstd::vector<int> v(4);                // heap, owned\nint* raw = new int[4];                // heap, you must delete[]' };
+      out.push(blk);
       pos.set(b.id, { x: 560, y: by + 44 });
     });
     s.frames.forEach((fr, fi) =>
@@ -417,6 +486,7 @@ machineDemo({
   slug: 'cpp-memory',
   title: 'Stack, heap & pointers',
   group: G,
+  details: DETAILS,
   summary: 'Frames, locals and heap blocks with pointers drawn as arrows: new/delete, leaks, dangling pointers.',
   linkedFrom: ['C++', 'Memory'],
   inputs: [
@@ -461,6 +531,7 @@ machineDemo({
   slug: 'cpp-raii',
   title: 'RAII & destructors',
   group: G,
+  details: DETAILS,
   summary: 'An exception unwinds the stack: raw new/fopen leak, vector/ofstream destructors clean up in reverse order.',
   linkedFrom: ['C++'],
   inputs: [
@@ -503,6 +574,7 @@ machineDemo({
   slug: 'cpp-move',
   title: 'Copy vs move',
   group: G,
+  details: DETAILS,
   summary: 'Copying a vector duplicates its heap block; moving steals the pointer; return by value elides both.',
   linkedFrom: ['C++'],
   inputs: [
@@ -540,6 +612,7 @@ machineDemo({
   slug: 'cpp-vector',
   title: 'std::vector growth',
   group: G,
+  details: DETAILS,
   summary: 'push_back doubles capacity, moves elements and invalidates iterators; reserve avoids it; vector vs list in cache lines.',
   linkedFrom: ['C++', 'CPU'],
   inputs: [
@@ -667,6 +740,7 @@ machineDemo({
   slug: 'cpp-vtable',
   title: 'Virtual dispatch',
   group: G,
+  details: DETAILS,
   summary: 's->area(): load the vptr, load the vtable slot, jump indirect; vs a direct, inlined call.',
   linkedFrom: ['C++'],
   inputs: [
@@ -797,6 +871,7 @@ machineDemo({
   slug: 'cpp-atomics',
   title: 'Threads, atomics & ordering',
   group: G,
+  details: DETAILS,
   summary: 'counter++ races and loses updates; std::atomic fetch_add via lock xadd and MESI; release/acquire publishing.',
   linkedFrom: ['C++', 'CPU'],
   inputs: [
@@ -897,6 +972,7 @@ machineDemo({
   slug: 'cpp-codegen',
   title: 'What C++ compiles to',
   group: G,
+  details: DETAILS,
   summary: 'Templates instantiate per type, range-for becomes a pointer loop, and UB lets the optimiser delete code.',
   linkedFrom: ['C++'],
   inputs: [

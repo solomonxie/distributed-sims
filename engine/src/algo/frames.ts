@@ -17,10 +17,17 @@ export type Tone =
   | 'current'
   | 'path';
 
+/** Tap-to-open explainer for a box: what it is, plus a small sample. */
+export interface Detail {
+  title: string;
+  text?: string;
+  code?: string;
+}
+
 export type Shape =
-  | { t: 'node'; id: string; x: number; y: number; r?: number; w?: number; h?: number; shape?: 'circle' | 'rect' | 'diamond'; label?: string; sub?: string; tone?: Tone; badge?: string }
+  | { t: 'node'; id: string; x: number; y: number; r?: number; w?: number; h?: number; shape?: 'circle' | 'rect' | 'diamond'; label?: string; sub?: string; tone?: Tone; badge?: string; detail?: Detail }
   | { t: 'edge'; id: string; from: string | { x: number; y: number }; to: string | { x: number; y: number }; label?: string; tone?: Tone; arrow?: boolean; dashed?: boolean; bend?: number; width?: number }
-  | { t: 'rect'; id: string; x: number; y: number; w: number; h: number; label?: string; sub?: string; tone?: Tone; filled?: boolean; mono?: boolean; radius?: number; dashed?: boolean }
+  | { t: 'rect'; id: string; x: number; y: number; w: number; h: number; label?: string; sub?: string; tone?: Tone; filled?: boolean; mono?: boolean; radius?: number; dashed?: boolean; detail?: Detail }
   | { t: 'text'; id: string; x: number; y: number; text: string; tone?: Tone; size?: number; align?: 'left' | 'center' | 'right'; mono?: boolean; bold?: boolean }
   | { t: 'arc'; id: string; cx: number; cy: number; r: number; a0: number; a1: number; tone?: Tone; width?: number }
   | { t: 'dot'; id: string; x: number; y: number; r?: number; tone?: Tone; label?: string }

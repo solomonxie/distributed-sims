@@ -72,6 +72,14 @@ export function drawShapes(canvas: any, Skia: any, prev: Shape[], cur: Shape[], 
     canvas.drawText(text, x + dx, y + size * 0.35, textPaint, f);
   };
 
+  // tappable-box marker: small filled "i" disc in the corner
+  const infoMark = (x: number, y: number, alpha: number) => {
+    paint.setColor(Skia.Color(pal.accent));
+    paint.setAlphaf(0.9 * alpha);
+    canvas.drawCircle(x, y, 11, paint);
+    drawTextC('i', x, y - 1, 18, col.canvas, false, true, 'center', alpha);
+  };
+
   const edgePoint = (id: string | { x: number; y: number }, towards: { x: number; y: number }) => {
     if (typeof id !== 'string') return { x: id.x, y: id.y };
     const n = nodePos[id];
@@ -142,6 +150,7 @@ export function drawShapes(canvas: any, Skia: any, prev: Shape[], cur: Shape[], 
         const ss = fitSize(s.sub, Math.max(20, ls * 0.78), w - 10, 18, s.mono);
         drawTextC(s.sub, x + w / 2, y + h / 2 + (s.label ? ls * 0.62 : 0), ss, col.text2, s.mono, false, 'center', a);
       }
+      if (s.detail) infoMark(x + w - 14, y + 14, a);
     } else if (s.t === 'arc') {
       stroke.setColor(Skia.Color(toneOf(s.tone)));
       stroke.setAlphaf(a);
@@ -258,6 +267,7 @@ export function drawShapes(canvas: any, Skia: any, prev: Shape[], cur: Shape[], 
         canvas.drawRRect(Skia.RRectXY(Skia.XYWHRect(n.x - sw / 2, sy - 19, sw, 38), 9, 9), paint);
         drawTextC(s.sub, n.x, sy, 32, hot ? color : col.text2, true, false, 'center', a);
       }
+      if (s.detail) infoMark(n.x + (n.shape === 'rect' ? n.w / 2 - 14 : n.r * 0.72), n.y - (n.shape === 'rect' ? n.h / 2 - 14 : n.r * 0.72), a);
       if (s.badge) {
         const f = pick(fonts.bold, 24);
         const w = Math.max(32, f.measureText(s.badge).width + 16);

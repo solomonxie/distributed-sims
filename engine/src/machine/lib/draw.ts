@@ -1,6 +1,6 @@
 // Shape/frame helpers shared by machine models (1000×1000 viewBox, phone-sized text).
 import { registerDemo } from '../../algo/frames';
-import type { Demo, Frame, PanelRow, Shape, Tone } from '../../algo/frames';
+import type { Demo, Detail, Frame, PanelRow, Shape, Tone } from '../../algo/frames';
 
 export type Row = [label: string, value: string | number, tone?: Tone];
 
@@ -57,14 +57,26 @@ export class Film {
 
 export const hex = (n: number, pad = 1) => '0x' + n.toString(16).toUpperCase().padStart(pad, '0');
 
-/** Registers a demo whose frames are built eagerly; the last frame is marked done. */
-export function machineDemo(d: Omit<Demo, 'run'> & { build(input: any): Frame[] }) {
-  const { build, ...meta } = d;
+/** Attaches details to boxes (rect/node) whose label or id matches a key, unless they already have one. */
+export function attachDetails(frames: Frame[], details: Record<string, Detail>) {
+  for (const f of frames)
+    for (const s of f.shapes)
+      if ((s.t === 'rect' || s.t === 'node') && !s.detail) {
+        const d = (s.label !== undefined && details[s.label]) || details[s.id];
+        if (d) s.detail = d;
+      }
+  return frames;
+}
+
+/** Registers a demo whose frames are built eagerly; the last frame is marked done. `details` is keyed by box label or id. */
+export function machineDemo(d: Omit<Demo, 'run'> & { build(input: any): Frame[]; details?: Record<string, Detail> }) {
+  const { build, details, ...meta } = d;
   registerDemo({
     ...meta,
     editable: 'none',
     *run(input: unknown) {
       const fs = build(input ?? d.inputs[0]?.data);
+      if (details) attachDetails(fs, details);
       if (fs.length) fs[fs.length - 1].done = true;
       yield* fs;
     },
