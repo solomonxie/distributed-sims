@@ -1,0 +1,237 @@
+id: cpp-patterns
+title: Design patterns & idioms
+group: cpp
+icon: shapes
+order: 9
+summary: The GoF patterns in modern C++, plus the idioms real codebases lean on. When to use each, what it costs, and the lighter C++ alternative.
+info: A pattern is a named answer to a recurring design problem. In C++ many classic patterns shrink to a std::function, a template parameter or a std::variant, and a few idioms (RAII, CRTP, type erasure, NVI) have no counterpart in other languages at all. Each lesson shows the classic shape, what it costs in allocations and virtual calls, and the modern alternative. Tap any box for its role and sample code.
+algos: [pat-creational, pat-wrappers, pat-structure, pat-dispatch, pat-events, pat-traverse, pat-idioms, pat-values]
+lessons:
+  - id: singleton
+    title: Singleton & hidden globals
+    minutes: 4
+    algo: pat-creational
+    steps:
+      - title: Meyers singleton
+        body: A function-local static, created on first call. C++11 makes that initialisation thread-safe.
+        input: singleton
+        check: { metric: manual }
+      - title: The hidden dependency
+        body: Every caller reaches for the global, so nothing in their signatures says what they depend on.
+        watch: The unit test can't swap in a fake Config.
+        check: { metric: manual }
+      - title: Prefer injection
+        body: Pass a Config& to constructors. Keep true singletons for process-wide things like a logger.
+        check: { metric: manual }
+
+  - id: factories
+    title: Factory method & abstract factory
+    minutes: 5
+    algo: pat-creational
+    steps:
+      - title: Factory function
+        body: Callers pass a name or parameters and get a std::unique_ptr to the interface. Only the factory names concrete classes.
+        input: factory
+        check: { metric: manual }
+      - title: Abstract factory
+        body: One interface creates a whole family of products that must match, like a UI theme or a database driver.
+        input: abstract
+        check: { metric: manual }
+      - title: Cost and alternative
+        body: A heap allocation and virtual calls per object. For a closed set of types, return a std::variant instead.
+        check: { metric: manual }
+
+  - id: builder-prototype
+    title: Builder & prototype
+    minutes: 4
+    algo: pat-creational
+    steps:
+      - title: Builder
+        body: Named, chainable setters and one validating build(). The product can be immutable.
+        input: builder
+        check: { metric: manual }
+      - title: C++20 alternative
+        body: An options struct with defaults and designated initialisers, Opts{.url = u, .method = "POST"}, often replaces a builder.
+        check: { metric: manual }
+      - title: Prototype
+        body: A virtual clone() copies an object through a base pointer without slicing.
+        watch: The editor never names a concrete shape.
+        input: prototype
+        check: { metric: manual }
+
+  - id: wrappers
+    title: Adapter, decorator, proxy, facade
+    minutes: 6
+    algo: pat-wrappers
+    steps:
+      - title: Adapter
+        body: Implements your interface by calling a third-party API. The only class that includes the library.
+        input: adapter
+        check: { metric: manual }
+      - title: Decorator
+        body: A Stream that wraps a Stream. Layers stack at run time, each adding behaviour.
+        input: decorator
+        check: { metric: manual }
+      - title: Proxy
+        body: Same interface, controlled access. Lazy loading, remote stubs, smart pointers.
+        input: proxy
+        check: { metric: manual }
+      - title: Facade
+        body: One simple call for the common case over a complex subsystem. The subsystem stays available.
+        input: facade
+        check: { metric: manual }
+
+  - id: structure
+    title: Composite, bridge, flyweight
+    minutes: 5
+    algo: pat-structure
+    steps:
+      - title: Composite
+        body: Leaves and containers share one interface, so one call walks the whole tree.
+        input: composite
+        check: { metric: manual }
+      - title: Bridge
+        body: Split two dimensions of variation (shapes and renderers) so N + M classes replace N × M.
+        input: bridge
+        check: { metric: manual }
+      - title: Flyweight
+        body: Share heavy immutable state and keep only the per-use part in each object.
+        watch: 200 MB becomes 1.6 MB.
+        input: flyweight
+        check: { metric: manual }
+
+  - id: strategy-state
+    title: Strategy, state & template method
+    minutes: 6
+    algo: pat-dispatch
+    steps:
+      - title: Strategy
+        body: An interchangeable algorithm behind one call. In C++ usually a std::function or a template parameter.
+        input: strategy
+        check: { metric: manual }
+      - title: State
+        body: Behaviour that changes by phase lives in state objects that replace each other. std::variant works for small closed sets.
+        input: state
+        check: { metric: manual }
+      - title: Template method
+        body: A non-virtual skeleton calls virtual hooks. Subclasses fill in steps but can't reorder them.
+        input: template
+        check: { metric: manual }
+
+  - id: command
+    title: Command & undo
+    minutes: 4
+    algo: pat-dispatch
+    steps:
+      - title: Requests as objects
+        body: A command carries everything needed to apply and to undo one change.
+        input: command
+        check: { metric: manual }
+      - title: History and undo
+        body: Push applied commands on a stack. Undo pops one and reverses it.
+        watch: The document goes back to "".
+        check: { metric: manual }
+      - title: Lightweight commands
+        body: Without undo, a std::function<void()> is the whole pattern, ready to queue or send to a thread.
+        check: { metric: manual }
+
+  - id: observer-mediator
+    title: Observer, lifetimes & mediator
+    minutes: 6
+    algo: pat-events
+    steps:
+      - title: Observer
+        body: Subscribers register callbacks, and the subject calls them all on change. Calls are synchronous.
+        input: observer
+        check: { metric: manual }
+      - title: Dangling observers
+        body: A callback that captured a raw this outlives its object. Capture a weak_ptr, or return an RAII subscription token.
+        watch: ASan reports heap-use-after-free on the next set().
+        input: dangling
+        check: { metric: manual }
+      - title: Mediator
+        body: Widgets report to one coordinator instead of to each other. Watch it doesn't become a god object.
+        input: mediator
+        check: { metric: manual }
+      - title: Chain of responsibility
+        body: Each handler answers or passes the request on, like HTTP middleware.
+        input: chain
+        check: { metric: manual }
+
+  - id: traversal
+    title: Iterator, visitor & std::visit
+    minutes: 6
+    algo: pat-traverse
+    steps:
+      - title: Iterator
+        body: begin(), end(), ++ and * are all a range-for and every STL algorithm need.
+        input: iterator
+        check: { metric: manual }
+      - title: Visitor
+        body: Double dispatch adds operations to a fixed hierarchy. Adding a type means editing every visitor.
+        input: visitor
+        check: { metric: manual }
+      - title: std::variant + std::visit
+        body: The modern visitor for closed sets. Inline storage, no virtual calls, and a missing case won't compile.
+        input: variant
+        check: { metric: manual }
+      - title: Memento
+        body: The object saves and restores its own state as an opaque snapshot, the basis of undo.
+        input: memento
+        check: { metric: manual }
+
+  - id: raii-crtp-policy
+    title: RAII, CRTP & policies
+    minutes: 6
+    algo: pat-idioms
+    steps:
+      - title: RAII guards
+        body: Acquire in the constructor, release in the destructor. Every exit path, including exceptions, cleans up.
+        input: raii
+        check: { metric: manual }
+      - title: CRTP
+        body: The base knows the derived type at compile time. Static polymorphism with no vtable, but no runtime choice either.
+        input: crtp
+        check: { metric: manual }
+      - title: Policy-based design
+        body: Behaviour chosen through template parameters, like allocators and deleters. Zero runtime cost, more compile time.
+        input: policy
+        check: { metric: manual }
+
+  - id: erasure-nvi-di
+    title: Type erasure, NVI & dependency injection
+    minutes: 6
+    algo: pat-idioms
+    steps:
+      - title: Type erasure
+        body: How std::function works. A hidden interface plus a template model gives polymorphism without a base class.
+        input: erasure
+        check: { metric: manual }
+      - title: Non-virtual interface
+        body: Public non-virtual methods keep the invariants; only private hooks are virtual.
+        input: nvi
+        check: { metric: manual }
+      - title: Pimpl
+        body: Private members behind a unique_ptr<Impl>. See Large C++ projects, Build times at scale.
+        check: { metric: manual }
+      - title: Dependency injection
+        body: Dependencies come in through the constructor, so tests pass fakes and nothing hides behind a global.
+        input: di
+        check: { metric: manual }
+
+  - id: values
+    title: Value vs reference semantics
+    minutes: 4
+    algo: pat-values
+    steps:
+      - title: Values
+        body: Copying a vector copies its elements. No aliasing, easy to reason about, and copies cost O(n).
+        input: value
+        check: { metric: manual }
+      - title: References
+        body: Copying a shared_ptr aliases one object. Changes through any name are visible through all.
+        input: reference
+        check: { metric: manual }
+      - title: Rule of thumb
+        body: Default to values for data, and use pointers for things with identity like connections and windows.
+        check: { metric: manual }

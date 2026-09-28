@@ -1,0 +1,263 @@
+id: cpp-cmake
+title: CMake
+group: cpp
+icon: hammer
+order: 7
+summary: Build C++ with CMake, from a three-line CMakeLists.txt to targets, dependencies, presets, CI and packaging.
+info: CMake doesn't build anything itself. It reads a graph of targets and generates a build system (Ninja, Make, Xcode) that does. Modern CMake is about targets and their usage requirements, not global flags. Get the target graph right and dependencies, installs and IDE support follow.
+algos: [cmake-first, cmake-pipeline, cmake-layout, cmake-targets, cmake-options, cmake-config, cmake-deps, cmake-test-install, cmake-advanced, cmake-toolchain]
+lessons:
+  - id: first-project
+    title: Your first CMake project
+    minutes: 5
+    algo: cmake-first
+    steps:
+      - title: Three lines
+        body: cmake_minimum_required, project, add_executable. Then cmake -S . -B build and cmake --build build.
+        watch: Tap main.cpp and CMakeLists.txt to see them.
+        input: minimal
+        check: { metric: manual }
+      - title: Variables and message()
+        body: set() stores strings, ${VAR} expands them, message(STATUS) prints while configuring. target_compile_definitions passes a value into C++.
+        input: variables
+        check: { metric: manual }
+      - title: Several source files
+        body: List every .cpp in add_executable; headers come in through #include. Each .cpp becomes one object file.
+        input: sources
+        check: { metric: manual }
+      - title: A static library
+        body: add_library(greet STATIC …) builds reusable code once. target_link_libraries links it by name.
+        input: static
+        check: { metric: manual }
+
+  - id: cmake-basics
+    title: "CMake: configure, generate, build"
+    minutes: 5
+    algo: cmake-pipeline
+    steps:
+      - title: Targets, not commands
+        body: CMakeLists.txt declares targets. CMake generates the real build system (Ninja, Make, Xcode) from them.
+        input: basic
+        check: { metric: manual }
+      - title: Three phases
+        body: Configure finds the compiler and fills CMakeCache.txt. Generate writes build.ninja. Build runs it.
+        watch: The build tree lives in build/, never in the sources.
+        check: { metric: manual }
+      - title: Incremental builds
+        body: Ninja rebuilds what's stale. A .cpp edit costs one compile; a header edit costs every file that includes it.
+        watch: math.h edited, both objects recompile.
+        input: incremental
+        check: { metric: manual }
+      - title: The cache sticks
+        body: -D values persist in CMakeCache.txt. The compiler is fixed at first configure; use --fresh or a new build dir.
+        input: cache
+        check: { metric: manual }
+
+  - id: layout
+    title: Project layout & subdirectories
+    minutes: 6
+    algo: cmake-layout
+    steps:
+      - title: include/ and src/
+        body: Public headers in include/, implementation in src/. target_include_directories(PUBLIC include) exposes them.
+        input: include
+        check: { metric: manual }
+      - title: add_subdirectory
+        body: Each part gets its own CMakeLists.txt. Targets are global; variables are scoped per directory.
+        input: subdir
+        check: { metric: manual }
+      - title: A real project tree
+        body: cmake/, include/<project>/, src/, apps/, tests/, third_party/, CMakePresets.json. Tap each folder.
+        input: real
+        check: { metric: manual }
+
+  - id: cmake-targets
+    title: Targets & usage requirements
+    minutes: 6
+    algo: cmake-targets
+    steps:
+      - title: PUBLIC and PRIVATE
+        body: PRIVATE is for the target itself. PUBLIC is for itself and everyone who links it. INTERFACE is only for them.
+        watch: app gets core's include dir through net, and never sees fmt.
+        input: public
+        check: { metric: manual }
+      - title: Too private
+        body: If net's headers include core's, net must link core PUBLIC, or every user of net fails to compile.
+        input: private
+        check: { metric: manual }
+      - title: Header-only and static libs
+        body: INTERFACE libraries carry requirements only. Private deps of a static library still reach the final link line.
+        input: interface
+        check: { metric: manual }
+      - title: No directory-wide flags
+        body: include_directories, add_definitions and CMAKE_CXX_FLAGS leak into every target and hide real dependencies.
+        input: global
+        check: { metric: manual }
+
+  - id: compile-options
+    title: Compile options & generated headers
+    minutes: 6
+    algo: cmake-options
+    steps:
+      - title: Standard and warnings
+        body: target_compile_features(cxx_std_17) picks the right flag per compiler. Warnings go per target, guarded per compiler.
+        input: features
+        check: { metric: manual }
+      - title: option() and configure_file()
+        body: option() is a cached ON/OFF switch. configure_file() writes a header from @VAR@ and #cmakedefine placeholders.
+        input: option
+        check: { metric: manual }
+      - title: System libraries
+        body: find_package(Threads) and link Threads::Threads. Imported targets hide platform differences.
+        input: threads
+        check: { metric: manual }
+
+  - id: cmake-config
+    title: Build types & presets
+    minutes: 5
+    algo: cmake-config
+    steps:
+      - title: Debug vs Release
+        body: Release defines NDEBUG, so asserts vanish. RelWithDebInfo is optimised with symbols, the usual choice to ship.
+        input: types
+        check: { metric: manual }
+      - title: Generator expressions
+        body: $<CONFIG:Debug> and friends set flags per config and compiler. if(CMAKE_BUILD_TYPE) breaks under Xcode and Visual Studio.
+        input: genex
+        check: { metric: manual }
+      - title: CMakePresets.json
+        body: Every setup (debug, asan, release) named once in git, used identically by laptops, IDEs and CI.
+        input: presets
+        check: { metric: manual }
+
+  - id: cmake-deps
+    title: Third-party dependencies
+    minutes: 6
+    algo: cmake-deps
+    steps:
+      - title: find_package
+        body: Finds an installed package's config file and gives you an imported target like fmt::fmt. Always ask for a minimum version.
+        input: find
+        check: { metric: manual }
+      - title: FetchContent
+        body: Downloads and builds a dependency inside your build, pinned to a tag or hash. Best for small or header-only libraries.
+        input: fetch
+        check: { metric: manual }
+      - title: Package managers
+        body: vcpkg or Conan pin the whole dependency tree, build it once with one triplet, and serve it from a binary cache.
+        watch: Your CMake stays plain find_package.
+        input: manager
+        check: { metric: manual }
+
+  - id: testing-ctest
+    title: Testing with CTest
+    minutes: 5
+    algo: cmake-test-install
+    steps:
+      - title: enable_testing and add_test
+        body: A test is any executable; exit code 0 passes. ctest runs them, in parallel with -j.
+        input: ctest
+        check: { metric: manual }
+      - title: Fixtures, labels, timeouts
+        body: FIXTURES_SETUP/REQUIRED/CLEANUP order shared setup. LABELS split fast and slow suites; TIMEOUT stops hung tests.
+        input: fixtures
+        check: { metric: manual }
+
+  - id: ci
+    title: CI, sanitizers & tooling
+    minutes: 4
+    algo: cmake-config
+    steps:
+      - title: A build matrix
+        body: Several compilers times several sanitizers. Each catches bugs the others miss.
+        watch: ASan and TSan are separate jobs; they can't share a binary.
+        input: ci
+        check: { metric: manual }
+      - title: compile_commands.json
+        body: CMAKE_EXPORT_COMPILE_COMMANDS feeds clangd, clang-tidy and include-what-you-use with the exact flags of every file.
+        check: { metric: manual }
+      - title: Warnings
+        body: Turn on -Wall -Wextra per target, and -Werror in CI only, so new compilers don't break users' builds.
+        check: { metric: manual }
+
+  - id: install-rules
+    title: Install rules
+    minutes: 3
+    algo: cmake-test-install
+    steps:
+      - title: install() and cmake --install
+        body: install(TARGETS) and install(FILES) say what ships where. cmake --install copies it under a prefix.
+        input: install
+        check: { metric: manual }
+      - title: RPATH and packages
+        body: Installing rewrites RPATHs. CPack builds .tar.gz, .deb or .pkg from the same rules.
+        check: { metric: manual }
+
+  - id: install-export
+    title: Shipping a library
+    minutes: 4
+    algo: cmake-deps
+    steps:
+      - title: Install with requirements
+        body: install(TARGETS … EXPORT) plus install(EXPORT) produce a package others use with find_package.
+        input: export
+        check: { metric: manual }
+      - title: Namespaced targets
+        body: Consumers link calc::core, which carries its include dirs and dependencies, just like fmt::fmt.
+        check: { metric: manual }
+      - title: Relocatable
+        body: Use GNUInstallDirs and relative paths so the package works from any prefix.
+        check: { metric: manual }
+
+  - id: genex-advanced
+    title: Generator expressions in depth
+    minutes: 5
+    algo: cmake-advanced
+    steps:
+      - title: BUILD_INTERFACE / INSTALL_INTERFACE
+        body: One PUBLIC include path, two meanings. Needed for any library you install(EXPORT).
+        input: iface
+        check: { metric: manual }
+      - title: $<TARGET_FILE> and POST_BUILD
+        body: Output paths are only known at generate time; genexes resolve them per config.
+        input: targetfile
+        check: { metric: manual }
+
+  - id: codegen
+    title: Code generation
+    minutes: 4
+    algo: cmake-advanced
+    steps:
+      - title: add_custom_command
+        body: OUTPUT, COMMAND, DEPENDS. A build rule that reruns only when its inputs change.
+        input: codegen
+        check: { metric: manual }
+      - title: add_custom_target
+        body: Names the step so add_dependencies can order it. Protobuf and Qt moc work the same way.
+        check: { metric: manual }
+
+  - id: cross-compiling
+    title: Toolchains & cross-compiling
+    minutes: 4
+    algo: cmake-toolchain
+    steps:
+      - title: Toolchain files
+        body: Set the target system, compiler and sysroot before project(). Pass with --toolchain.
+        input: cross
+        check: { metric: manual }
+      - title: Host tools
+        body: Generators that run during the build need a separate host build.
+        check: { metric: manual }
+
+  - id: debugging-cmake
+    title: Debugging CMake
+    minutes: 3
+    algo: cmake-toolchain
+    steps:
+      - title: Make CMake show its work
+        body: --log-level, --trace-expand, --graphviz, cmake --build -v and cmake_print_properties.
+        input: debug
+        check: { metric: manual }
+      - title: Usual culprits
+        body: Wrong variable scope, stale cache values, PRIVATE where PUBLIC was needed.
+        check: { metric: manual }

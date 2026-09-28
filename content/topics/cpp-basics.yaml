@@ -1,0 +1,223 @@
+id: cpp-basics
+title: C++ basics
+group: cpp
+icon: braces
+order: 1
+summary: The language from zero. Types, variables, control flow, functions, arrays, strings, pointers, headers, I/O, exceptions and time.
+info: Every lesson steps through a small program line by line, showing the variables on the stack, blocks on the heap and what gets printed. Tap any box marked i for a plain explanation and a short code sample. The goal is a correct mental model of what each line does, which is what makes the later topics (OOP, STL, big projects) click.
+algos: [basics-types, basics-vars, basics-control, basics-functions, basics-arrays, basics-pointers, basics-structs, basics-headers, basics-preprocessor, basics-io, basics-exceptions, basics-chrono]
+lessons:
+  - id: types
+    title: Types, sizes & overflow
+    minutes: 5
+    algo: basics-types
+    steps:
+      - title: Every value has a type
+        body: The type fixes size, range and meaning. int is 4 bytes, double 8, char 1.
+        watch: Tap a variable to see its range and a sample.
+        input: sizes
+        check: { metric: manual }
+      - title: Overflow
+        body: Unsigned math wraps around; signed overflow is undefined behaviour. Widen before you compute.
+        watch: n − 1 with n = 0 is the classic loop bug.
+        input: overflow
+        check: { metric: manual }
+      - title: Conversions
+        body: 7 / 2 is 3. Convert an operand first, prefer {} to catch narrowing, and use static_cast when you mean it.
+        input: conversion
+        check: { metric: manual }
+
+  - id: variables
+    title: Variables, const & scope
+    minutes: 4
+    algo: basics-vars
+    steps:
+      - title: Always initialise
+        body: Uninitialised locals hold garbage. int x{} gives zero; auto deduces the type from the initialiser.
+        input: init
+        check: { metric: manual }
+      - title: const and constexpr
+        body: const can't be modified after creation. constexpr is computed at compile time.
+        input: const
+        check: { metric: manual }
+      - title: Scope
+        body: A variable lives until the closing brace of its block. Inner names can shadow outer ones.
+        input: scope
+        check: { metric: manual }
+
+  - id: control
+    title: Control flow
+    minutes: 4
+    algo: basics-control
+    steps:
+      - title: Loops
+        body: for (init; cond; step), while, do-while. continue skips to the next iteration, break leaves the loop.
+        input: loop
+        check: { metric: manual }
+      - title: switch
+        body: Jumps to a case label and falls through unless you break. Use enum class and let the compiler flag missing cases.
+        input: switch
+        check: { metric: manual }
+      - title: range-for
+        body: "for (auto& x : v) edits elements, for (const auto& x : v) reads them without copying."
+        input: rangefor
+        check: { metric: manual }
+
+  - id: functions
+    title: Functions & parameters
+    minutes: 5
+    algo: basics-functions
+    steps:
+      - title: By value
+        body: The parameter is a copy. Changes inside don't reach the caller.
+        input: value
+        check: { metric: manual }
+      - title: By reference
+        body: T& aliases the caller's object. const T& passes big objects without copying.
+        input: reference
+        check: { metric: manual }
+      - title: By pointer
+        body: A pointer can be null, so use it for optional arguments and check before use.
+        input: pointer
+        check: { metric: manual }
+      - title: Overloads and defaults
+        body: Same name, different parameter types. Trailing parameters can have default values.
+        input: overload
+        check: { metric: manual }
+
+  - id: arrays-strings
+    title: Arrays & strings
+    minutes: 5
+    algo: basics-arrays
+    steps:
+      - title: C arrays
+        body: Fixed size, no bounds checks, and they decay to a pointer that forgets the length.
+        input: carray
+        check: { metric: manual }
+      - title: std::array and std::vector
+        body: std::array for fixed sizes, std::vector for everything else. at() checks bounds.
+        input: stdarray
+        check: { metric: manual }
+      - title: Strings
+        body: C strings are char arrays ending in \0 and overflow easily. Use std::string; pass .c_str() to C APIs.
+        input: strings
+        check: { metric: manual }
+
+  - id: pointers
+    title: Pointers & references
+    minutes: 6
+    algo: basics-pointers
+    steps:
+      - title: Address and dereference
+        body: "&x is x's address, *p is the object at that address."
+        input: basics
+        check: { metric: manual }
+      - title: Pointer arithmetic
+        body: p + 1 moves one element. a[i] means *(a + i). One-past-the-end marks the stop.
+        input: arith
+        check: { metric: manual }
+      - title: nullptr and dangling
+        body: Check for nullptr before dereferencing. A pointer to a dead object is the most common memory bug.
+        input: nullptr
+        check: { metric: manual }
+      - title: References
+        body: An alias that must be bound at creation, can't be null and can't be re-pointed.
+        input: refs
+        check: { metric: manual }
+
+  - id: structs-enums
+    title: Structs, enums & namespaces
+    minutes: 4
+    algo: basics-structs
+    steps:
+      - title: struct
+        body: Group fields into a type with default values and brace or designated initialisation.
+        input: struct
+        check: { metric: manual }
+      - title: enum class
+        body: Scoped and strongly typed, unlike old enums that leak names and convert to int.
+        input: enums
+        check: { metric: manual }
+      - title: Namespaces and aliases
+        body: namespace groups names, using makes aliases. Never write using namespace in a header.
+        input: names
+        check: { metric: manual }
+
+  - id: headers
+    title: Headers & multiple files
+    minutes: 5
+    algo: basics-headers
+    steps:
+      - title: .h and .cpp
+        body: Headers declare, source files define. Each .cpp compiles separately; the linker joins them.
+        watch: Tap main.cpp, greeting.h and greeting.cpp to see their code.
+        input: split
+        check: { metric: manual }
+      - title: Include guards
+        body: "#pragma once in every header stops double definitions when headers include each other."
+        input: guards
+        check: { metric: manual }
+      - title: Forward declarations
+        body: class Engine; is enough for pointers and references, and saves rebuilds.
+        input: fwd
+        check: { metric: manual }
+
+  - id: preprocessor
+    title: The preprocessor
+    minutes: 3
+    algo: basics-preprocessor
+    steps:
+      - title: Macros are text
+        body: "#define pastes text before compilation. SQUARE(3 + 1) gives 7. Prefer constexpr."
+        input: macro
+        check: { metric: manual }
+      - title: Conditional compilation
+        body: "#ifdef and #if select code per build or platform. CMake sets the defines."
+        input: ifdef
+        check: { metric: manual }
+
+  - id: io
+    title: I/O, streams & files
+    minutes: 5
+    algo: basics-io
+    steps:
+      - title: cin and cout
+        body: ">> reads a token, getline reads a line, << writes. cerr is for errors."
+        input: console
+        check: { metric: manual }
+      - title: stringstream
+        body: Parse or build strings with the same stream operators.
+        input: sstream
+        check: { metric: manual }
+      - title: Files
+        body: ofstream and ifstream close themselves. Binary mode writes raw bytes, tied to layout and byte order.
+        input: files
+        check: { metric: manual }
+
+  - id: exceptions
+    title: Exceptions
+    minutes: 4
+    algo: basics-exceptions
+    steps:
+      - title: throw and catch
+        body: throw abandons the function; the nearest matching catch handles it. Catch by const reference.
+        input: throw
+        check: { metric: manual }
+      - title: Unwinding
+        body: Destructors of local objects run as the stack unwinds. Raw new/delete leaks, RAII types don't.
+        input: unwind
+        check: { metric: manual }
+
+  - id: chrono
+    title: Time with <chrono>
+    minutes: 3
+    algo: basics-chrono
+    steps:
+      - title: Durations
+        body: Typed time spans like 1500ms. Converting to coarser units needs duration_cast.
+        input: durations
+        check: { metric: manual }
+      - title: Measuring
+        body: Time code with steady_clock, which never jumps. system_clock is wall time.
+        input: timing
+        check: { metric: manual }

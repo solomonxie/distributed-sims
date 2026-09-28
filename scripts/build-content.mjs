@@ -120,7 +120,7 @@ export interface LessonDef {
 export interface TopicDef {
   id: string;
   title: string;
-  group: 'topics' | 'under-the-hood' | 'machine';
+  group: 'topics' | 'under-the-hood' | 'machine' | 'cpp';
   icon: string;
   summary: string;
   order: number;

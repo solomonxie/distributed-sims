@@ -10,6 +10,6 @@ import '../machine/memory';
 import '../machine/bus';
 import '../machine/asm';
 import '../machine/cpp';
-import '../machine/cppproject';
+import '../cpp';
 
 export * from './frames';

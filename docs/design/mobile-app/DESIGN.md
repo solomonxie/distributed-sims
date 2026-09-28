@@ -103,6 +103,7 @@ Detailed lists live in sibling specs; one-line summary here.
 | `problems.md` | Problems track: 20 real-world system-design presets |
 | `algorithms.md` | Algorithm visualizer demos |
 | `machine.md` | Machine level: host view + CPU/memory/bus/paging models + Assembly/C++ tracks |
+| `cpp.md` | C++ section: ten topics from basics to CMake, large projects and C10K |
 | `technologies.md` | Under the hood: composite components with simulated internals |
 | `engine.md` | simulation model, metrics, determinism, performance budget |
 

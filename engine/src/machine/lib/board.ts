@@ -1,6 +1,6 @@
 // Declarative box-and-arrow scenes: fixed nodes/edges, each beat restyles them and optionally highlights a code listing on top.
-import type { Frame, Shape, Tone } from '../../algo/frames';
-import { arrow, box, code, Film, panel, text } from './draw';
+import type { Detail, Frame, Shape, Tone } from '../../algo/frames';
+import { arrow, box, code, Film, machineDemo, panel, text } from './draw';
 import type { Row } from './draw';
 
 export interface BoardNode {
@@ -12,6 +12,7 @@ export interface BoardNode {
   label: string;
   sub?: string;
   dashed?: boolean;
+  detail?: Detail;
 }
 
 export interface Beat {
@@ -66,9 +67,26 @@ export function boardFrames(b: Board): Frame[] {
     }
     for (const n of b.nodes) {
       if (hide.has(n.id)) continue;
-      out.push(box(`n-${n.id}`, n.x, n.y, n.w, n.h, beat.label?.[n.id] ?? n.label, { sub: beat.sub?.[n.id] ?? n.sub, mono: true, tone: beat.hot?.[n.id] ?? 'default', dashed: n.dashed }));
+      const r = box(`n-${n.id}`, n.x, n.y, n.w, n.h, beat.label?.[n.id] ?? n.label, { sub: beat.sub?.[n.id] ?? n.sub, mono: true, tone: beat.hot?.[n.id] ?? 'default', dashed: n.dashed });
+      if (n.detail && r.t === 'rect') r.detail = n.detail;
+      out.push(r);
     }
     f.add(beat.note, out, panel(b.panel, beat.rows ?? b.rows ?? []));
   }
   return f.frames;
+}
+
+export const N = (id: string, x: number, y: number, w: number, h: number, label: string, sub?: string, o: { dashed?: boolean; detail?: Detail } = {}): BoardNode => ({ id, x, y, w, h, label, sub, ...o });
+
+/** One demo, one board per input: `boards[id] = [chip label, board]`. `details` keyed by node label. */
+export function boardDemo(group: string, slug: string, title: string, summary: string, boards: Record<string, [label: string, board: Board]>, details?: Record<string, Detail>) {
+  machineDemo({
+    slug,
+    title,
+    group,
+    summary,
+    inputs: Object.entries(boards).map(([id, [label]]) => ({ id, label, data: { k: id } })),
+    build: ({ k }: { k: string }) => boardFrames(boards[k][1]),
+    details,
+  });
 }

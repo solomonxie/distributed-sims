@@ -1,0 +1,207 @@
+id: cpp-stl
+title: STL containers & algorithms
+group: cpp
+icon: library
+order: 4
+summary: The standard library's containers and algorithms, drawn as memory. What each costs, when to pick it, and the bugs they invite.
+info: Most C++ performance and most C++ memory bugs come from containers. A vector is one heap block, a map is a tree of nodes, an unordered_map is buckets and chains, a string_view is a pointer into someone else's memory. Once you can picture the layout, big-O, cache behaviour and iterator invalidation all follow from it. Tap any box marked i for a short explanation and a code sample.
+algos: [stl-containers, stl-vector, stl-string, stl-sequence, stl-map, stl-hash, stl-iterators, stl-invalidation, stl-algorithms, stl-heap, stl-tuple, stl-views]
+lessons:
+  - id: containers
+    title: Choosing a container
+    minutes: 4
+    algo: stl-containers
+    steps:
+      - title: Three ways to find things
+        body: By position (vector, deque), by sorted key (map, set) or by hash (unordered_map). Adaptors and views sit on top.
+        input: families
+        check: { metric: manual }
+      - title: Default to vector
+        body: Contiguous memory beats clever structures for most sizes. Reach for a map only when you look things up by key.
+        watch: list is the last resort.
+        input: choose
+        check: { metric: manual }
+
+  - id: vector
+    title: vector in depth
+    minutes: 5
+    algo: stl-vector
+    steps:
+      - title: size vs capacity
+        body: capacity is the room in the heap block; size is how much is used. reserve when you know the count.
+        input: capacity
+        check: { metric: manual }
+      - title: Where the cost is
+        body: push_back and pop_back are cheap. insert and erase anywhere else shift every later element.
+        input: insert
+        check: { metric: manual }
+      - title: emplace_back
+        body: Constructs the element in place from constructor arguments, skipping the temporary.
+        input: emplace
+        check: { metric: manual }
+
+  - id: string
+    title: std::string & SSO
+    minutes: 4
+    algo: stl-string
+    steps:
+      - title: Small string optimisation
+        body: Up to 15 chars live inside the 32-byte object. Longer strings allocate.
+        input: sso
+        check: { metric: manual }
+      - title: Copy vs move
+        body: Copies allocate and copy every char. Moves hand over the buffer pointer.
+        input: copy
+        check: { metric: manual }
+      - title: Building strings
+        body: Appending in a loop regrows the buffer. reserve once when you can estimate the size.
+        input: append
+        check: { metric: manual }
+
+  - id: sequence
+    title: array, deque & list
+    minutes: 5
+    algo: stl-sequence
+    steps:
+      - title: std::array
+        body: A fixed-size array with no heap. Use it instead of C arrays; at() checks bounds.
+        input: array
+        check: { metric: manual }
+      - title: std::deque
+        body: Blocks behind a map of pointers. O(1) at both ends, and elements never move when you add at the ends.
+        input: deque
+        check: { metric: manual }
+      - title: std::list
+        body: One node per element. O(1) splicing and stable addresses, paid for with a cache miss per step.
+        input: list
+        check: { metric: manual }
+
+  - id: map
+    title: map & set as trees
+    minutes: 5
+    algo: stl-map
+    steps:
+      - title: Balanced search tree
+        body: std::map is a red-black tree. find walks from the root, about log2(n) compares.
+        input: find
+        check: { metric: manual }
+      - title: Sorted iteration
+        body: In-order traversal returns keys sorted, whatever the insert order.
+        input: iterate
+        check: { metric: manual }
+      - title: Range queries
+        body: lower_bound and upper_bound find the edges of a key range. Hash maps can't do this.
+        input: range
+        check: { metric: manual }
+
+  - id: hash
+    title: unordered_map & hashing
+    minutes: 5
+    algo: stl-hash
+    steps:
+      - title: Buckets and chains
+        body: The key's hash picks a bucket; colliding keys share a chain. Lookups are O(1) while chains stay short.
+        input: insert
+        check: { metric: manual }
+      - title: Rehashing
+        body: Past the max load factor, the table grows and relinks every node, invalidating iterators. reserve avoids it.
+        input: rehash
+        check: { metric: manual }
+      - title: Custom keys
+        body: Your own key type needs a hash (specialise std::hash) and operator==. A weak hash makes every lookup O(n).
+        check: { metric: manual }
+
+  - id: iterators
+    title: Iterator categories
+    minutes: 3
+    algo: stl-iterators
+    steps:
+      - title: Generalised pointers
+        body: Input, forward, bidirectional, random access, contiguous. Each adds operations to the one before.
+        input: categories
+        check: { metric: manual }
+      - title: Algorithms state requirements
+        body: std::sort needs random access, so a list sorts with its own member sort().
+        check: { metric: manual }
+
+  - id: invalidation
+    title: Iterator invalidation
+    minutes: 4
+    algo: stl-invalidation
+    steps:
+      - title: Reallocation
+        body: Any vector growth can move the elements. Iterators, pointers and references into it then dangle.
+        watch: The old block is freed, the iterator still points at it.
+        input: pushback
+        check: { metric: manual }
+      - title: Erasing in a loop
+        body: Use the iterator erase returns, or std::erase_if. Node containers only invalidate the erased element.
+        input: erase
+        check: { metric: manual }
+
+  - id: algorithms
+    title: Algorithms
+    minutes: 6
+    algo: stl-algorithms
+    steps:
+      - title: sort
+        body: Introsort, O(n log n). stable_sort keeps equal elements in order.
+        input: sort
+        check: { metric: manual }
+      - title: Binary search
+        body: lower_bound on a sorted range finds a position in O(log n), present or not.
+        input: search
+        check: { metric: manual }
+      - title: erase-remove
+        body: remove only compacts; erase shrinks. C++20 std::erase does both.
+        input: eraseRemove
+        check: { metric: manual }
+      - title: transform & accumulate
+        body: Name the loop's intent. Many algorithms also take a parallel execution policy.
+        input: fold
+        check: { metric: manual }
+
+  - id: heap
+    title: priority_queue & heaps
+    minutes: 4
+    algo: stl-heap
+    steps:
+      - title: push sifts up
+        body: A max-heap in a vector. New elements bubble up past smaller parents.
+        input: push
+        check: { metric: manual }
+      - title: pop sifts down
+        body: The last element replaces the root and sinks to its place. Both are O(log n).
+        input: pop
+        check: { metric: manual }
+
+  - id: tuple
+    title: pair, tuple & bindings
+    minutes: 3
+    algo: stl-tuple
+    steps:
+      - title: Structured bindings
+        body: auto [a, b] = x unpacks pairs, tuples and structs. auto& binds to the original.
+        input: bindings
+        check: { metric: manual }
+      - title: Prefer named structs
+        body: Tuples are fine locally. In APIs, a struct with named fields says what each value means.
+        check: { metric: manual }
+
+  - id: views
+    title: string_view & span
+    minutes: 5
+    algo: stl-views
+    steps:
+      - title: Borrow, don't copy
+        body: A view is a pointer and a length. Great for parameters and parsers, with zero allocations.
+        input: view
+        check: { metric: manual }
+      - title: Dangling views
+        body: A view must not outlive its owner. Never return a view of a local or of a temporary string.
+        input: dangling
+        check: { metric: manual }
+      - title: std::span
+        body: The same idea for contiguous arrays of any type. Replaces pointer-plus-length parameters.
+        input: span
+        check: { metric: manual }
