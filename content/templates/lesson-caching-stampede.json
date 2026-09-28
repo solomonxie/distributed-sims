@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "id": "lesson-caching-stampede",
+  "name": "Lesson: cache stampede",
+  "description": "One hot key, 5s TTL, a slow 250ms query. Lane A: every miss goes to the DB. Lane B: request coalescing (one fetch per key) and 20% TTL jitter.",
+  "nodes": [
+    { "id": "web", "type": "web-client", "name": "Users", "pos": { "x": 195, "y": 60 } },
+    { "id": "api-a", "type": "service", "name": "API A", "pos": { "x": 90, "y": 180 } },
+    { "id": "api-b", "type": "service", "name": "API B", "pos": { "x": 300, "y": 180 } },
+    { "id": "cache-a", "type": "cache", "skin": "redis", "name": "Redis A", "pos": { "x": 90, "y": 300 }, "config": { "ttlSec": 5, "coalescing": false } },
+    { "id": "cache-b", "type": "cache", "skin": "redis", "name": "Redis B (coalesce)", "pos": { "x": 300, "y": 300 }, "config": { "ttlSec": 5, "coalescing": true, "ttlJitterPct": 20 } },
+    { "id": "db-a", "type": "relational-db", "skin": "postgres", "name": "Postgres A", "pos": { "x": 90, "y": 420 }, "config": { "replicas": 0, "p50Ms": 250, "p99Ms": 600, "slots": 40 } },
+    { "id": "db-b", "type": "relational-db", "skin": "postgres", "name": "Postgres B", "pos": { "x": 300, "y": 420 }, "config": { "replicas": 0, "p50Ms": 250, "p99Ms": 600, "slots": 40 } }
+  ],
+  "edges": [
+    { "id": "e1", "from": "web", "to": "api-a", "config": { "ratio": 0.5 } },
+    { "id": "e2", "from": "web", "to": "api-b", "config": { "ratio": 0.5 } },
+    { "id": "e3", "from": "api-a", "to": "cache-a" },
+    { "id": "e4", "from": "api-b", "to": "cache-b" },
+    { "id": "e5", "from": "cache-a", "to": "db-a", "config": { "timeoutMs": 2000 } },
+    { "id": "e6", "from": "cache-b", "to": "db-b", "config": { "timeoutMs": 2000 } }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 300,
+    "sources": [{ "id": "s1", "node": "web", "shape": { "kind": "constant", "rps": 2000 }, "readRatio": 1, "keys": { "kind": "hot", "hot": 0.95 } }],
+    "events": []
+  },
+  "wire": {
+    "host": "scores.example",
+    "read": {
+      "path": "/api/matches/{key}/score"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/matches/{key}/events",
+      "reqBody": "{\"type\": \"goal\", \"minute\": {value}}",
+      "status": 201,
+      "body": "{\"match\": {key}, \"accepted\": true}"
+    },
+    "table": "match_scores",
+    "valCol": "score",
+    "cachePrefix": "score:"
+  }
+}

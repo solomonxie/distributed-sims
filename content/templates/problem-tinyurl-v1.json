@@ -1,0 +1,95 @@
+{
+  "schemaVersion": 1,
+  "id": "problem-tinyurl-v1",
+  "name": "URL shortener (naive)",
+  "description": "One app server looks up every redirect in Postgres. Short codes come from an auto-increment id.",
+  "nodes": [
+    {
+      "id": "users",
+      "type": "web-client",
+      "skin": "react-spa",
+      "name": "Users",
+      "pos": {
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "id": "app",
+      "type": "service",
+      "skin": "node-service",
+      "name": "URL app",
+      "pos": {
+        "x": 0,
+        "y": 110
+      },
+      "config": {
+        "instances": 2
+      }
+    },
+    {
+      "id": "db",
+      "type": "relational-db",
+      "skin": "postgres",
+      "name": "Links DB",
+      "pos": {
+        "x": 0,
+        "y": 220
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "users-app",
+      "from": "users",
+      "to": "app",
+      "config": {
+        "timeoutMs": 5000
+      }
+    },
+    {
+      "id": "app-db",
+      "from": "app",
+      "to": "db"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 60,
+    "sources": [
+      {
+        "id": "clicks",
+        "node": "users",
+        "shape": {
+          "kind": "constant",
+          "rps": 5000
+        },
+        "readRatio": 0.99,
+        "keys": {
+          "kind": "zipf",
+          "s": 1
+        }
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "sho.rt",
+    "read": {
+      "path": "/{code}",
+      "status": 301,
+      "location": "https://blog.example.com/posts/{key}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/links",
+      "reqBody": "{\"url\": \"https://blog.example.com/posts/{key}\"}",
+      "status": 201,
+      "body": "{\"code\": \"{code}\", \"short_url\": \"https://sho.rt/{code}\"}"
+    },
+    "table": "links",
+    "keyCol": "code",
+    "valCol": "long_url",
+    "cachePrefix": "link:"
+  }
+}

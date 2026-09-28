@@ -1,0 +1,129 @@
+{
+  "schemaVersion": 1,
+  "id": "lesson-micro-cascade",
+  "name": "Cascading failure",
+  "description": "The web BFF (40 workers) and Orders (10 workers) have fixed pools that stay busy while they wait on a downstream call. When Inventory slows down, Orders fills its pool, then the BFF fills its own, and Profile requests start failing too, although Profile is healthy.",
+  "nodes": [
+    {
+      "id": "users",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 195,
+        "y": 40
+      }
+    },
+    {
+      "id": "bff",
+      "type": "monolith",
+      "name": "Web BFF · 40 workers",
+      "pos": {
+        "x": 195,
+        "y": 160
+      },
+      "skin": "spring-monolith",
+      "config": {
+        "dbPool": 40,
+        "poolTimeoutMs": 2000,
+        "fanout": "one",
+        "gcPauses": false
+      }
+    },
+    {
+      "id": "orders",
+      "type": "monolith",
+      "name": "Orders · 10 workers",
+      "pos": {
+        "x": 95,
+        "y": 300
+      },
+      "skin": "spring-monolith",
+      "config": {
+        "dbPool": 10,
+        "poolTimeoutMs": 2000,
+        "gcPauses": false
+      }
+    },
+    {
+      "id": "profile",
+      "type": "service",
+      "name": "Profile",
+      "pos": {
+        "x": 295,
+        "y": 300
+      }
+    },
+    {
+      "id": "inventory",
+      "type": "service",
+      "name": "Inventory",
+      "pos": {
+        "x": 95,
+        "y": 440
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "users->bff",
+      "from": "users",
+      "to": "bff",
+      "config": {
+        "timeoutMs": 5000
+      }
+    },
+    {
+      "id": "bff->orders",
+      "from": "bff",
+      "to": "orders",
+      "config": {
+        "ratio": 0.5,
+        "timeoutMs": 4000
+      }
+    },
+    {
+      "id": "bff->profile",
+      "from": "bff",
+      "to": "profile",
+      "config": {
+        "ratio": 0.5
+      }
+    },
+    {
+      "id": "orders->inventory",
+      "from": "orders",
+      "to": "inventory",
+      "config": {
+        "timeoutMs": 3000
+      }
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 120,
+    "sources": [
+      {
+        "id": "s1",
+        "node": "users",
+        "shape": {
+          "kind": "constant",
+          "rps": 150
+        }
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "shop.example",
+    "read": {
+      "path": "/api/orders/{key}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/orders",
+      "reqBody": "{\"sku\": \"SKU-{key}\", \"qty\": 1}",
+      "status": 201,
+      "body": "{\"order_id\": {key}, \"status\": \"placed\"}"
+    }
+  }
+}

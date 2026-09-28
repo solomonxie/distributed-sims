@@ -1,0 +1,155 @@
+{
+  "schemaVersion": 1,
+  "id": "compute-serverless",
+  "name": "Serverless: cold starts, throttling, connection storm",
+  "description": "Spiky traffic hits a Lambda that keeps instances warm for only 20 s: each spike pays cold starts (p99), exceeds the 60 concurrency limit (429s) and opens one DB connection per instance, overrunning the DB limit (refused). A CronJob fires a batch every 30 s.",
+  "nodes": [
+    {
+      "id": "app",
+      "type": "mobile-client",
+      "name": "App",
+      "pos": {
+        "x": 55,
+        "y": 60
+      },
+      "skin": "ios-app"
+    },
+    {
+      "id": "gw",
+      "type": "api-gateway",
+      "name": "API Gateway",
+      "pos": {
+        "x": 195,
+        "y": 60
+      }
+    },
+    {
+      "id": "fn",
+      "type": "serverless-fn",
+      "name": "Checkout fn",
+      "pos": {
+        "x": 195,
+        "y": 200
+      },
+      "skin": "aws-lambda",
+      "config": {
+        "concurrency": 60,
+        "idleSec": 20,
+        "p50Ms": 60,
+        "p99Ms": 150,
+        "connsPerInstance": 1
+      }
+    },
+    {
+      "id": "db",
+      "type": "relational-db",
+      "name": "Orders DB",
+      "pos": {
+        "x": 195,
+        "y": 340
+      },
+      "skin": "postgres",
+      "config": {
+        "maxConnections": 40
+      }
+    },
+    {
+      "id": "cron",
+      "type": "cron",
+      "name": "Nightly sync",
+      "pos": {
+        "x": 335,
+        "y": 200
+      },
+      "skin": "k8s-cronjob",
+      "config": {
+        "scheduleSec": 30,
+        "batch": 50
+      }
+    },
+    {
+      "id": "report",
+      "type": "serverless-fn",
+      "name": "Report fn",
+      "pos": {
+        "x": 335,
+        "y": 340
+      },
+      "skin": "cloud-functions",
+      "config": {
+        "p50Ms": 200,
+        "p99Ms": 600,
+        "connsPerInstance": 0
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "app->gw",
+      "from": "app",
+      "to": "gw"
+    },
+    {
+      "id": "gw->fn",
+      "from": "gw",
+      "to": "fn",
+      "config": {
+        "timeoutMs": 3000
+      }
+    },
+    {
+      "id": "fn->db",
+      "from": "fn",
+      "to": "db"
+    },
+    {
+      "id": "cron->report",
+      "from": "cron",
+      "to": "report"
+    },
+    {
+      "id": "report->db",
+      "from": "report",
+      "to": "db",
+      "config": {
+        "op": "read"
+      }
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 120,
+    "sources": [
+      {
+        "id": "s1",
+        "node": "app",
+        "shape": {
+          "kind": "spike-train",
+          "base": 20,
+          "height": 700,
+          "periodSec": 30,
+          "widthSec": 4
+        },
+        "readRatio": 0.7
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "api.shop.io",
+    "read": {
+      "method": "GET",
+      "path": "/prod/orders/{key}",
+      "body": "{\"id\": {key}, \"status\": \"paid\"}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/prod/checkout",
+      "reqBody": "{\"cart_id\": {key}, \"amount\": {value}}",
+      "status": 201,
+      "body": "{\"order_id\": {key}, \"status\": \"paid\"}"
+    },
+    "table": "orders",
+    "valCol": "status"
+  }
+}

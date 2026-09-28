@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "id": "problem-yelp-v2",
+  "name": "Yelp: geo index + review pipeline",
+  "description": "Nearby queries hit a results cache keyed by geo cell, then a sharded quadtree that only scans the cells around the user. Reviews are written to Postgres and flow through Kafka to update ratings and the index asynchronously.",
+  "nodes": [
+    {"id":"users","type":"mobile-client","skin":"ios-app","name":"Diners","pos":{"x":0,"y":0}},
+    {"id":"lb","type":"load-balancer","skin":"aws-alb","name":"Load balancer","pos":{"x":0,"y":110}},
+    {"id":"search","type":"service","skin":"go-service","name":"Nearby API","pos":{"x":-80,"y":220},"config":{"instances":2}},
+    {"id":"reviews","type":"service","skin":"go-service","name":"Review API","pos":{"x":80,"y":220},"config":{"instances":2}},
+    {"id":"cache","type":"cache","skin":"redis","name":"Results by cell (60s)","pos":{"x":-80,"y":330},"config":{"capacityKeys":1024,"ttlSec":60,"coalescing":true}},
+    {"id":"geo","type":"geo-index","skin":"postgis","name":"Geo index (quadtree)","pos":{"x":-80,"y":440},"config":{"shards":8,"instances":4}},
+    {"id":"db","type":"relational-db","skin":"postgres","name":"Reviews DB","pos":{"x":80,"y":330}},
+    {"id":"kafka","type":"log-stream","skin":"kinesis","name":"Review events","pos":{"x":80,"y":440}},
+    {"id":"indexer","type":"worker","name":"Rating updater","pos":{"x":80,"y":550},"config":{"instances":2,"p50Ms":2,"p99Ms":10,"idempotent":true}}
+  ],
+  "edges": [
+    {"id":"users-lb","from":"users","to":"lb","config":{"timeoutMs":5000}},
+    {"id":"lb-search","from":"lb","to":"search","config":{"op":"read"}},
+    {"id":"lb-reviews","from":"lb","to":"reviews","config":{"op":"write"}},
+    {"id":"search-cache","from":"search","to":"cache"},
+    {"id":"cache-geo","from":"cache","to":"geo"},
+    {"id":"reviews-db","from":"reviews","to":"db"},
+    {"id":"reviews-kafka","from":"reviews","to":"kafka"},
+    {"id":"kafka-indexer","from":"kafka","to":"indexer"},
+    {"id":"indexer-geo","from":"indexer","to":"geo"}
+  ],
+  "containers": [],
+  "scenario": {"durationSec":60,"sources":[{"id":"searches","node":"users","shape":{"kind":"constant","rps":3000},"readRatio":0.97,"keys":{"kind":"zipf","s":0.8}}],"events":[]},
+  "wire": {
+    "host": "api.yelp.example",
+    "read": {
+      "method": "GET",
+      "path": "/v3/businesses/search?lat=37.77&lng=-122.42&radius=1000",
+      "status": 200,
+      "body": "{\"total\": 42, \"businesses\": [{\"id\": {key}, \"name\": \"Tartine\", \"rating\": 4.5}]}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/v3/businesses/{key}/reviews",
+      "reqBody": "{\"rating\": 5, \"text\": \"Great croissants\"}",
+      "status": 201,
+      "body": "{\"review_id\": {key}}"
+    },
+    "table": "reviews",
+    "valCol": "rating",
+    "cachePrefix": "geo:",
+    "topic": "reviews"
+  }
+}

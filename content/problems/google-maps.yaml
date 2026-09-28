@@ -1,0 +1,47 @@
+id: google-maps
+title: Google Maps
+icon: map
+category: product
+order: 11
+summary: Map tiles, turn-by-turn routes and live location pings for a billion phones.
+requirements:
+  - View map tiles (pan / zoom), get a route + ETA, send location pings while navigating
+  - 1B MAU · 100M routes/day · tile views 20× routes
+  - Tile p99 < 100ms · route p99 < 300ms · survives a region outage
+estimates:
+  - Tiles ~60k/s peak (90%+ CDN hits) · routes ~5k/s peak · pings ~250k/s while navigating
+  - Road graph ~50M nodes worldwide · pre-rendered tiles ~50 TB
+designs:
+  - { id: v1, title: "Naive: render + Dijkstra on demand, one region", template: problem-google-maps-v1 }
+  - { id: v2, title: "Reference: tile CDN, contraction hierarchies, 2 regions", template: problem-google-maps-v2 }
+challenges:
+  - id: routing-burst
+    title: "Evening commute: 4× traffic"
+    template: problem-google-maps-v2
+    scenario:
+      durationSec: 60
+      sources: [{ id: app, node: users, shape: { kind: constant, rps: 2000 }, readRatio: 0.95 }]
+      events:
+        - { atSec: 15, event: { kind: traffic, action: burst, params: { x: 4 }, durationSec: 45 } }
+    pass:
+      - { metric: p99, op: '<', value: 300 }
+      - { metric: availability, op: '>=', value: 99.5 }
+      - { metric: costMonth, op: '<=', value: 6000 }
+  - id: region-down
+    title: "us-east goes dark"
+    template: problem-google-maps-v2
+    scenario:
+      durationSec: 60
+      sources: [{ id: app, node: users, shape: { kind: constant, rps: 2000 }, readRatio: 0.95 }]
+      events:
+        - { atSec: 10, event: { kind: region-down, target: us-east, durationSec: 50 } }
+    pass:
+      - { metric: availability, op: '>=', value: 99 }
+      - { metric: p99, op: '<', value: 300 }
+keyIdeas:
+  - { label: Dijkstra, link: "algo:dijkstra" }
+  - { label: "A* search", link: "algo:astar" }
+  - { label: Contraction hierarchies, link: "algo:contraction-hierarchies" }
+  - { label: Tile CDN, link: "lesson:caching/cdn" }
+  - { label: DNS failover across regions, link: "lesson:network/dns-failover" }
+  - { label: Location pings at scale, link: "lesson:proximity/location-updates" }

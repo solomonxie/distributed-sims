@@ -1,0 +1,60 @@
+id: machine-storage
+title: Storage devices
+group: machine
+icon: hard-drive
+order: 5
+summary: SSD internals, spinning disks, fsync, and why logs love sequential IO.
+info: Flash can't overwrite in place, so SSDs remap writes and garbage-collect blocks, amplifying random writes. Spinning disks pay milliseconds of seek and rotation per random IO but stream sequential data fast. A write isn't durable until fsync pushes it past the page cache.
+algos: [bus-storage, mem-page-cache]
+lessons:
+  - id: ssd-vs-hdd
+    title: SSD vs HDD
+    minutes: 4
+    algo: bus-storage
+    steps:
+      - title: Flash remaps writes
+        body: Overwrites go to fresh pages and the old ones are only marked stale. To reclaim a block, GC copies its live pages first.
+        watch: Write amplification rises above 1.0.
+        check: { metric: manual }
+      - title: Spinning disk
+        body: Switch to "HDD". A random 4 KB read waits for the arm to seek and the platter to rotate, ~9 ms.
+        watch: ~100 random IOPS vs ~500k on NVMe, but sequential reads skip both delays.
+        check: { metric: manual }
+
+  - id: fsync
+    title: fsync & durability
+    minutes: 3
+    algo: mem-page-cache
+    steps:
+      - title: write() lies a little
+        body: Switch to "Write + fsync". write() returns once the data is in a dirty page-cache page, and a power cut now loses it.
+        check: { metric: manual }
+      - title: fsync makes it durable
+        body: fsync writes the dirty pages and flushes the device, blocking for 0.1–2 ms. Databases group-commit many transactions per fsync.
+        check: { metric: manual }
+
+  - id: kafka-sequential-io
+    title: "Bridge: why does Kafka love sequential IO?"
+    minutes: 3
+    algo: bus-storage
+    steps:
+      - title: Appends only
+        body: Kafka only appends to the end of a log segment, so writes are sequential. On flash that keeps write amplification near 1.
+        watch: Random overwrites are what trigger GC copying.
+        check: { metric: manual }
+      - title: Built for spinning disks
+        body: Switch to "HDD". Sequential IO skips seek and rotation, streaming ~200 MB/s where random IO manages ~100 ops/s.
+        check: { metric: manual }
+
+  - id: kafka-page-cache
+    title: "Bridge: Kafka and the page cache"
+    minutes: 3
+    algo: mem-page-cache
+    steps:
+      - title: No cache of its own
+        body: Kafka writes into the OS page cache and lets the kernel flush. Consumers reading the recent tail hit RAM, not disk.
+        watch: The second read is a cache hit with no IO.
+        check: { metric: manual }
+      - title: Replication instead of fsync
+        body: Kafka doesn't fsync each message; durability comes from replicas acknowledging the write (acks=all). Serving uses sendfile straight from the cache.
+        check: { metric: manual }

@@ -1,0 +1,184 @@
+{
+  "schemaVersion": 1,
+  "id": "lesson-network-nat",
+  "name": "NAT gateway port exhaustion",
+  "description": "Two fleets of 20 app instances in private subnets each make 8,000 calls/s to one payments API through their own NAT gateway. The NAT gives every connection a source port, at most 55,000 per destination. Left opens a new connection per call, and each closed connection keeps its port for 60s. Right reuses pooled keep-alive connections.",
+  "nodes": [
+    {
+      "id": "users-n",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 75,
+        "y": 40
+      }
+    },
+    {
+      "id": "app-n",
+      "type": "service",
+      "name": "App · new conn",
+      "parent": "private",
+      "pos": {
+        "x": 75,
+        "y": 170
+      },
+      "config": {
+        "instances": 20
+      }
+    },
+    {
+      "id": "nat-n",
+      "type": "nat-gateway",
+      "name": "NAT gateway",
+      "parent": "private",
+      "pos": {
+        "x": 75,
+        "y": 300
+      }
+    },
+    {
+      "id": "users-p",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 315,
+        "y": 40
+      }
+    },
+    {
+      "id": "app-p",
+      "type": "service",
+      "name": "App · pooled",
+      "parent": "private",
+      "pos": {
+        "x": 315,
+        "y": 170
+      },
+      "config": {
+        "instances": 20
+      }
+    },
+    {
+      "id": "nat-p",
+      "type": "nat-gateway",
+      "name": "NAT gateway",
+      "parent": "private",
+      "pos": {
+        "x": 315,
+        "y": 300
+      }
+    },
+    {
+      "id": "api",
+      "type": "external-api",
+      "name": "Payments API",
+      "pos": {
+        "x": 195,
+        "y": 450
+      },
+      "config": {
+        "quotaRps": 100000,
+        "availabilityPct": 100,
+        "slots": 100000,
+        "p50Ms": 30,
+        "p99Ms": 120
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "users-n->app-n",
+      "from": "users-n",
+      "to": "app-n",
+      "config": {
+        "timeoutMs": 3000
+      }
+    },
+    {
+      "id": "app-n->nat-n",
+      "from": "app-n",
+      "to": "nat-n",
+      "config": {
+        "timeoutMs": 2000,
+        "keepAlive": false
+      }
+    },
+    {
+      "id": "nat-n->api",
+      "from": "nat-n",
+      "to": "api",
+      "config": {
+        "timeoutMs": 2000,
+        "latencyMs": 10,
+        "keepAlive": false
+      }
+    },
+    {
+      "id": "users-p->app-p",
+      "from": "users-p",
+      "to": "app-p",
+      "config": {
+        "timeoutMs": 3000
+      }
+    },
+    {
+      "id": "app-p->nat-p",
+      "from": "app-p",
+      "to": "nat-p",
+      "config": {
+        "timeoutMs": 2000
+      }
+    },
+    {
+      "id": "nat-p->api",
+      "from": "nat-p",
+      "to": "api",
+      "config": {
+        "timeoutMs": 2000,
+        "latencyMs": 10
+      }
+    }
+  ],
+  "containers": [
+    {
+      "id": "private",
+      "kind": "vpc",
+      "name": "Private subnets"
+    }
+  ],
+  "scenario": {
+    "durationSec": 120,
+    "sources": [
+      {
+        "id": "s1",
+        "node": "users-n",
+        "shape": {
+          "kind": "constant",
+          "rps": 8000
+        }
+      },
+      {
+        "id": "s2",
+        "node": "users-p",
+        "shape": {
+          "kind": "constant",
+          "rps": 8000
+        }
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "api.payments.example",
+    "read": {
+      "path": "/v1/charges/ch_{key}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/v1/charges",
+      "reqBody": "{\"amount\": {value}, \"currency\": \"usd\"}",
+      "status": 201,
+      "body": "{\"id\": \"ch_{key}\", \"status\": \"succeeded\"}"
+    }
+  }
+}

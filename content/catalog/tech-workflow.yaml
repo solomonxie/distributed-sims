@@ -1,0 +1,382 @@
+group: { id: tech, label: Under the hood, order: 14 }
+# Workflow / task engines (technologies.md → Airflow, Celery, Temporal). Composite skins: airflow, celery, temporal-cluster.
+# Protocol kinds: airflow.*, celery.*, temporal.* (shown in the sequence view).
+types:
+  # ---- airflow
+  - type: airflow-scheduler
+    label: Airflow scheduler
+    description: Loop over the metadata DB — create DagRuns on schedule, resolve dependencies, queue task instances, detect zombies
+    icon: calendar-clock
+    costPerInstanceMonth: 120
+    knobs:
+      - { key: scheduleSec, label: Schedule interval, kind: number, default: 10, min: 0, max: 86400, unit: s, help: "0 = only manual/API triggers (sim-scaled: 10s stands for @hourly)" }
+      - { key: tasks, label: Tasks per DAG, kind: int, default: 3, min: 1, max: 20, help: extract → transform → load chain }
+      - { key: taskP50Ms, label: Task p50, kind: ms, default: 2000, min: 1, max: 600000 }
+      - { key: taskP99Ms, label: Task p99, kind: ms, default: 5000, min: 1, max: 600000 }
+      - { key: sensor, label: Sensor mode, kind: enum, default: none, options: [none, poke, reschedule, deferrable], help: "poke holds a worker slot while waiting; reschedule frees it between pokes; deferrable hands the wait to the triggerer" }
+      - { key: sensorWaitSec, label: Sensor waits for, kind: number, default: 20, min: 0, max: 86400, unit: s }
+      - { key: pokeIntervalSec, label: Poke interval, kind: number, default: 5, min: 1, max: 3600, unit: s }
+      - { key: pokeMs, label: Poke duration, kind: ms, default: 300, min: 1, max: 60000, advanced: true }
+      - { key: failPct, label: Task failure rate, kind: percent, default: 0, min: 0, max: 100, help: Fails after its side effect (e.g. INSERT done, then network error) }
+      - { key: idempotent, label: Tasks idempotent, kind: bool, default: true, help: "false: a retry repeats the side effect (duplicate rows)" }
+      - { key: retries, label: Retries, kind: int, default: 2, min: 0, max: 20 }
+      - { key: retryDelaySec, label: Retry delay, kind: number, default: 5, min: 0, max: 3600, unit: s }
+      - { key: parallelism, label: Parallelism, kind: int, default: 32, min: 1, max: 1024, help: Max queued+running task instances across all DAGs }
+      - { key: poolSlots, label: Pool slots, kind: int, default: 128, min: 1, max: 1024 }
+      - { key: maxActiveRuns, label: max_active_runs, kind: int, default: 16, min: 1, max: 256 }
+      - { key: catchup, label: Catchup, kind: bool, default: false, help: On unpause create a DagRun for every missed interval }
+      - { key: backfillRuns, label: Missed intervals, kind: int, default: 0, min: 0, max: 1000, help: Intervals since start_date (used with catchup) }
+      - { key: zombieSec, label: Zombie threshold, kind: number, default: 10, min: 1, max: 3600, unit: s, advanced: true, help: Real default 300s; scaled down }
+      - { key: queuedTimeoutSec, label: Queued timeout, kind: number, default: 30, min: 1, max: 3600, unit: s, advanced: true }
+      - { key: p50Ms, label: Loop CPU p50, kind: ms, default: 40, min: 1, max: 60000, advanced: true, help: Python work per loop while the transaction is open }
+      - { key: p99Ms, label: Loop CPU p99, kind: ms, default: 150, min: 1, max: 60000, advanced: true }
+      - { key: loopMs, label: Loop interval, kind: ms, default: 1000, min: 50, max: 60000, advanced: true }
+      - { key: dbTimeoutMs, label: DB timeout, kind: ms, default: 5000, min: 100, max: 120000, advanced: true }
+      - { key: parseSec, label: DAG parse interval, kind: number, default: 30, min: 1, max: 3600, unit: s, advanced: true }
+      - { key: dagFiles, label: DAG files, kind: int, default: 20, min: 1, max: 10000, advanced: true }
+      - { key: parseMsPerFile, label: Parse per file, kind: ms, default: 5, min: 0.1, max: 10000, advanced: true }
+      - { key: costMonth, label: Cost / month, kind: number, default: 120, min: 0, max: 100000, unit: $ }
+  - type: airflow-metadata-db
+    label: Airflow metadata DB
+    description: Postgres holding DagRuns and task-instance state; every scheduler loop and worker update goes through it
+    icon: database
+    costPerInstanceMonth: 150
+    knobs:
+      - { key: skipLocked, label: Row locks (SKIP LOCKED), kind: bool, default: true, help: "Lets several schedulers run safely; off = both queue the same task" }
+      - { key: queryCost, label: Queries per loop, kind: number, default: 8, min: 1, max: 100, advanced: true }
+      - { key: slots, label: Connections, kind: int, default: 16, min: 1, max: 1000 }
+      - { key: p50Ms, label: Query p50, kind: ms, default: 10, min: 0.1, max: 10000 }
+      - { key: p99Ms, label: Query p99, kind: ms, default: 40, min: 0.1, max: 30000 }
+      - { key: queueLimit, label: Queue limit, kind: int, default: 1000, min: 0, max: 100000, advanced: true }
+      - { key: costMonth, label: Cost / month, kind: number, default: 150, min: 0, max: 100000, unit: $ }
+  - type: airflow-executor
+    label: Airflow executor
+    description: Hands queued task instances to workers — LocalExecutor (subprocesses), CeleryExecutor (broker + workers) or KubernetesExecutor (pod per task)
+    icon: send
+    costPerInstanceMonth: 0
+    knobs:
+      - { key: mode, label: Executor, kind: enum, default: celery, options: [local, celery, kubernetes] }
+      - { key: slots, label: Local slots, kind: int, default: 8, min: 1, max: 256, help: LocalExecutor only }
+      - { key: podStartMs, label: Pod start time, kind: ms, default: 3000, min: 0, max: 300000, help: KubernetesExecutor only }
+      - { key: brokerMs, label: Broker hop, kind: ms, default: 5, min: 0, max: 5000, advanced: true }
+      - { key: heartbeatMs, label: Heartbeat, kind: ms, default: 1000, min: 100, max: 60000, advanced: true }
+      - { key: costMonth, label: Cost / month, kind: number, default: 0, min: 0, max: 100000, unit: $ }
+  - type: airflow-worker
+    label: Airflow worker
+    description: Runs task instances in slots (worker_concurrency); heartbeats to the metadata DB while running
+    icon: hammer
+    costPerInstanceMonth: 100
+    knobs:
+      - { key: slots, label: Slots, kind: int, default: 8, min: 1, max: 256, help: worker_concurrency }
+      - { key: heartbeatMs, label: Heartbeat, kind: ms, default: 1000, min: 100, max: 60000, advanced: true }
+      - { key: costMonth, label: Cost / month, kind: number, default: 100, min: 0, max: 100000, unit: $ }
+  - type: airflow-triggerer
+    label: Airflow triggerer
+    description: Async loop that waits for deferred tasks' triggers (thousands per process) without holding worker slots
+    icon: bell-ring
+    costPerInstanceMonth: 40
+    knobs:
+      - { key: costMonth, label: Cost / month, kind: number, default: 40, min: 0, max: 100000, unit: $ }
+  # ---- celery
+  - type: celery-producer
+    label: Celery app (producer)
+    description: Your app calling task.delay(); publishes a task message and returns an AsyncResult
+    icon: send
+    costPerInstanceMonth: 40
+    knobs:
+      - { key: instances, label: Instances, kind: int, default: 1, min: 1, max: 64 }
+      - { key: slots, label: Slots, kind: int, default: 32, min: 1, max: 1024 }
+      - { key: p50Ms, label: App p50, kind: ms, default: 2, min: 0.1, max: 5000 }
+      - { key: p99Ms, label: App p99, kind: ms, default: 10, min: 0.1, max: 10000 }
+      - { key: taskName, label: Task name, kind: string, default: process_order }
+      - { key: taskMs, label: Task p50, kind: ms, default: 1000, min: 1, max: 600000, help: Run time of a normal task on a worker }
+      - { key: taskP99Ms, label: Task p99, kind: ms, default: 3000, min: 1, max: 600000 }
+      - { key: longTaskPct, label: Long tasks, kind: percent, default: 0, min: 0, max: 100, help: Share of tasks that take longTaskMs }
+      - { key: longTaskMs, label: Long task time, kind: ms, default: 20000, min: 1, max: 3600000 }
+      - { key: costMonth, label: Cost / instance, kind: number, default: 40, unit: $, advanced: true }
+  - type: celery-broker
+    label: Celery broker
+    description: Task queue (Redis list + unacked hash, or RabbitMQ queue); hands tasks to workers up to their prefetch limit
+    icon: inbox
+    costPerInstanceMonth: 60
+    knobs:
+      - { key: mode, label: Transport, kind: enum, default: redis, options: [redis, rabbitmq], help: "redis: unacked restored after visibility timeout; rabbitmq: redelivered when the consumer connection drops" }
+      - { key: visibilityMs, label: Visibility timeout, kind: ms, default: 30000, min: 100, max: 86400000, help: "Redis only: unacked tasks go back on the queue after this (real default 1h)" }
+      - { key: queueLimit, label: Max queued, kind: int, default: 10000, min: 1, max: 10000000 }
+      - { key: slots, label: Slots, kind: int, default: 64, min: 1, max: 4096, advanced: true }
+      - { key: p50Ms, label: Publish p50, kind: ms, default: 0.3, min: 0.01, max: 1000, advanced: true }
+      - { key: p99Ms, label: Publish p99, kind: ms, default: 2, min: 0.01, max: 5000, advanced: true }
+      - { key: costMonth, label: Cost / month, kind: number, default: 60, unit: $, advanced: true }
+  - type: celery-worker
+    label: Celery worker
+    description: Prefork pool of child processes; reserves concurrency × prefetch_multiplier tasks; acks early or late
+    icon: hard-hat
+    costPerInstanceMonth: 80
+    knobs:
+      - { key: slots, label: Concurrency, kind: int, default: 4, min: 1, max: 256, help: Child processes (prefork) = tasks run at once }
+      - { key: prefetchMultiplier, label: prefetch_multiplier, kind: int, default: 4, min: 0, max: 128, help: "Reserve up to concurrency × this unacked tasks (0 = unlimited)" }
+      - { key: acksLate, label: acks_late, kind: bool, default: false, help: "false: ack when the task starts (crash loses it); true: ack after it finishes (crash redelivers)" }
+      - { key: pool, label: Pool, kind: enum, default: prefork, options: [prefork, threads, gevent], advanced: true }
+      - { key: costMonth, label: Cost / month, kind: number, default: 80, unit: $, advanced: true }
+  - type: celery-result-backend
+    label: Celery result backend
+    description: Stores task results (AsyncResult.get); keys pile up unless they expire
+    icon: archive
+    costPerInstanceMonth: 60
+    knobs:
+      - { key: expiresSec, label: result_expires, kind: number, default: 86400, min: 1, max: 31536000, unit: s }
+      - { key: maxMemoryMb, label: maxmemory, kind: number, default: 1024, min: 1, max: 1000000, unit: MB }
+      - { key: resultKb, label: Result size, kind: number, default: 16, min: 0.1, max: 100000, unit: KB }
+      - { key: slots, label: Slots, kind: int, default: 64, min: 1, max: 4096, advanced: true }
+      - { key: p50Ms, label: Write p50, kind: ms, default: 0.5, min: 0.01, max: 1000, advanced: true }
+      - { key: p99Ms, label: Write p99, kind: ms, default: 3, min: 0.01, max: 5000, advanced: true }
+      - { key: costMonth, label: Cost / month, kind: number, default: 60, unit: $, advanced: true }
+  - type: celery-beat
+    label: Celery beat
+    description: Periodic scheduler; publishes a task every interval. Must run exactly once
+    icon: alarm-clock
+    costPerInstanceMonth: 20
+    knobs:
+      - { key: scheduleSec, label: Every, kind: number, default: 5, min: 0.1, max: 86400, unit: s }
+      - { key: taskName, label: Task name, kind: string, default: send_digest }
+      - { key: taskMs, label: Task p50, kind: ms, default: 500, min: 1, max: 600000 }
+      - { key: taskP99Ms, label: Task p99, kind: ms, default: 1500, min: 1, max: 600000 }
+      - { key: costMonth, label: Cost / month, kind: number, default: 20, unit: $, advanced: true }
+  # ---- temporal
+  - type: temporal-frontend
+    label: Temporal frontend
+    description: gRPC gateway; starts and signals workflows, relays worker polls and responses
+    icon: door-open
+    costPerInstanceMonth: 60
+    knobs:
+      - { key: instances, label: Instances, kind: int, default: 1, min: 1, max: 32 }
+      - { key: slots, label: Slots, kind: int, default: 64, min: 1, max: 10000, advanced: true }
+      - { key: p50Ms, label: p50, kind: ms, default: 2, min: 0.1, max: 1000 }
+      - { key: p99Ms, label: p99, kind: ms, default: 10, min: 0.1, max: 5000 }
+      - { key: queueLimit, label: Queue limit, kind: int, default: 1000, min: 0, max: 100000, advanced: true }
+      - { key: costMonth, label: Cost / month, kind: number, default: 60, min: 0, max: 100000 }
+  - type: temporal-history
+    label: Temporal history
+    description: Owns each workflow's event history (sharded); durable timers, activity timeouts and retries
+    icon: scroll-text
+    costPerInstanceMonth: 120
+    knobs:
+      - { key: shards, label: History shards, kind: int, default: 512, min: 1, max: 16384, help: Fixed at cluster creation; wf id hash → shard }
+      - { key: wfTaskTimeoutSec, label: Workflow task timeout, kind: number, default: 10, min: 1, max: 120, unit: s }
+      - { key: instances, label: Instances, kind: int, default: 1, min: 1, max: 32 }
+      - { key: costMonth, label: Cost / month, kind: number, default: 120, min: 0, max: 100000 }
+  - type: temporal-matching
+    label: Temporal matching
+    description: Task queues; hands workflow and activity tasks to long-polling workers (sticky first)
+    icon: list-checks
+    costPerInstanceMonth: 60
+    knobs:
+      - { key: stickyTimeoutSec, label: Sticky timeout, kind: number, default: 5, min: 0, max: 60, unit: s, help: How long a workflow task waits for the worker that has it cached }
+      - { key: pollSec, label: Long-poll, kind: number, default: 60, min: 1, max: 120, unit: s, advanced: true }
+      - { key: instances, label: Instances, kind: int, default: 1, min: 1, max: 32 }
+      - { key: costMonth, label: Cost / month, kind: number, default: 60, min: 0, max: 100000 }
+  - type: temporal-persistence
+    label: Temporal persistence
+    description: Database holding histories, timers and task state (Cassandra or Postgres)
+    icon: database
+    costPerInstanceMonth: 250
+    knobs:
+      - { key: mode, label: Engine, kind: enum, default: cassandra, options: [cassandra, postgres, mysql] }
+      - { key: instances, label: Instances, kind: int, default: 1, min: 1, max: 64 }
+      - { key: slots, label: Connections, kind: int, default: 64, min: 1, max: 10000 }
+      - { key: p50Ms, label: Write p50, kind: ms, default: 3, min: 0.1, max: 5000 }
+      - { key: p99Ms, label: Write p99, kind: ms, default: 20, min: 0.1, max: 10000 }
+      - { key: queueLimit, label: Queue limit, kind: int, default: 5000, min: 0, max: 100000, advanced: true }
+      - { key: costMonth, label: Cost / month, kind: number, default: 250, min: 0, max: 100000 }
+  - type: temporal-worker
+    label: Temporal worker
+    description: Your code; replays workflow history deterministically and runs activities
+    icon: cog
+    costPerInstanceMonth: 80
+    knobs:
+      - { key: wfSlots, label: Workflow task slots, kind: int, default: 2, min: 1, max: 100 }
+      - { key: actSlots, label: Activity slots, kind: int, default: 8, min: 1, max: 1000 }
+      - { key: activities, label: Activities, kind: int, default: 3, min: 1, max: 6, help: charge → reserve → ship → email → audit → invoice }
+      - { key: actP50Ms, label: Activity p50, kind: ms, default: 800, min: 1, max: 600000 }
+      - { key: actP99Ms, label: Activity p99, kind: ms, default: 2500, min: 1, max: 600000 }
+      - { key: timerSec, label: Sleep after first step, kind: number, default: 0, min: 0, max: 86400, unit: s, help: workflow.sleep — a durable timer }
+      - { key: awaitSignal, label: Wait for signal, kind: bool, default: false, help: Client writes send the signal }
+      - { key: saga, label: Saga compensation, kind: bool, default: false, help: On final activity failure undo completed steps in reverse }
+      - { key: activityFailPct, label: Activity failure, kind: percent, default: 0, min: 0, max: 100 }
+      - { key: startToCloseSec, label: Start-to-close timeout, kind: number, default: 30, min: 1, max: 86400, unit: s }
+      - { key: heartbeatSec, label: Heartbeat timeout, kind: number, default: 0, min: 0, max: 3600, unit: s, help: 0 = no heartbeats; a dead worker is only noticed at start-to-close }
+      - { key: maxAttempts, label: Retry max attempts, kind: int, default: 3, min: 1, max: 100 }
+      - { key: codeVersion, label: Code version, kind: int, default: 1, min: 1, max: 99, advanced: true }
+      - { key: slots, label: CPU slots, kind: int, default: 16, min: 1, max: 1000, advanced: true }
+      - { key: costMonth, label: Cost / month, kind: number, default: 80, min: 0, max: 100000 }
+skins:
+  # ---- airflow
+  - { name: airflow-scheduler-std, type: airflow-scheduler, label: Airflow scheduler, description: Apache Airflow 2 scheduler, icon: brand:airflow, tags: [workflow, open-source], defaults: { costMonth: 120 } }
+  - { name: airflow-postgres-db, type: airflow-metadata-db, label: Metadata DB (Postgres), description: Postgres metadata database, icon: brand:postgres, tags: [workflow], defaults: { skipLocked: true, costMonth: 150 } }
+  - { name: airflow-mysql57-db, type: airflow-metadata-db, label: Metadata DB (MySQL 5.7), description: "No SKIP LOCKED: only one scheduler is safe", icon: brand:mysql, tags: [workflow], defaults: { skipLocked: false, costMonth: 150 } }
+  - { name: airflow-celery-executor, type: airflow-executor, label: CeleryExecutor, description: Queues tasks on a broker for Celery workers, icon: brand:airflow, tags: [workflow], defaults: { mode: celery } }
+  - { name: airflow-k8s-executor, type: airflow-executor, label: KubernetesExecutor, description: One pod per task, icon: brand:kubernetes, tags: [workflow], defaults: { mode: kubernetes } }
+  - { name: airflow-local-executor, type: airflow-executor, label: LocalExecutor, description: Subprocesses on the scheduler host, icon: brand:airflow, tags: [workflow], defaults: { mode: local, slots: 8 } }
+  - { name: airflow-worker-std, type: airflow-worker, label: Airflow worker, description: Celery worker running Airflow tasks, icon: brand:airflow, tags: [workflow], defaults: { slots: 8, costMonth: 100 } }
+  - { name: airflow-triggerer-std, type: airflow-triggerer, label: Triggerer, description: Runs deferred-task triggers, icon: brand:airflow, tags: [workflow], defaults: { costMonth: 40 } }
+  - name: airflow
+    type: airflow-scheduler
+    label: Airflow
+    description: Scheduler + metadata DB + Celery executor + 2 workers + triggerer; drill in for task states
+    icon: brand:airflow
+    tags: [workflow, composite]
+    defaults: { scheduleSec: 10, costMonth: 530 }
+    ports: { in: scheduler }
+    internals:
+      schemaVersion: 1
+      id: airflow
+      name: Airflow
+      nodes:
+        - { id: scheduler, type: airflow-scheduler, skin: airflow-scheduler-std, name: Scheduler, pos: { x: 0, y: 0 } }
+        - { id: meta-db, type: airflow-metadata-db, skin: airflow-postgres-db, name: Metadata DB, pos: { x: 140, y: 0 } }
+        - { id: executor, type: airflow-executor, skin: airflow-celery-executor, name: CeleryExecutor, pos: { x: 0, y: 130 } }
+        - { id: worker-1, type: airflow-worker, skin: airflow-worker-std, name: Worker 1, pos: { x: -80, y: 260 } }
+        - { id: worker-2, type: airflow-worker, skin: airflow-worker-std, name: Worker 2, pos: { x: 80, y: 260 } }
+        - { id: triggerer, type: airflow-triggerer, skin: airflow-triggerer-std, name: Triggerer, pos: { x: 140, y: 130 } }
+      edges:
+        - { id: s-db, from: scheduler, to: meta-db }
+        - { id: s-ex, from: scheduler, to: executor }
+        - { id: ex-w1, from: executor, to: worker-1 }
+        - { id: ex-w2, from: executor, to: worker-2 }
+        - { id: w1-db, from: worker-1, to: meta-db }
+        - { id: w2-db, from: worker-2, to: meta-db }
+        - { id: t-db, from: triggerer, to: meta-db }
+      containers: []
+  # ---- celery
+  - name: celery-app
+    type: celery-producer
+    label: Celery app
+    description: Django/Flask app publishing tasks with .delay()
+    icon: send
+    tags: [python, celery]
+    defaults: {}
+  - name: celery-redis-broker
+    type: celery-broker
+    label: Redis (broker)
+    description: Redis transport; unacked tasks restored after visibility_timeout
+    icon: brand:redis
+    tags: [celery, redis]
+    defaults: { mode: redis, visibilityMs: 30000 }   # source: real default visibility_timeout = 3600s; scaled down
+  - name: celery-rabbitmq-broker
+    type: celery-broker
+    label: RabbitMQ (broker)
+    description: AMQP transport; unacked tasks redelivered when the worker connection closes
+    icon: brand:rabbitmq
+    tags: [celery, rabbitmq, amqp]
+    defaults: { mode: rabbitmq }
+  - name: celery-prefork
+    type: celery-worker
+    label: Celery worker (prefork)
+    description: celery worker -c 4, prefetch_multiplier 4, acks early (defaults)
+    icon: hard-hat
+    tags: [celery, python]
+    defaults: { slots: 4, prefetchMultiplier: 4, acksLate: false }   # source: Celery docs defaults
+  - name: celery-redis-results
+    type: celery-result-backend
+    label: Redis (results)
+    description: Redis result backend; result_expires 1 day by default
+    icon: brand:redis
+    tags: [celery, redis]
+    defaults: { expiresSec: 86400 }
+  - name: celery-beat-scheduler
+    type: celery-beat
+    label: celery beat
+    description: Single periodic scheduler process
+    icon: alarm-clock
+    tags: [celery, cron]
+    defaults: {}
+  - name: celery
+    type: celery-producer
+    label: Celery
+    description: Task queue — app, broker, prefork workers, result backend, beat (tap ⤢ to drill in)
+    icon: list-checks
+    tags: [celery, python, composite]
+    defaults: {}
+    ports: { in: app }
+    internals:
+      schemaVersion: 1
+      id: celery-internals
+      name: Celery internals
+      nodes:
+        - { id: app, type: celery-producer, skin: celery-app, name: app (.delay), pos: { x: 195, y: 60 } }
+        - { id: beat, type: celery-beat, skin: celery-beat-scheduler, name: beat, pos: { x: 335, y: 60 } }
+        - { id: broker, type: celery-broker, skin: celery-redis-broker, name: broker, pos: { x: 195, y: 200 } }
+        - { id: w1, type: celery-worker, skin: celery-prefork, name: worker-1, pos: { x: 110, y: 340 } }
+        - { id: w2, type: celery-worker, skin: celery-prefork, name: worker-2, pos: { x: 280, y: 340 } }
+        - { id: results, type: celery-result-backend, skin: celery-redis-results, name: results, pos: { x: 195, y: 480 } }
+      edges:
+        - { id: e1, from: app, to: broker }
+        - { id: e2, from: beat, to: broker }
+        - { id: e3, from: broker, to: w1, config: { mode: async } }
+        - { id: e4, from: broker, to: w2, config: { mode: async } }
+        - { id: e5, from: w1, to: results }
+        - { id: e6, from: w2, to: results }
+      containers: []
+  # ---- temporal
+  - name: temporal-cluster
+    type: temporal-frontend
+    label: Temporal
+    description: Durable execution — workflows survive worker crashes by replaying their event history
+    icon: infinity
+    tags: [workflow, durable-execution, composite]
+    defaults: { costMonth: 600 }
+    ports: { in: frontend }
+    internals:
+      schemaVersion: 1
+      id: temporal-cluster
+      name: Temporal cluster
+      nodes:
+        - { id: frontend, type: temporal-frontend, name: Frontend, pos: { x: 0, y: 0 } }
+        - { id: history, type: temporal-history, name: History, pos: { x: -80, y: 110 } }
+        - { id: matching, type: temporal-matching, name: Matching, pos: { x: 80, y: 110 } }
+        - { id: db, type: temporal-persistence, skin: temporal-cassandra, name: Persistence, pos: { x: -80, y: 220 } }
+        - { id: worker-1, type: temporal-worker, name: Worker 1, pos: { x: -60, y: -110 } }
+        - { id: worker-2, type: temporal-worker, name: Worker 2, pos: { x: 60, y: -110 } }
+      edges:
+        - { id: f-h, from: frontend, to: history }
+        - { id: f-m, from: frontend, to: matching }
+        - { id: h-db, from: history, to: db }
+        - { id: h-m, from: history, to: matching, config: { mode: async } }
+        - { id: w1-f, from: worker-1, to: frontend }
+        - { id: w2-f, from: worker-2, to: frontend }
+      containers: []
+  - name: temporal-cloud
+    type: temporal-frontend
+    label: Temporal Cloud
+    description: Managed Temporal namespace endpoint
+    icon: cloud
+    tags: [managed]
+    defaults: { costMonth: 200 }
+  - name: temporal-cassandra
+    type: temporal-persistence
+    label: Cassandra (Temporal)
+    description: Temporal persistence on Cassandra
+    icon: brand:cassandra
+    tags: [persistence]
+    defaults: { mode: cassandra, p50Ms: 3, p99Ms: 20 }
+  - name: temporal-postgres
+    type: temporal-persistence
+    label: Postgres (Temporal)
+    description: Temporal persistence on Postgres
+    icon: brand:postgres
+    tags: [persistence]
+    defaults: { mode: postgres, p50Ms: 2, p99Ms: 15 }
+  - name: temporal-worker-go
+    type: temporal-worker
+    label: Go worker
+    description: Temporal Go SDK worker
+    icon: cog
+    tags: [sdk]
+    defaults: {}
+  - name: temporal-worker-python
+    type: temporal-worker
+    label: Python worker
+    description: Temporal Python SDK worker
+    icon: cog
+    tags: [sdk]
+    defaults: {}

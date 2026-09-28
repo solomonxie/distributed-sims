@@ -1,0 +1,110 @@
+{
+  "schemaVersion": 1,
+  "id": "edge-cdn",
+  "name": "CDN in front of an origin",
+  "description": "90% of reads are cacheable, so the origin sees a small slice of traffic. At 30s the cache is purged: every POP misses at once and the origin takes the full load until caches refill. Turn on origin shield to collapse the misses.",
+  "nodes": [
+    {
+      "id": "web",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 195,
+        "y": 60
+      }
+    },
+    {
+      "id": "cdn",
+      "type": "cdn",
+      "name": "CDN",
+      "pos": {
+        "x": 195,
+        "y": 200
+      },
+      "skin": "cloudfront",
+      "config": {
+        "ttlSec": 300
+      }
+    },
+    {
+      "id": "origin",
+      "type": "service",
+      "name": "Origin",
+      "pos": {
+        "x": 195,
+        "y": 340
+      },
+      "config": {
+        "instances": 1,
+        "slots": 4
+      }
+    },
+    {
+      "id": "db",
+      "type": "relational-db",
+      "name": "DB",
+      "pos": {
+        "x": 195,
+        "y": 480
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "web->cdn",
+      "from": "web",
+      "to": "cdn"
+    },
+    {
+      "id": "cdn->origin",
+      "from": "cdn",
+      "to": "origin"
+    },
+    {
+      "id": "origin->db",
+      "from": "origin",
+      "to": "db"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 90,
+    "sources": [
+      {
+        "id": "s",
+        "node": "web",
+        "shape": {
+          "kind": "constant",
+          "rps": 1500
+        },
+        "readRatio": 0.97
+      }
+    ],
+    "events": [
+      {
+        "atSec": 30,
+        "event": {
+          "kind": "cache-flush",
+          "target": "cdn"
+        }
+      }
+    ]
+  },
+  "wire": {
+    "host": "www.shop.io",
+    "read": {
+      "method": "GET",
+      "path": "/assets/img/product-{key}.webp",
+      "body": "\"<binary 48 KB image/webp>\""
+    },
+    "write": {
+      "method": "PUT",
+      "path": "/api/products/{key}/image",
+      "reqBody": "{\"url\": \"https://www.shop.io/assets/img/product-{key}.webp\"}",
+      "status": 200,
+      "body": "{\"id\": {key}, \"purged\": true}"
+    },
+    "table": "products",
+    "valCol": "image_url"
+  }
+}

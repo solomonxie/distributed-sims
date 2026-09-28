@@ -1,0 +1,131 @@
+{
+  "schemaVersion": 1,
+  "id": "lesson-txn-saga-choreo",
+  "name": "Lesson: choreographed saga",
+  "description": "No orchestrator: Order publishes order.created, Payment reacts and publishes payment.done, Inventory reacts to that. Each service only knows its own step.",
+  "nodes": [
+    {
+      "id": "web",
+      "type": "web-client",
+      "name": "Checkout",
+      "pos": {
+        "x": 195,
+        "y": 60
+      }
+    },
+    {
+      "id": "order",
+      "type": "service",
+      "name": "Order",
+      "pos": {
+        "x": 195,
+        "y": 170
+      }
+    },
+    {
+      "id": "bus-a",
+      "type": "pub-sub",
+      "name": "order.created",
+      "pos": {
+        "x": 195,
+        "y": 280
+      }
+    },
+    {
+      "id": "payment",
+      "type": "service",
+      "name": "Payment",
+      "pos": {
+        "x": 195,
+        "y": 390
+      }
+    },
+    {
+      "id": "bus-b",
+      "type": "pub-sub",
+      "name": "payment.done",
+      "pos": {
+        "x": 195,
+        "y": 500
+      }
+    },
+    {
+      "id": "inventory",
+      "type": "service",
+      "name": "Inventory",
+      "pos": {
+        "x": 195,
+        "y": 610
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "web",
+      "to": "order"
+    },
+    {
+      "id": "e2",
+      "from": "order",
+      "to": "bus-a",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "e3",
+      "from": "bus-a",
+      "to": "payment",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "e4",
+      "from": "payment",
+      "to": "bus-b",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "e5",
+      "from": "bus-b",
+      "to": "inventory",
+      "config": {
+        "mode": "async"
+      }
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 300,
+    "sources": [
+      {
+        "id": "s1",
+        "node": "web",
+        "shape": {
+          "kind": "constant",
+          "rps": 40
+        },
+        "readRatio": 0
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "shop.example",
+    "read": {
+      "path": "/api/orders/{key}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/orders",
+      "reqBody": "{\"sku\": \"SKU-{key}\", \"card\": \"tok_visa\"}",
+      "status": 202,
+      "body": "{\"order_id\": {key}, \"status\": \"pending\"}"
+    },
+    "topic": "order.created"
+  }
+}

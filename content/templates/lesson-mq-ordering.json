@@ -1,0 +1,184 @@
+{
+  "schemaVersion": 1,
+  "id": "lesson-mq-ordering",
+  "name": "Ordering: partition by key vs round-robin",
+  "description": "Every update for an account carries a sequence number. Left topic: partitioned by key, so one account always lands on one partition and is read in order. Right topic: round-robin, so updates for one account spread over partitions that two consumers read in parallel, and they get applied out of order.",
+  "nodes": [
+    {
+      "id": "users",
+      "type": "web-client",
+      "name": "Accounts",
+      "pos": {
+        "x": 195,
+        "y": 40
+      }
+    },
+    {
+      "id": "api",
+      "type": "service",
+      "name": "Ledger API",
+      "pos": {
+        "x": 195,
+        "y": 150
+      }
+    },
+    {
+      "id": "k-key",
+      "type": "log-stream",
+      "name": "by key",
+      "pos": {
+        "x": 75,
+        "y": 280
+      },
+      "skin": "kafka",
+      "config": {
+        "partitions": 4,
+        "partitionBy": "key",
+        "fetchBatch": 5
+      }
+    },
+    {
+      "id": "c1",
+      "type": "worker",
+      "name": "Consumer 1",
+      "pos": {
+        "x": 25,
+        "y": 420
+      },
+      "config": {
+        "group": "by-key",
+        "p50Ms": 5,
+        "p99Ms": 60
+      }
+    },
+    {
+      "id": "c2",
+      "type": "worker",
+      "name": "Consumer 2",
+      "pos": {
+        "x": 125,
+        "y": 420
+      },
+      "config": {
+        "group": "by-key",
+        "p50Ms": 5,
+        "p99Ms": 60
+      }
+    },
+    {
+      "id": "k-rr",
+      "type": "log-stream",
+      "name": "round-robin",
+      "pos": {
+        "x": 315,
+        "y": 280
+      },
+      "skin": "kafka",
+      "config": {
+        "partitions": 4,
+        "partitionBy": "round-robin",
+        "fetchBatch": 5
+      }
+    },
+    {
+      "id": "c3",
+      "type": "worker",
+      "name": "Consumer 3",
+      "pos": {
+        "x": 265,
+        "y": 420
+      },
+      "config": {
+        "group": "round-robin",
+        "p50Ms": 5,
+        "p99Ms": 60
+      }
+    },
+    {
+      "id": "c4",
+      "type": "worker",
+      "name": "Consumer 4",
+      "pos": {
+        "x": 365,
+        "y": 420
+      },
+      "config": {
+        "group": "round-robin",
+        "p50Ms": 5,
+        "p99Ms": 60
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "users->api",
+      "from": "users",
+      "to": "api"
+    },
+    {
+      "id": "api->k-key",
+      "from": "api",
+      "to": "k-key"
+    },
+    {
+      "id": "api->k-rr",
+      "from": "api",
+      "to": "k-rr"
+    },
+    {
+      "id": "k-key->c1",
+      "from": "k-key",
+      "to": "c1"
+    },
+    {
+      "id": "k-key->c2",
+      "from": "k-key",
+      "to": "c2"
+    },
+    {
+      "id": "k-rr->c3",
+      "from": "k-rr",
+      "to": "c3"
+    },
+    {
+      "id": "k-rr->c4",
+      "from": "k-rr",
+      "to": "c4"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 120,
+    "sources": [
+      {
+        "id": "s1",
+        "node": "users",
+        "shape": {
+          "kind": "constant",
+          "rps": 100
+        },
+        "readRatio": 0,
+        "keys": {
+          "kind": "zipf",
+          "s": 1.1,
+          "keys": 64
+        }
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "bank.example",
+    "read": {
+      "path": "/api/accounts/{key}/ledger"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/accounts/{key}/entries",
+      "reqBody": "{\"seq\": {value}, \"amount_cents\": -500}",
+      "status": 202,
+      "body": "{\"account\": {key}, \"seq\": {value}}"
+    },
+    "topic": "account-updates"
+  }
+}

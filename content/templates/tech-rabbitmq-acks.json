@@ -1,0 +1,201 @@
+{
+  "schemaVersion": 1,
+  "id": "tech-rabbitmq-acks",
+  "name": "RabbitMQ: acks, prefetch and dead letters",
+  "description": "A direct exchange feeds a quorum queue (delivery-limit 5, dead-letters to jobs.dlq) consumed by two workers with prefetch 10 and manual acks.",
+  "nodes": [
+    {
+      "id": "users",
+      "type": "web-client",
+      "skin": "react-spa",
+      "name": "Users",
+      "pos": {
+        "x": 40,
+        "y": 30
+      },
+      "config": {}
+    },
+    {
+      "id": "pub",
+      "type": "rabbitmq-publisher",
+      "skin": "rabbitmq-app-publisher",
+      "name": "api (publisher)",
+      "pos": {
+        "x": 40,
+        "y": 140
+      },
+      "config": {
+        "routingKeys": "resize"
+      }
+    },
+    {
+      "id": "ex",
+      "type": "rabbitmq-exchange",
+      "skin": "rabbitmq-direct-exchange",
+      "name": "jobs (direct)",
+      "pos": {
+        "x": 195,
+        "y": 140
+      },
+      "config": {}
+    },
+    {
+      "id": "rmq1",
+      "type": "rabbitmq-node",
+      "skin": "rabbitmq-broker-node",
+      "name": "rmq-1",
+      "pos": {
+        "x": 195,
+        "y": 30
+      },
+      "config": {}
+    },
+    {
+      "id": "rmq2",
+      "type": "rabbitmq-node",
+      "skin": "rabbitmq-broker-node",
+      "name": "rmq-2",
+      "pos": {
+        "x": 275,
+        "y": 30
+      },
+      "config": {}
+    },
+    {
+      "id": "rmq3",
+      "type": "rabbitmq-node",
+      "skin": "rabbitmq-broker-node",
+      "name": "rmq-3",
+      "pos": {
+        "x": 355,
+        "y": 30
+      },
+      "config": {}
+    },
+    {
+      "id": "jobs",
+      "type": "rabbitmq-queue",
+      "skin": "rabbitmq-quorum-queue",
+      "name": "jobs",
+      "pos": {
+        "x": 195,
+        "y": 260
+      },
+      "config": {
+        "bindingKey": "resize",
+        "leader": "rmq1",
+        "deliveryLimit": 5,
+        "deadLetter": "dlq",
+        "consumerTimeoutMs": 15000
+      }
+    },
+    {
+      "id": "dlq",
+      "type": "rabbitmq-queue",
+      "skin": "rabbitmq-quorum-queue",
+      "name": "jobs.dlq",
+      "pos": {
+        "x": 335,
+        "y": 260
+      },
+      "config": {
+        "bindingKey": "",
+        "leader": "rmq2"
+      }
+    },
+    {
+      "id": "w1",
+      "type": "rabbitmq-consumer",
+      "skin": "rabbitmq-worker",
+      "name": "worker-1",
+      "pos": {
+        "x": 110,
+        "y": 380
+      },
+      "config": {}
+    },
+    {
+      "id": "w2",
+      "type": "rabbitmq-consumer",
+      "skin": "rabbitmq-worker",
+      "name": "worker-2",
+      "pos": {
+        "x": 280,
+        "y": 380
+      },
+      "config": {}
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-users-pub",
+      "from": "users",
+      "to": "pub"
+    },
+    {
+      "id": "e-pub-ex",
+      "from": "pub",
+      "to": "ex"
+    },
+    {
+      "id": "e-ex-jobs",
+      "from": "ex",
+      "to": "jobs"
+    },
+    {
+      "id": "e-jobs-w1",
+      "from": "jobs",
+      "to": "w1",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "e-jobs-w2",
+      "from": "jobs",
+      "to": "w2",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "e-jobs-dlq",
+      "from": "jobs",
+      "to": "dlq",
+      "config": {
+        "mode": "async"
+      }
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 120,
+    "sources": [
+      {
+        "id": "s-users",
+        "node": "users",
+        "shape": {
+          "kind": "constant",
+          "rps": 60
+        },
+        "readRatio": 0
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "api.snapgallery.com",
+    "read": {
+      "path": "/v1/uploads/{key}/status",
+      "body": "{\"upload_id\": {key}, \"thumbnail\": \"done\"}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/v1/uploads",
+      "reqBody": "{\"photo_id\": {key}, \"sizes\": [128, 512]}",
+      "status": 202,
+      "body": "{\"upload_id\": {key}, \"status\": \"queued\"}"
+    },
+    "topic": "jobs"
+  }
+}

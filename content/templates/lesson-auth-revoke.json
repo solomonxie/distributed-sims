@@ -1,0 +1,168 @@
+{
+  "schemaVersion": 1,
+  "id": "lesson-auth-revoke",
+  "name": "Token revocation: JWT vs denylist",
+  "description": "Two identical JWT setups; only the right IdP keeps a denylist the gateway checks on every request. Revoke 10% of tokens: the left gateway keeps accepting them until they expire (30 s TTL), the right one rejects them at once for ~1 ms extra per request.",
+  "nodes": [
+    {
+      "id": "web1",
+      "type": "web-client",
+      "name": "App",
+      "pos": {
+        "x": 100,
+        "y": 20
+      },
+      "skin": "react-spa"
+    },
+    {
+      "id": "gw1",
+      "type": "auth-middleware",
+      "name": "Gateway (JWT)",
+      "pos": {
+        "x": 100,
+        "y": 150
+      },
+      "skin": "oauth2-proxy",
+      "config": {
+        "authMode": "jwt"
+      }
+    },
+    {
+      "id": "api1",
+      "type": "service",
+      "name": "API",
+      "pos": {
+        "x": 100,
+        "y": 290
+      }
+    },
+    {
+      "id": "idp1",
+      "type": "identity-provider",
+      "name": "IdP",
+      "pos": {
+        "x": 195,
+        "y": 420
+      },
+      "skin": "keycloak",
+      "config": {
+        "tokenTtlSec": 30,
+        "denylist": false
+      }
+    },
+    {
+      "id": "web2",
+      "type": "web-client",
+      "name": "App",
+      "pos": {
+        "x": 290,
+        "y": 20
+      },
+      "skin": "react-spa"
+    },
+    {
+      "id": "gw2",
+      "type": "auth-middleware",
+      "name": "Gateway (JWT + denylist)",
+      "pos": {
+        "x": 290,
+        "y": 150
+      },
+      "skin": "oauth2-proxy",
+      "config": {
+        "authMode": "jwt"
+      }
+    },
+    {
+      "id": "api2",
+      "type": "service",
+      "name": "API",
+      "pos": {
+        "x": 290,
+        "y": 290
+      }
+    },
+    {
+      "id": "idp2",
+      "type": "identity-provider",
+      "name": "IdP + denylist",
+      "pos": {
+        "x": 290,
+        "y": 420
+      },
+      "skin": "keycloak",
+      "config": {
+        "tokenTtlSec": 30,
+        "denylist": true
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "web1->gw1",
+      "from": "web1",
+      "to": "gw1"
+    },
+    {
+      "id": "gw1->api1",
+      "from": "gw1",
+      "to": "api1"
+    },
+    {
+      "id": "gw1->idp1",
+      "from": "gw1",
+      "to": "idp1"
+    },
+    {
+      "id": "web2->gw2",
+      "from": "web2",
+      "to": "gw2"
+    },
+    {
+      "id": "gw2->api2",
+      "from": "gw2",
+      "to": "api2"
+    },
+    {
+      "id": "gw2->idp2",
+      "from": "gw2",
+      "to": "idp2"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 90,
+    "sources": [
+      {
+        "id": "s1",
+        "node": "web1",
+        "shape": {
+          "kind": "constant",
+          "rps": 200
+        }
+      },
+      {
+        "id": "s2",
+        "node": "web2",
+        "shape": {
+          "kind": "constant",
+          "rps": 200
+        }
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "app.example.com",
+    "read": {
+      "path": "/api/account/sessions/{key}"
+    },
+    "write": {
+      "method": "PATCH",
+      "path": "/api/account/settings",
+      "reqBody": "{\"theme\": \"dark\"}",
+      "status": 200,
+      "body": "{\"updated\": true}"
+    }
+  }
+}

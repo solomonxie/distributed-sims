@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "id": "mq-outbox",
+  "name": "Transactional outbox",
+  "description": "Two order services publish to Kafka. The dual-write one loses events while Kafka is down; the outbox one keeps them in its table and Debezium relays them once Kafka is back. Idempotent consumers absorb relay re-sends.",
+  "nodes": [
+    { "id": "web", "type": "web-client", "name": "Shoppers", "pos": { "x": 195, "y": 60 } },
+    { "id": "a", "type": "service", "name": "Orders (dual write)", "pos": { "x": 90, "y": 200 } },
+    { "id": "b", "type": "service", "name": "Orders (outbox)", "pos": { "x": 300, "y": 200 } },
+    { "id": "dw", "type": "outbox-relay", "name": "Direct publish", "pos": { "x": 90, "y": 340 }, "config": { "mode": "dual-write" } },
+    { "id": "ob", "type": "outbox-relay", "skin": "debezium", "name": "Outbox + Debezium", "pos": { "x": 300, "y": 340 } },
+    { "id": "k", "type": "log-stream", "skin": "kafka", "name": "orders topic", "pos": { "x": 195, "y": 480 } },
+    { "id": "w", "type": "worker", "name": "Order consumers", "pos": { "x": 195, "y": 620 }, "config": { "idempotent": true } }
+  ],
+  "edges": [
+    { "id": "e1", "from": "web", "to": "a", "config": { "ratio": 0.5 } },
+    { "id": "e2", "from": "web", "to": "b", "config": { "ratio": 0.5 } },
+    { "id": "e3", "from": "a", "to": "dw" },
+    { "id": "e4", "from": "b", "to": "ob" },
+    { "id": "e5", "from": "dw", "to": "k", "config": { "timeoutMs": 500 } },
+    { "id": "e6", "from": "ob", "to": "k", "config": { "timeoutMs": 500 } },
+    { "id": "e7", "from": "k", "to": "w" }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 60,
+    "sources": [{ "id": "s1", "node": "web", "shape": { "kind": "constant", "rps": 100 }, "readRatio": 0 }],
+    "events": [{ "atSec": 15, "event": { "kind": "kill", "target": "k", "durationSec": 10 } }]
+  },
+  "wire": {
+    "host": "shop.acme.io",
+    "read": {
+      "method": "GET",
+      "path": "/api/orders/{key}",
+      "body": "{\"id\": {key}, \"status\": \"placed\"}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/orders",
+      "reqBody": "{\"cart_id\": {key}, \"total\": {value}}",
+      "status": 201,
+      "body": "{\"id\": {key}, \"status\": \"placed\"}"
+    },
+    "table": "outbox",
+    "valCol": "payload",
+    "topic": "orders"
+  }
+}

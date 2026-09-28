@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "id": "problem-temp-email-v1",
+  "name": "Temp email: naive",
+  "description": "One app handles inbound SMTP and inbox reads on the same Postgres; a cron job DELETEs expired mailboxes in big batches that stall the database.",
+  "nodes": [
+    {"id":"users","type":"web-client","skin":"react-spa","name":"Senders + readers","pos":{"x":0,"y":0}},
+    {"id":"app","type":"service","skin":"node-service","name":"Mail app","pos":{"x":0,"y":110},"config":{"instances":1}},
+    {"id":"db","type":"relational-db","skin":"postgres","name":"Mailboxes DB","pos":{"x":0,"y":220}},
+    {"id":"cleanup","type":"cron","skin":"k8s-cronjob","name":"Expiry cleanup","pos":{"x":120,"y":110},"config":{"scheduleSec":10,"batch":500,"op":"write","p50Ms":0.05,"p99Ms":0.2}}
+  ],
+  "edges": [
+    {"id":"users-app","from":"users","to":"app","config":{"timeoutMs":5000}},
+    {"id":"app-db","from":"app","to":"db"},
+    {"id":"cleanup-db","from":"cleanup","to":"db","config":{"timeoutMs":30000}}
+  ],
+  "containers": [],
+  "scenario": {"durationSec":60,"sources":[{"id":"mail","node":"users","shape":{"kind":"constant","rps":2000},"readRatio":0.7}],"events":[]},
+  "wire": {
+    "host": "api.tempmail.example",
+    "read": {
+      "method": "GET",
+      "path": "/v1/inboxes/{code}/messages",
+      "status": 200,
+      "body": "{\"inbox\": \"{code}@tempmail.example\", \"messages\": [{\"from\": \"noreply@shop.example\"}]}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/v1/inboxes",
+      "reqBody": "{\"ttl_minutes\": 10}",
+      "status": 201,
+      "body": "{\"address\": \"{code}@tempmail.example\", \"expires_in\": 600}"
+    },
+    "table": "messages",
+    "keyCol": "inbox",
+    "valCol": "body"
+  }
+}

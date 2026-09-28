@@ -1,0 +1,142 @@
+{
+  "schemaVersion": 1,
+  "id": "lesson-geo-precision",
+  "name": "Geohash precision: coarse vs fine",
+  "description": "Three identical geo indexes answer the same 2 km \"drivers nearby\" query at geohash precision 5, 6 and 7. Coarse cells scan thousands of far-away drivers; fine cells mean hundreds of cell lookups. Precision 6 (~1.2 km) is the sweet spot.",
+  "nodes": [
+    {
+      "id": "r5",
+      "type": "mobile-client",
+      "name": "Riders (p5)",
+      "pos": {
+        "x": 60,
+        "y": 20
+      },
+      "skin": "ios-app"
+    },
+    {
+      "id": "r6",
+      "type": "mobile-client",
+      "name": "Riders (p6)",
+      "pos": {
+        "x": 195,
+        "y": 20
+      },
+      "skin": "ios-app"
+    },
+    {
+      "id": "r7",
+      "type": "mobile-client",
+      "name": "Riders (p7)",
+      "pos": {
+        "x": 330,
+        "y": 20
+      },
+      "skin": "ios-app"
+    },
+    {
+      "id": "g5",
+      "type": "geo-index",
+      "name": "Geohash p5",
+      "pos": {
+        "x": 60,
+        "y": 160
+      },
+      "skin": "redis-geo",
+      "config": {
+        "precision": 5
+      }
+    },
+    {
+      "id": "g6",
+      "type": "geo-index",
+      "name": "Geohash p6",
+      "pos": {
+        "x": 195,
+        "y": 160
+      },
+      "skin": "redis-geo",
+      "config": {
+        "precision": 6
+      }
+    },
+    {
+      "id": "g7",
+      "type": "geo-index",
+      "name": "Geohash p7",
+      "pos": {
+        "x": 330,
+        "y": 160
+      },
+      "skin": "redis-geo",
+      "config": {
+        "precision": 7
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "r5->g5",
+      "from": "r5",
+      "to": "g5"
+    },
+    {
+      "id": "r6->g6",
+      "from": "r6",
+      "to": "g6"
+    },
+    {
+      "id": "r7->g7",
+      "from": "r7",
+      "to": "g7"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 60,
+    "sources": [
+      {
+        "id": "s5",
+        "node": "r5",
+        "shape": {
+          "kind": "constant",
+          "rps": 100
+        },
+        "readRatio": 1
+      },
+      {
+        "id": "s6",
+        "node": "r6",
+        "shape": {
+          "kind": "constant",
+          "rps": 100
+        },
+        "readRatio": 1
+      },
+      {
+        "id": "s7",
+        "node": "r7",
+        "shape": {
+          "kind": "constant",
+          "rps": 100
+        },
+        "readRatio": 1
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "rides.example",
+    "read": {
+      "path": "/v1/drivers/nearby?geohash=9q8yy&radius_km=2",
+      "body": "{\"drivers\": [{key}], \"count\": 12}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/v1/drivers/{key}/location",
+      "reqBody": "{\"lat\": 37.77, \"lng\": -122.41}",
+      "status": 200,
+      "body": "{\"driver\": {key}, \"ok\": true}"
+    }
+  }
+}

@@ -1,0 +1,115 @@
+{
+  "schemaVersion": 1,
+  "id": "problem-rate-limiter-v2",
+  "name": "Rate limiter — reference",
+  "description": "The three gateways share one token bucket in Redis (atomic Lua check); fail open if Redis is unreachable.",
+  "nodes": [
+    {
+      "id": "users",
+      "type": "web-client",
+      "name": "API clients",
+      "pos": {
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "id": "gw",
+      "type": "rate-limiter",
+      "skin": "redis-rate-limiter",
+      "name": "Gateways ×3 (shared bucket)",
+      "pos": {
+        "x": 0,
+        "y": 110
+      },
+      "config": {
+        "algorithm": "token-bucket",
+        "limit": 1000,
+        "burst": 1000,
+        "instances": 3,
+        "store": "shared",
+        "failOpen": true
+      }
+    },
+    {
+      "id": "redis",
+      "type": "cache",
+      "skin": "redis",
+      "name": "Redis counters",
+      "pos": {
+        "x": 120,
+        "y": 220
+      }
+    },
+    {
+      "id": "api",
+      "type": "service",
+      "skin": "go-service",
+      "name": "API (1.2k rps max)",
+      "pos": {
+        "x": 0,
+        "y": 220
+      },
+      "config": {
+        "instances": 2,
+        "slots": 8,
+        "p50Ms": 10,
+        "p99Ms": 30,
+        "queueLimit": 2000
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "users->gw",
+      "from": "users",
+      "to": "gw"
+    },
+    {
+      "id": "gw->redis",
+      "from": "gw",
+      "to": "redis",
+      "config": {
+        "route": "store",
+        "timeoutMs": 20
+      }
+    },
+    {
+      "id": "gw->api",
+      "from": "gw",
+      "to": "api"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 60,
+    "sources": [
+      {
+        "id": "clients",
+        "node": "users",
+        "shape": {
+          "kind": "constant",
+          "rps": 800
+        }
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "api.shop.example",
+    "read": {
+      "method": "GET",
+      "path": "/v1/orders/{key}",
+      "status": 200,
+      "body": "{\"id\": {key}, \"status\": \"shipped\"}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/v1/orders",
+      "reqBody": "{\"sku\": \"A-{key}\", \"qty\": 1}",
+      "status": 201,
+      "body": "{\"id\": {key}, \"status\": \"pending\"}"
+    },
+    "cachePrefix": "rl:"
+  }
+}

@@ -1,0 +1,232 @@
+{
+  "schemaVersion": 1,
+  "id": "tech-flink-at-least-once",
+  "name": "Flink: at-least-once sink",
+  "description": "Same job, but the sink writes results as they fire (no transactions). Kill a TaskManager and the replay writes some results twice.",
+  "nodes": [
+    {
+      "id": "users",
+      "type": "web-client",
+      "skin": "react-spa",
+      "name": "app events",
+      "pos": {
+        "x": 195,
+        "y": 30
+      },
+      "config": {}
+    },
+    {
+      "id": "kafka",
+      "type": "flink-source",
+      "skin": "flink-kafka-topic",
+      "name": "events (Kafka)",
+      "pos": {
+        "x": 195,
+        "y": 130
+      },
+      "config": {}
+    },
+    {
+      "id": "jm",
+      "type": "flink-jobmanager",
+      "skin": "flink-jobmanager-std",
+      "name": "JobManager",
+      "pos": {
+        "x": 335,
+        "y": 130
+      },
+      "config": {}
+    },
+    {
+      "id": "tm1",
+      "type": "flink-taskmanager",
+      "skin": "flink-taskmanager-std",
+      "name": "tm-1",
+      "pos": {
+        "x": 55,
+        "y": 250
+      },
+      "config": {}
+    },
+    {
+      "id": "tm2",
+      "type": "flink-taskmanager",
+      "skin": "flink-taskmanager-std",
+      "name": "tm-2",
+      "pos": {
+        "x": 195,
+        "y": 250
+      },
+      "config": {}
+    },
+    {
+      "id": "tm3",
+      "type": "flink-taskmanager",
+      "skin": "flink-taskmanager-std",
+      "name": "tm-3",
+      "pos": {
+        "x": 335,
+        "y": 250
+      },
+      "config": {}
+    },
+    {
+      "id": "sink",
+      "type": "flink-sink",
+      "skin": "flink-es-sink",
+      "name": "results (Elasticsearch)",
+      "pos": {
+        "x": 110,
+        "y": 370
+      },
+      "config": {}
+    },
+    {
+      "id": "s3",
+      "type": "flink-checkpoint-storage",
+      "skin": "flink-s3-checkpoints",
+      "name": "checkpoints (S3)",
+      "pos": {
+        "x": 290,
+        "y": 370
+      },
+      "config": {}
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-users-kafka",
+      "from": "users",
+      "to": "kafka"
+    },
+    {
+      "id": "e-kafka-tm1",
+      "from": "kafka",
+      "to": "tm1",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "e-jm-tm1",
+      "from": "jm",
+      "to": "tm1",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "e-tm1-sink",
+      "from": "tm1",
+      "to": "sink",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "e-tm1-s3",
+      "from": "tm1",
+      "to": "s3",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "e-kafka-tm2",
+      "from": "kafka",
+      "to": "tm2",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "e-jm-tm2",
+      "from": "jm",
+      "to": "tm2",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "e-tm2-sink",
+      "from": "tm2",
+      "to": "sink",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "e-tm2-s3",
+      "from": "tm2",
+      "to": "s3",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "e-kafka-tm3",
+      "from": "kafka",
+      "to": "tm3",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "e-jm-tm3",
+      "from": "jm",
+      "to": "tm3",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "e-tm3-sink",
+      "from": "tm3",
+      "to": "sink",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "e-tm3-s3",
+      "from": "tm3",
+      "to": "s3",
+      "config": {
+        "mode": "async"
+      }
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 120,
+    "sources": [
+      {
+        "id": "s1",
+        "node": "users",
+        "shape": {
+          "kind": "constant",
+          "rps": 400
+        },
+        "readRatio": 0
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "ads.example.com",
+    "read": {
+      "method": "GET",
+      "path": "/api/campaigns/{key}/stats",
+      "status": 200,
+      "body": "{\"campaign_id\": {key}, \"impressions\": {value}}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/v1/impressions",
+      "reqBody": "{\"campaign_id\": {key}, \"ad_id\": {value}}",
+      "status": 202,
+      "body": "{\"accepted\": 1}"
+    },
+    "topic": "ad-impressions"
+  }
+}

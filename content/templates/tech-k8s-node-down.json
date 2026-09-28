@@ -1,0 +1,266 @@
+{
+  "schemaVersion": 1,
+  "id": "tech-k8s-node-down",
+  "name": "Kubernetes: node NotReady",
+  "description": "Kill a worker node: the node controller marks it NotReady after the grace period, then evicts its pods and the scheduler places replacements.",
+  "nodes": [
+    {
+      "id": "users",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 195,
+        "y": 40
+      },
+      "config": {}
+    },
+    {
+      "id": "svc",
+      "type": "k8s-service",
+      "skin": "kube-proxy-service",
+      "name": "Service web",
+      "pos": {
+        "x": 195,
+        "y": 150
+      },
+      "config": {}
+    },
+    {
+      "id": "node-1",
+      "type": "k8s-kubelet",
+      "skin": "kubelet-node",
+      "name": "node-1",
+      "pos": {
+        "x": 60,
+        "y": 280
+      },
+      "config": {},
+      "parent": "workers"
+    },
+    {
+      "id": "node-2",
+      "type": "k8s-kubelet",
+      "skin": "kubelet-node",
+      "name": "node-2",
+      "pos": {
+        "x": 195,
+        "y": 280
+      },
+      "config": {},
+      "parent": "workers"
+    },
+    {
+      "id": "node-3",
+      "type": "k8s-kubelet",
+      "skin": "kubelet-node",
+      "name": "node-3",
+      "pos": {
+        "x": 330,
+        "y": 280
+      },
+      "config": {},
+      "parent": "workers"
+    },
+    {
+      "id": "sched",
+      "type": "k8s-scheduler",
+      "skin": "kube-scheduler",
+      "name": "scheduler",
+      "pos": {
+        "x": 60,
+        "y": 420
+      },
+      "config": {},
+      "parent": "control-plane"
+    },
+    {
+      "id": "api",
+      "type": "k8s-api-server",
+      "skin": "kube-apiserver",
+      "name": "API server",
+      "pos": {
+        "x": 195,
+        "y": 420
+      },
+      "config": {},
+      "parent": "control-plane"
+    },
+    {
+      "id": "ctrl",
+      "type": "k8s-controller-manager",
+      "skin": "kube-controller-manager",
+      "name": "controllers",
+      "pos": {
+        "x": 330,
+        "y": 420
+      },
+      "config": {},
+      "parent": "control-plane"
+    },
+    {
+      "id": "etcd-1",
+      "type": "consensus-member",
+      "skin": "etcd",
+      "name": "etcd-1",
+      "pos": {
+        "x": 90,
+        "y": 550
+      },
+      "config": {
+        "group": "k8s-etcd",
+        "heartbeatMs": 50,
+        "electionMinMs": 300,
+        "electionMaxMs": 600
+      },
+      "parent": "control-plane"
+    },
+    {
+      "id": "etcd-2",
+      "type": "consensus-member",
+      "skin": "etcd",
+      "name": "etcd-2",
+      "pos": {
+        "x": 195,
+        "y": 550
+      },
+      "config": {
+        "group": "k8s-etcd",
+        "heartbeatMs": 50,
+        "electionMinMs": 300,
+        "electionMaxMs": 600
+      },
+      "parent": "control-plane"
+    },
+    {
+      "id": "etcd-3",
+      "type": "consensus-member",
+      "skin": "etcd",
+      "name": "etcd-3",
+      "pos": {
+        "x": 300,
+        "y": 550
+      },
+      "config": {
+        "group": "k8s-etcd",
+        "heartbeatMs": 50,
+        "electionMinMs": 300,
+        "electionMaxMs": 600
+      },
+      "parent": "control-plane"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-users-svc",
+      "from": "users",
+      "to": "svc"
+    },
+    {
+      "id": "e-svc-node-1",
+      "from": "svc",
+      "to": "node-1"
+    },
+    {
+      "id": "e-svc-node-2",
+      "from": "svc",
+      "to": "node-2"
+    },
+    {
+      "id": "e-svc-node-3",
+      "from": "svc",
+      "to": "node-3"
+    },
+    {
+      "id": "e-api-etcd-1",
+      "from": "api",
+      "to": "etcd-1"
+    },
+    {
+      "id": "e-api-etcd-2",
+      "from": "api",
+      "to": "etcd-2"
+    },
+    {
+      "id": "e-api-etcd-3",
+      "from": "api",
+      "to": "etcd-3"
+    },
+    {
+      "id": "e-sched-api",
+      "from": "sched",
+      "to": "api"
+    },
+    {
+      "id": "e-ctrl-api",
+      "from": "ctrl",
+      "to": "api"
+    },
+    {
+      "id": "e-node-1-api",
+      "from": "node-1",
+      "to": "api",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "e-node-2-api",
+      "from": "node-2",
+      "to": "api",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "e-node-3-api",
+      "from": "node-3",
+      "to": "api",
+      "config": {
+        "mode": "async"
+      }
+    }
+  ],
+  "containers": [
+    {
+      "id": "workers",
+      "kind": "vpc",
+      "name": "Worker nodes"
+    },
+    {
+      "id": "control-plane",
+      "kind": "vpc",
+      "name": "Control plane"
+    }
+  ],
+  "scenario": {
+    "durationSec": 180,
+    "sources": [
+      {
+        "id": "s1",
+        "node": "users",
+        "shape": {
+          "kind": "constant",
+          "rps": 200
+        },
+        "readRatio": 1
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "weather.example.com",
+    "read": {
+      "method": "GET",
+      "path": "/v1/forecast/{key}",
+      "status": 200,
+      "body": "{\"city_id\": {key}, \"temp_c\": {value}}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/v1/alerts",
+      "reqBody": "{\"city_id\": {key}, \"threshold_c\": {value}}",
+      "status": 201,
+      "body": "{\"alert_id\": \"{code}\"}"
+    }
+  }
+}

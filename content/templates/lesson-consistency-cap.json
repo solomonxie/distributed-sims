@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "id": "lesson-consistency-cap",
+  "name": "Lesson: CAP under partition",
+  "description": "Left: a 3-member etcd cluster (CP) across two zones. Right: a 3-member Cassandra at consistency ONE (AP). Cut each one in two and compare what clients see.",
+  "nodes": [
+    { "id": "web", "type": "web-client", "name": "Users", "pos": { "x": 195, "y": 50 } },
+    { "id": "api-cp", "type": "service", "name": "Config API (CP)", "pos": { "x": 90, "y": 170 }, "config": { "fanout": "one" } },
+    { "id": "api-ap", "type": "service", "name": "Cart API (AP)", "pos": { "x": 300, "y": 170 } },
+    { "id": "etcd-1", "type": "consensus-member", "skin": "etcd", "name": "etcd-1", "parent": "az-a", "pos": { "x": 40, "y": 320 } },
+    { "id": "etcd-2", "type": "consensus-member", "skin": "etcd", "name": "etcd-2", "parent": "az-a", "pos": { "x": 140, "y": 320 } },
+    { "id": "etcd-3", "type": "consensus-member", "skin": "etcd", "name": "etcd-3", "parent": "az-b", "pos": { "x": 90, "y": 460 } },
+    { "id": "kv", "type": "kv-store", "skin": "cassandra", "name": "Cassandra ONE", "pos": { "x": 300, "y": 320 }, "config": { "members": 3, "replicationFactor": 3, "readConsistency": "one", "writeConsistency": "one" } }
+  ],
+  "edges": [
+    { "id": "e1", "from": "web", "to": "api-cp", "config": { "ratio": 0.5, "timeoutMs": 5000 } },
+    { "id": "e2", "from": "web", "to": "api-ap", "config": { "ratio": 0.5 } },
+    { "id": "e3", "from": "api-cp", "to": "etcd-1", "config": { "timeoutMs": 3000 } },
+    { "id": "e4", "from": "api-cp", "to": "etcd-2", "config": { "timeoutMs": 3000 } },
+    { "id": "e5", "from": "api-cp", "to": "etcd-3", "config": { "timeoutMs": 3000 } },
+    { "id": "e6", "from": "api-ap", "to": "kv" }
+  ],
+  "containers": [
+    { "id": "az-a", "kind": "availability-zone", "name": "Zone A", "config": { "zone": "a" } },
+    { "id": "az-b", "kind": "availability-zone", "name": "Zone B", "config": { "zone": "b" } }
+  ],
+  "scenario": {
+    "durationSec": 300,
+    "sources": [{ "id": "s1", "node": "web", "shape": { "kind": "constant", "rps": 200 }, "readRatio": 0.6 }],
+    "events": []
+  },
+  "wire": {
+    "host": "shop.example",
+    "read": {
+      "path": "/api/cart/{key}"
+    },
+    "write": {
+      "method": "PUT",
+      "path": "/api/cart/{key}/items",
+      "reqBody": "{\"sku\": \"SKU-{value}\", \"qty\": 1}",
+      "status": 200,
+      "body": "{\"cart\": {key}, \"items\": 3}"
+    },
+    "table": "carts"
+  }
+}

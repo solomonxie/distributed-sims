@@ -1,0 +1,90 @@
+group: { id: tech, label: Under the hood, order: 14 }
+# Postgres internals (technologies.md v1.1). Protocol kinds: pg.wal (primary → standby), pg.ack (standby → primary).
+# Sizes and times are sim-scaled (checkpoint_timeout 30s, small tables) so effects show within a minute.
+types:
+  - type: pg-primary
+    label: Postgres primary
+    description: One backend process per connection; shared buffers; WAL + fsync with group commit; MVCC + autovacuum; checkpoints
+    icon: database
+    costPerInstanceMonth: 180
+    knobs:
+      - { key: slots, label: CPU cores, kind: int, default: 4, min: 1, max: 128 }
+      - { key: maxConnections, label: max_connections, kind: int, default: 100, min: 1, max: 10000, help: Each connection is a forked backend process }
+      - { key: connectMs, label: Connect per request, kind: ms, default: 0, min: 0, max: 1000, help: "fork + auth + catalog cache when every request opens a new connection (PHP, serverless); 0 = app keeps its own pool" }
+      - { key: contention, label: Contention per extra backend, kind: number, default: 0.03, min: 0, max: 1, step: 0.01, advanced: true, help: Slowdown per active backend beyond the core count (locks, context switches) }
+      - { key: p50Ms, label: Read CPU p50, kind: ms, default: 0.5, min: 0.01, max: 1000 }
+      - { key: p99Ms, label: Read CPU p99, kind: ms, default: 2, min: 0.01, max: 5000 }
+      - { key: writeCpuMs, label: Write CPU p50, kind: ms, default: 0.8, min: 0.01, max: 1000, advanced: true }
+      - { key: writeCpuP99Ms, label: Write CPU p99, kind: ms, default: 3, min: 0.01, max: 5000, advanced: true }
+      - { key: sharedBuffersMb, label: shared_buffers, kind: number, default: 1024, min: 16, max: 1048576, unit: MB }
+      - { key: workingSetMb, label: Working set, kind: number, default: 800, min: 1, max: 10485760, unit: MB, help: Hot data; hit ratio ≈ shared_buffers / working set }
+      - { key: pagesPerRead, label: Pages per read, kind: number, default: 3, min: 1, max: 1000, advanced: true, help: Index + heap pages for one lookup }
+      - { key: diskReadMs, label: Disk read, kind: ms, default: 2, min: 0.01, max: 100 }
+      - { key: warmupReads, label: Cache warm-up reads, kind: int, default: 3000, min: 1, max: 10000000, advanced: true }
+      - { key: synchronousCommit, label: synchronous_commit, kind: enum, default: "on", options: ["on", "off"], help: "off: COMMIT returns before the WAL fsync; a crash loses the last ~200ms of commits" }
+      - { key: fsyncMs, label: WAL fsync, kind: ms, default: 2, min: 0.01, max: 1000, help: One fsync flushes every commit waiting (group commit) }
+      - { key: walWriterDelayMs, label: wal_writer_delay, kind: ms, default: 200, min: 1, max: 10000, advanced: true }
+      - { key: syncReplicas, label: Synchronous standbys, kind: int, default: 0, min: 0, max: 8, help: COMMIT also waits for this many standbys to flush the WAL }
+      - { key: liveRows, label: Live rows, kind: int, default: 10000, min: 100, max: 100000000, advanced: true }
+      - { key: autovacuumScale, label: autovacuum_vacuum_scale_factor, kind: number, default: 0.2, min: 0, max: 10, step: 0.01, help: Vacuum when dead rows > 50 + this × live rows }
+      - { key: vacuumRowsPerSec, label: Vacuum speed, kind: number, default: 5000, min: 1, max: 10000000, unit: rows/s, help: Throttled by autovacuum_vacuum_cost_limit }
+      - { key: checkpointTimeoutSec, label: checkpoint_timeout, kind: number, default: 30, min: 1, max: 86400, unit: s, help: Real default 5 min }
+      - { key: maxWalMb, label: max_wal_size, kind: number, default: 64, min: 1, max: 1000000, unit: MB, help: More WAL than this since the last checkpoint forces one }
+      - { key: completionTarget, label: checkpoint_completion_target, kind: number, default: 0.9, min: 0.1, max: 1, step: 0.05, advanced: true }
+      - { key: checkpointWarningSec, label: checkpoint_warning, kind: number, default: 10, min: 0, max: 3600, unit: s, advanced: true }
+      - { key: diskMbps, label: Disk bandwidth, kind: number, default: 200, min: 1, max: 100000, unit: MB/s }
+      - { key: hotPages, label: Pages touched per cycle, kind: int, default: 20000, min: 1, max: 100000000, advanced: true, help: First write to a page after a checkpoint logs a full 8 KB page image }
+      - { key: walBaseKb, label: WAL per write, kind: number, default: 0.5, min: 0.01, max: 1000, unit: KB, advanced: true }
+      - { key: recoveryMsPerMb, label: Recovery per WAL MB, kind: ms, default: 50, min: 0, max: 60000, advanced: true }
+      - { key: queueLimit, label: Run queue limit, kind: int, default: 2000, min: 0, max: 1000000, advanced: true }
+      - { key: cluster, label: Cluster, kind: string, default: pg, advanced: true }
+      - { key: costMonth, label: Cost / month, kind: number, default: 180, unit: $, advanced: true }
+  - type: pg-replica
+    label: Postgres standby
+    description: Hot standby streaming the primary's WAL; replays it single-threaded and serves read-only queries
+    icon: database-backup
+    costPerInstanceMonth: 180
+    knobs:
+      - { key: replayPerSec, label: Replay speed, kind: number, default: 2000, min: 1, max: 10000000, unit: writes/s, help: Startup process replays WAL in one thread }
+      - { key: slots, label: CPU cores, kind: int, default: 4, min: 1, max: 128 }
+      - { key: p50Ms, label: Read p50, kind: ms, default: 0.5, min: 0.01, max: 1000 }
+      - { key: p99Ms, label: Read p99, kind: ms, default: 2, min: 0.01, max: 5000 }
+      - { key: queueLimit, label: Run queue limit, kind: int, default: 2000, min: 0, max: 1000000, advanced: true }
+      - { key: cluster, label: Cluster, kind: string, default: pg, advanced: true }
+      - { key: costMonth, label: Cost / month, kind: number, default: 180, unit: $, advanced: true }
+  - type: pgbouncer
+    label: PgBouncer
+    description: Connection pooler; thousands of cheap client connections share a few server connections
+    icon: waypoints
+    costPerInstanceMonth: 20
+    knobs:
+      - { key: poolMode, label: pool_mode, kind: enum, default: transaction, options: [transaction, session], help: "transaction: server connection returned after each transaction; session: held while the client is connected" }
+      - { key: poolSize, label: default_pool_size, kind: int, default: 20, min: 1, max: 10000 }
+      - { key: maxClientConn, label: max_client_conn, kind: int, default: 10000, min: 1, max: 1000000 }
+      - { key: clientIdleMs, label: Client idle between queries, kind: ms, default: 50, min: 0, max: 60000, advanced: true, help: Session mode only }
+      - { key: queryWaitTimeoutMs, label: query_wait_timeout, kind: ms, default: 2000, min: 1, max: 600000, advanced: true }
+      - { key: costMonth, label: Cost / month, kind: number, default: 20, unit: $, advanced: true }
+skins:
+  - { name: postgres-primary, type: pg-primary, label: Postgres primary, description: PostgreSQL 16 primary, icon: brand:postgres, tags: [sql, postgres], defaults: { costMonth: 180 } }
+  - { name: postgres-standby, type: pg-replica, label: Postgres standby, description: Streaming replication hot standby, icon: brand:postgres, tags: [sql, postgres, replica], defaults: { costMonth: 180 } }
+  - { name: pgbouncer-std, type: pgbouncer, label: PgBouncer, description: Lightweight connection pooler, icon: waypoints, tags: [postgres, pooler], defaults: { costMonth: 20 } }
+  - name: postgres-internals
+    type: pgbouncer
+    label: Postgres (internals)
+    description: PgBouncer → primary → streaming standby; drill in for WAL, vacuum, checkpoints and lag
+    icon: brand:postgres
+    tags: [sql, postgres, composite]
+    defaults: { costMonth: 380 }
+    ports: { in: bouncer }
+    internals:
+      schemaVersion: 1
+      id: postgres-internals
+      name: Postgres
+      nodes:
+        - { id: bouncer, type: pgbouncer, skin: pgbouncer-std, name: PgBouncer, pos: { x: 0, y: 0 } }
+        - { id: primary, type: pg-primary, skin: postgres-primary, name: primary, pos: { x: 0, y: 130 } }
+        - { id: standby, type: pg-replica, skin: postgres-standby, name: standby, pos: { x: 140, y: 130 } }
+      edges:
+        - { id: e1, from: bouncer, to: primary }
+        - { id: e2, from: primary, to: standby, config: { mode: async } }
+      containers: []

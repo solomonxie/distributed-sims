@@ -1,0 +1,51 @@
+id: telemetry
+title: Telemetry system
+icon: activity
+category: infra
+order: 17
+summary: Ingest metrics from every host and keep dashboards up when labels explode.
+requirements:
+  - Agents push samples every 10s; store, downsample, query dashboards and alerts
+  - 1M hosts · 1k series/host · 1-year retention (downsampled)
+  - Ingest never blocks agents · dashboards p99 < 1s · no silent data loss
+estimates:
+  - 100M samples/s · ~1.5 B/sample compressed → ~13 TB/day raw
+  - Active series drive TSDB memory (~4 KB each in the head block)
+designs:
+  - { id: v1, title: "Naive: agents write straight to one TSDB", template: problem-telemetry-v1 }
+  - { id: v2, title: "Reference: Kafka buffer, aggregator, downsampled TSDB", template: problem-telemetry-v2 }
+challenges:
+  - id: cardinality
+    title: "10× metric cardinality burst"
+    template: problem-telemetry-v2
+    scenario:
+      durationSec: 60
+      sources:
+        - { id: agents, node: users, shape: { kind: constant, rps: 2000 }, readRatio: 0 }
+        - { id: dashboards, node: users, shape: { kind: constant, rps: 50 }, readRatio: 1 }
+      events:
+        - { atSec: 15, event: { kind: cardinality-burst, target: tsdb, params: { x: 10 }, durationSec: 45 } }
+    pass:
+      - { metric: availability, op: '>=', value: 99.5 }
+      - { metric: anomalies, op: '=', value: 0 }
+      - { metric: p99, op: '<', value: 300 }
+      - { metric: costMonth, op: '<=', value: 3000 }
+  - id: deploy-storm
+    title: "Deploy storm: 8× samples"
+    template: problem-telemetry-v2
+    scenario:
+      durationSec: 60
+      sources:
+        - { id: agents, node: users, shape: { kind: constant, rps: 2000 }, readRatio: 0 }
+        - { id: dashboards, node: users, shape: { kind: constant, rps: 50 }, readRatio: 1 }
+      events:
+        - { atSec: 15, event: { kind: traffic, source: agents, action: burst, params: { x: 8 }, durationSec: 45 } }
+    pass:
+      - { metric: availability, op: '>=', value: 99.5 }
+      - { metric: anomalies, op: '=', value: 0 }
+keyIdeas:
+  - { label: Kafka as a shock absorber, link: "lesson:message-queue/consumer-lag" }
+  - { label: Count-min sketch for top talkers, link: "algo:count-min-sketch" }
+  - { label: HyperLogLog to count series, link: "algo:hyperloglog" }
+  - { label: Telemetry overload, link: "lesson:observability" }
+  - { label: LSM storage, link: "algo:lsm-tree" }

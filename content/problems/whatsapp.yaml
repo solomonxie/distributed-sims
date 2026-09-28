@@ -1,0 +1,47 @@
+id: whatsapp
+title: WhatsApp
+icon: message-circle
+category: product
+order: 7
+summary: 1:1 and group chat with ordering, receipts and offline delivery.
+requirements:
+  - Send / receive messages over a persistent connection
+  - Per-chat order preserved; sent ✓, delivered ✓✓, read receipts
+  - Offline users get messages on reconnect
+  - 2B users · 100B messages/day
+  - Send p99 < 200ms · no lost or reordered messages
+estimates:
+  - 1.2M msgs/s avg; each message ≈ 3 writes (msg + 2 receipts)
+  - ~500M open connections → ~10k gateway hosts at 50k conns each
+  - 100 B × 100B/day = 10 TB/day until delivered
+designs:
+  - { id: v1, title: "Naive: shared queue, slow health checks", template: problem-whatsapp-v1 }
+  - { id: v2, title: "Reference: Kafka keyed by chat, fast failover", template: problem-whatsapp-v2 }
+challenges:
+  - id: gateway-kill
+    title: "Gateway node kill, no reordering"
+    template: problem-whatsapp-v2
+    scenario:
+      durationSec: 60
+      sources: [{ id: msgs, node: users, shape: { kind: constant, rps: 4000 }, readRatio: 0.2, keys: { kind: zipf, s: 0.8 } }]
+      events: [{ atSec: 35, event: { kind: kill, target: gw-1, durationSec: 30 } }]
+    pass:
+      - { metric: anomalies, op: '=', value: 0 }
+      - { metric: availability, op: '>=', value: 99.9 }
+      - { metric: p99, op: '<', value: 200 }
+  - id: new-year
+    title: "New Year's Eve: 5× messages"
+    template: problem-whatsapp-v2
+    scenario:
+      durationSec: 60
+      sources: [{ id: msgs, node: users, shape: { kind: constant, rps: 4000 }, readRatio: 0.2, keys: { kind: zipf, s: 0.8 } }]
+      events: [{ atSec: 20, event: { kind: traffic, action: ramp, params: { x: 5 }, durationSec: 20 } }]
+    pass:
+      - { metric: anomalies, op: '=', value: 0 }
+      - { metric: p99, op: '<', value: 200 }
+      - { metric: availability, op: '>=', value: 99.9 }
+keyIdeas:
+  - { label: Partition by chat → per-chat order, link: "lesson:message-queue/ordering" }
+  - { label: Idempotent receipts (at-least-once), link: "lesson:message-queue/at-least-once" }
+  - { label: Health checks + client retry, link: "lesson:system-paradigms/load-balancer" }
+  - { label: Ordering needs sequence numbers, not wall clocks, link: "algo:clocks" }

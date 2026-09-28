@@ -1,0 +1,120 @@
+{
+  "schemaVersion": 1,
+  "id": "lesson-micro-discovery",
+  "name": "Service discovery & health checks",
+  "description": "The load balancer probes three Orders instances every 2s and drops one after 2 failed checks. Kill an instance: a few requests fail until it is marked unhealthy, then traffic drains to the other two. When it comes back, it is marked healthy again after 2 good checks.",
+  "nodes": [
+    {
+      "id": "users",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 195,
+        "y": 60
+      }
+    },
+    {
+      "id": "lb",
+      "type": "load-balancer",
+      "name": "Load balancer",
+      "pos": {
+        "x": 195,
+        "y": 200
+      },
+      "skin": "aws-alb",
+      "config": {
+        "healthIntervalMs": 2000,
+        "unhealthyThreshold": 2
+      }
+    },
+    {
+      "id": "orders-1",
+      "type": "service",
+      "name": "orders-1",
+      "pos": {
+        "x": 75,
+        "y": 350
+      }
+    },
+    {
+      "id": "orders-2",
+      "type": "service",
+      "name": "orders-2",
+      "pos": {
+        "x": 195,
+        "y": 350
+      }
+    },
+    {
+      "id": "orders-3",
+      "type": "service",
+      "name": "orders-3",
+      "pos": {
+        "x": 315,
+        "y": 350
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "users->lb",
+      "from": "users",
+      "to": "lb",
+      "config": {
+        "timeoutMs": 3000
+      }
+    },
+    {
+      "id": "lb->orders-1",
+      "from": "lb",
+      "to": "orders-1",
+      "config": {
+        "timeoutMs": 1000
+      }
+    },
+    {
+      "id": "lb->orders-2",
+      "from": "lb",
+      "to": "orders-2",
+      "config": {
+        "timeoutMs": 1000
+      }
+    },
+    {
+      "id": "lb->orders-3",
+      "from": "lb",
+      "to": "orders-3",
+      "config": {
+        "timeoutMs": 1000
+      }
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 120,
+    "sources": [
+      {
+        "id": "s1",
+        "node": "users",
+        "shape": {
+          "kind": "constant",
+          "rps": 300
+        }
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "shop.example",
+    "read": {
+      "path": "/api/orders/{key}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/orders",
+      "reqBody": "{\"sku\": \"SKU-{key}\", \"qty\": 1}",
+      "status": 201,
+      "body": "{\"order_id\": {key}, \"status\": \"placed\"}"
+    }
+  }
+}

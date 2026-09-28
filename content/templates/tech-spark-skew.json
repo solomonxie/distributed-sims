@@ -1,0 +1,93 @@
+{
+  "schemaVersion": 1,
+  "id": "tech-spark-skew",
+  "name": "Spark: data skew",
+  "description": "A hot key puts most rows in one post-shuffle partition: one straggler task, spill to disk, and a job that waits for it.",
+  "nodes": [
+    {
+      "id": "driver",
+      "type": "spark-driver",
+      "skin": "spark-driver-std",
+      "name": "Driver",
+      "pos": {
+        "x": 195,
+        "y": 60
+      },
+      "config": {
+        "cronSec": 15
+      }
+    },
+    {
+      "id": "exec-1",
+      "type": "spark-executor",
+      "skin": "spark-executor-std",
+      "name": "Executor 1",
+      "pos": {
+        "x": 55,
+        "y": 220
+      },
+      "config": {}
+    },
+    {
+      "id": "exec-2",
+      "type": "spark-executor",
+      "skin": "spark-executor-std",
+      "name": "Executor 2",
+      "pos": {
+        "x": 195,
+        "y": 220
+      },
+      "config": {}
+    },
+    {
+      "id": "exec-3",
+      "type": "spark-executor",
+      "skin": "spark-executor-std",
+      "name": "Executor 3",
+      "pos": {
+        "x": 335,
+        "y": 220
+      },
+      "config": {}
+    }
+  ],
+  "edges": [
+    {
+      "id": "d-e1",
+      "from": "driver",
+      "to": "exec-1"
+    },
+    {
+      "id": "d-e2",
+      "from": "driver",
+      "to": "exec-2"
+    },
+    {
+      "id": "d-e3",
+      "from": "driver",
+      "to": "exec-3"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 120,
+    "sources": [],
+    "events": []
+  },
+  "wire": {
+    "host": "spark-master.internal:6066",
+    "read": {
+      "path": "/api/v1/applications/app-{key}/stages/3",
+      "body": "{\"stageId\": 3, \"taskTime\": {\"max\": 94000, \"median\": 2100}}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/v1/submissions/create",
+      "reqBody": "{\"mainClass\": \"etl.OrdersByCustomer\", \"appArgs\": [\"customer_id\"]}",
+      "status": 200,
+      "body": "{\"submissionId\": \"driver-{key}\", \"success\": true}"
+    },
+    "table": "orders_by_customer",
+    "valCol": "order_count"
+  }
+}

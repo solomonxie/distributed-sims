@@ -1,0 +1,306 @@
+{
+  "schemaVersion": 1,
+  "id": "tech-kafka-commit",
+  "name": "Kafka: commit before vs after processing",
+  "description": "Two consumer groups read the same topic. Group \"before\" commits offsets then processes; group \"after\" processes then commits. Crash one member of each.",
+  "nodes": [
+    {
+      "id": "users",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 195,
+        "y": 40
+      }
+    },
+    {
+      "id": "prod",
+      "type": "kafka-producer",
+      "name": "producer",
+      "pos": {
+        "x": 195,
+        "y": 150
+      }
+    },
+    {
+      "id": "b1",
+      "type": "kafka-broker",
+      "name": "broker-1",
+      "pos": {
+        "x": 55,
+        "y": 280
+      }
+    },
+    {
+      "id": "b2",
+      "type": "kafka-broker",
+      "name": "broker-2",
+      "pos": {
+        "x": 195,
+        "y": 280
+      }
+    },
+    {
+      "id": "b3",
+      "type": "kafka-broker",
+      "name": "broker-3",
+      "pos": {
+        "x": 335,
+        "y": 280
+      }
+    },
+    {
+      "id": "ctrl",
+      "type": "kraft-controller",
+      "name": "controller",
+      "pos": {
+        "x": 195,
+        "y": 400
+      }
+    },
+    {
+      "id": "cb1",
+      "type": "kafka-consumer",
+      "name": "before-1",
+      "pos": {
+        "x": 110,
+        "y": 520
+      },
+      "config": {
+        "group": "before",
+        "commit": "before",
+        "p50Ms": 2.5,
+        "p99Ms": 6
+      }
+    },
+    {
+      "id": "cb2",
+      "type": "kafka-consumer",
+      "name": "before-2",
+      "pos": {
+        "x": 280,
+        "y": 520
+      },
+      "config": {
+        "group": "before",
+        "commit": "before",
+        "p50Ms": 2.5,
+        "p99Ms": 6
+      }
+    },
+    {
+      "id": "ca1",
+      "type": "kafka-consumer",
+      "name": "after-1",
+      "pos": {
+        "x": 110,
+        "y": 630
+      },
+      "config": {
+        "group": "after",
+        "commit": "after",
+        "p50Ms": 2.5,
+        "p99Ms": 6
+      }
+    },
+    {
+      "id": "ca2",
+      "type": "kafka-consumer",
+      "name": "after-2",
+      "pos": {
+        "x": 280,
+        "y": 630
+      },
+      "config": {
+        "group": "after",
+        "commit": "after",
+        "p50Ms": 2.5,
+        "p99Ms": 6
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "users-prod",
+      "from": "users",
+      "to": "prod"
+    },
+    {
+      "id": "prod-b1",
+      "from": "prod",
+      "to": "b1",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "prod-b2",
+      "from": "prod",
+      "to": "b2",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "prod-b3",
+      "from": "prod",
+      "to": "b3",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "ctrl-b1",
+      "from": "ctrl",
+      "to": "b1",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "ctrl-b2",
+      "from": "ctrl",
+      "to": "b2",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "ctrl-b3",
+      "from": "ctrl",
+      "to": "b3",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "b1-cb1",
+      "from": "b1",
+      "to": "cb1",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "b2-cb1",
+      "from": "b2",
+      "to": "cb1",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "b3-cb1",
+      "from": "b3",
+      "to": "cb1",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "b1-cb2",
+      "from": "b1",
+      "to": "cb2",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "b2-cb2",
+      "from": "b2",
+      "to": "cb2",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "b3-cb2",
+      "from": "b3",
+      "to": "cb2",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "b1-ca1",
+      "from": "b1",
+      "to": "ca1",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "b2-ca1",
+      "from": "b2",
+      "to": "ca1",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "b3-ca1",
+      "from": "b3",
+      "to": "ca1",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "b1-ca2",
+      "from": "b1",
+      "to": "ca2",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "b2-ca2",
+      "from": "b2",
+      "to": "ca2",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "b3-ca2",
+      "from": "b3",
+      "to": "ca2",
+      "config": {
+        "mode": "async"
+      }
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 300,
+    "sources": [
+      {
+        "id": "s1",
+        "node": "users",
+        "shape": {
+          "kind": "constant",
+          "rps": 1000
+        },
+        "readRatio": 0
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "notify.example.com",
+    "read": {
+      "method": "GET",
+      "path": "/api/notifications/{key}",
+      "status": 200,
+      "body": "{\"id\": {key}, \"sent\": true}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/notifications",
+      "reqBody": "{\"user_id\": {key}, \"template\": \"welcome\"}",
+      "status": 202,
+      "body": "{\"id\": {key}, \"status\": \"queued\"}"
+    },
+    "topic": "notifications"
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "id": "problem-craigslist-v1",
+  "name": "Craigslist: naive",
+  "description": "A Rails monolith on one Postgres stores listings and photo blobs; a search index is rebuilt by a bulk job every 30s.",
+  "nodes": [
+    {"id":"users","type":"web-client","skin":"react-spa","name":"Visitors","pos":{"x":0,"y":0}},
+    {"id":"app","type":"monolith","skin":"rails-monolith","name":"Rails app","pos":{"x":0,"y":110},"config":{"instances":12,"dbPool":60}},
+    {"id":"db","type":"relational-db","skin":"postgres","name":"Listings + photos","pos":{"x":-80,"y":220},"config":{"p50Ms":3,"p99Ms":25,"writeP50Ms":30,"writeP99Ms":150}},
+    {"id":"search","type":"search-index","skin":"elasticsearch","name":"Search (bulk reindex)","pos":{"x":80,"y":220},"config":{"refreshMs":30000,"shards":3}}
+  ],
+  "edges": [
+    {"id":"users-app","from":"users","to":"app","config":{"timeoutMs":5000}},
+    {"id":"app-db","from":"app","to":"db"},
+    {"id":"app-search","from":"app","to":"search"}
+  ],
+  "containers": [],
+  "scenario": {"durationSec":60,"sources":[{"id":"visits","node":"users","shape":{"kind":"constant","rps":3000},"readRatio":0.98,"keys":{"kind":"uniform"}}],"events":[]},
+  "wire": {
+    "host": "api.craigslist.example",
+    "read": {
+      "method": "GET",
+      "path": "/v1/listings/{key}",
+      "status": 200,
+      "body": "{\"id\": {key}, \"title\": \"Road bike, 56cm\", \"price\": 450, \"region\": \"sfbay\"}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/v1/listings",
+      "reqBody": "{\"title\": \"Road bike, 56cm\", \"price\": {value}, \"region\": \"sfbay\"}",
+      "status": 201,
+      "body": "{\"id\": {key}, \"status\": \"active\"}"
+    },
+    "table": "listings",
+    "valCol": "price"
+  }
+}

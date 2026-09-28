@@ -1,0 +1,125 @@
+id: zookeeper-etcd
+title: ZooKeeper / etcd
+group: under-the-hood
+icon: tree-pine
+order: 16
+summary: A small replicated tree with sessions and watches — how apps elect a leader on top of it, and how that goes wrong.
+info: An ensemble of 3 or 5 servers elects a leader (ZAB in ZooKeeper, Raft in etcd); every write goes through it and a majority, and gets a zxid / revision. Clients hold sessions (leases in etcd) kept alive by heartbeats. Ephemeral nodes vanish when their session expires, and one-shot watches tell clients when a node changes. The leader-election recipe is the lowest ephemeral sequential znode wins.
+algos: [raft-log]
+problems: [kv-store, distributed-mq]
+lessons:
+  - id: anatomy
+    title: Anatomy and the election recipe
+    minutes: 4
+    template: tech-zk-anatomy
+    steps:
+      - title: The ensemble
+        body: Three servers elect a 👑 leader. Writes go through it and need 2 of 3; each server answers reads from its own copy.
+        check: { metric: eventMatch:elected leader, op: '>=', value: 1 }
+      - title: Sessions
+        body: Each app opens a session and pings it every timeout/3. The session belongs to the ensemble, not to one server.
+        check: { metric: gauge:sessions, target: zk-1, op: '>=', value: 3 }
+      - title: Ephemeral sequential znodes
+        body: Each app creates /election/n_ with the EPHEMERAL and SEQUENTIAL flags; the ensemble appends an increasing number.
+        check: { metric: eventMatch:created ephemeral sequential, op: '>=', value: 3 }
+      - title: Lowest wins
+        body: Each app lists /election. The owner of the lowest number leads; the others watch the node just below theirs.
+        check: { metric: eventMatch:is leader, op: '>=', value: 1 }
+      - title: zxid orders everything
+        body: Every write gets a zxid, with the leader's epoch in the high 32 bits and a counter in the low bits. All servers apply writes in that order.
+        check: { metric: gauge:zxid, target: zk-1, op: '>=', value: 6 }
+
+  - id: leader-loss
+    title: Losing the ensemble leader
+    minutes: 3
+    template: tech-zk-anatomy
+    steps:
+      - title: Steady
+        body: app-1 holds the lowest znode and leads the apps.
+        check: { metric: badge:👑, target: app-1, op: '=', value: 1 }
+      - title: Kill the server leader
+        body: Tap ⚡ Break → Kill leader on the ensemble. The remaining two elect a new leader with a higher epoch.
+        action: { event: { kind: kill-leader, target: zk-1 } }
+        check: { metric: eventMatch:elected leader, op: '>=', value: 2 }
+      - title: Sessions survive
+        body: Apps connected to the dead server reconnect to another one within the session timeout. No session expires, so app-1 still leads.
+        check: { metric: badge:👑, target: app-1, op: '=', value: 1 }
+      - title: New epoch
+        body: Tap ⚡ Break → Kill on app-3. After 4s its session expires. That delete carries a zxid starting 0x2, from the new epoch.
+        action: { event: { kind: kill, target: app-3 } }
+        check: { metric: eventMatch:zxid 0x2, op: '>=', value: 1 }
+
+  - id: session-expiry
+    title: GC pause, session expiry, two leaders
+    minutes: 4
+    template: tech-zk-session
+    steps:
+      - title: app-a leads
+        body: app-a owns the lowest znode; app-b watches it. Session timeout is 4s.
+        check: { metric: badge:👑, target: app-a, op: '=', value: 1 }
+      - title: Stop the world
+        body: Tap ⚡ Break → GC pause on app-a for 8s. It can't send heartbeats.
+        action: { event: { kind: gc-pause, target: app-a, params: { sec: 8 } } }
+        check: { metric: eventMatch:expired after, op: '>=', value: 1 }
+      - title: app-b takes over
+        body: The ensemble expired app-a's session and deleted its ephemeral znode. app-b's watch fired, and it is now lowest.
+        check: { metric: badge:👑, target: app-b, op: '=', value: 1 }
+      - title: The pause ends
+        body: app-a resumes mid-task, still thinking it leads, and acts before its next heartbeat. For a moment there are two leaders.
+        check: { metric: anomaly:double-holder, op: '>=', value: 1 }
+      - title: It finds out
+        body: Its next ping returns SESSION_EXPIRED and it steps down. Use the znode's zxid as a fencing token so storage rejects the stale leader's writes.
+        check: { metric: eventMatch:NOT the leader, op: '>=', value: 1 }
+
+  - id: herd-effect
+    title: Herd effect
+    minutes: 3
+    template: tech-zk-herd
+    steps:
+      - title: Everyone watches the parent
+        body: One leader plus 12 standbys. Each standby watches /election itself with getChildren(watch=true).
+        check: { metric: gauge:sessions, target: zk-1, op: '>=', value: 13 }
+      - title: Kill the leader app
+        body: Tap ⚡ Break → Kill on the leader app. Its session expires after 4s.
+        action: { event: { kind: kill, target: leader-app } }
+        check: { metric: eventMatch:expired after, op: '>=', value: 1 }
+      - title: Twelve wake-ups for one change
+        body: Every standby's watch fires and each one re-lists /election, although only one can win. With 1,000 clients this floods the ensemble.
+        watch: lastWake on the servers.
+        check: { metric: gauge:lastWake, target: zk-1, op: '>=', value: 10 }
+
+  - id: watch-predecessor
+    title: "The fix: watch your predecessor"
+    minutes: 3
+    template: tech-zk-predecessor
+    steps:
+      - title: A chain of watches
+        body: Same 1 + 12 processes. Each one only watches the znode just below its own with exists(watch=true).
+        check: { metric: gauge:sessions, target: zk-1, op: '>=', value: 13 }
+      - title: Kill the leader app
+        body: Tap ⚡ Break → Kill on the leader app.
+        action: { event: { kind: kill, target: leader-app } }
+        check: { metric: eventMatch:expired after, op: '>=', value: 1 }
+      - title: One wake-up
+        body: Only the next in line is notified, and it becomes leader. The others don't notice.
+        check: { metric: gauge:lastWake, target: zk-1, op: '=', value: 1 }
+
+  - id: quorum-loss
+    title: Quorum loss
+    minutes: 3
+    template: tech-zk-quorum
+    steps:
+      - title: Three servers
+        body: The app reads (90%) and writes (10%) through one server and fails over when it stops answering.
+        check: { metric: availability, op: '>=', value: 99 }
+      - title: Lose one
+        body: Tap ⚡ Break → Kill on zk-2. Two of three is still a majority, so after a short failover everything works.
+        action: { event: { kind: kill, target: zk-2 } }
+        check: { metric: availability, op: '>=', value: 99 }
+      - title: Lose two
+        body: Kill zk-3 as well. zk-1 alone can't win an election, so no write can commit.
+        action: { event: { kind: kill, target: zk-3 } }
+        check: { metric: availability, op: '<', value: 95 }
+      - title: Reads keep working
+        body: ZooKeeper answers reads from a follower's copy (read-only mode), so only writes fail. etcd's default linearizable reads would fail too.
+        check: { metric: availability, op: '>=', value: 80 }

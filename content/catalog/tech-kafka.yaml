@@ -1,0 +1,110 @@
+group: { id: tech, label: Under the hood, order: 14 }
+# Kafka internals (technologies.md → Kafka). Nodes with the same `cluster` (default: composite prefix, else k1)
+# share one metadata log: partitions → replicas (leader + followers), ISR, high watermark, consumer groups.
+# Protocol kinds: kafka.Produce, kafka.Fetch, kafka.AlterPartition, kafka.LeaderAndIsr, kafka.BrokerHeartbeat,
+# kafka.JoinGroup, kafka.Heartbeat, kafka.LeaveGroup, kafka.OffsetCommit, kafka.Vote.
+# Timeouts are scaled down from real defaults so failures play out in seconds (noted per knob).
+types:
+  - type: kafka-broker
+    label: Kafka broker
+    description: Leads some partitions (appends, serves fetches), follows others (fetches from their leaders); group coordinator for some groups
+    icon: server
+    costPerInstanceMonth: 250
+    knobs:
+      - { key: instances, label: Instances, kind: int, default: 1, min: 1, max: 1 }
+      - { key: slots, label: Request handler threads, kind: int, default: 8, min: 1, max: 256, help: num.io.threads (default 8) }
+      - { key: p50Ms, label: Append p50 / record, kind: ms, default: 0.2, min: 0.01, max: 1000 }
+      - { key: p99Ms, label: Append p99 / record, kind: ms, default: 1, min: 0.01, max: 5000 }
+      - { key: queueLimit, label: Request queue, kind: int, default: 20000, min: 0, max: 1000000, advanced: true, help: queued.max.requests }
+      - { key: costMonth, label: Cost / month, kind: number, default: 250, min: 0, max: 100000, unit: $ }
+      - { key: replicaLagMaxMs, label: replica.lag.time.max.ms, kind: ms, default: 2000, min: 100, max: 600000, help: Follower not caught up this long leaves the ISR (real default 30s) }
+      - { key: replicaFetchWaitMs, label: Follower fetch gap, kind: ms, default: 3, min: 0, max: 5000, advanced: true, help: Pause between follower fetches (sim throttle) }
+      - { key: fetchMaxWaitMs, label: replica.fetch.wait.max.ms, kind: ms, default: 500, min: 1, max: 30000, advanced: true, help: Leader parks an empty follower fetch this long }
+      - { key: heartbeatMs, label: Broker heartbeat, kind: ms, default: 250, min: 10, max: 30000, advanced: true, help: To the active controller (real 2s) }
+      - { key: rebalanceDelayMs, label: group.initial.rebalance.delay.ms, kind: ms, default: 300, min: 0, max: 60000, advanced: true, help: Coordinator waits this long for more joiners (real 3s) }
+      - { key: cluster, label: Cluster, kind: string, default: "", advanced: true, help: Nodes with the same cluster share metadata; empty = composite / k1 }
+  - type: kraft-controller
+    label: KRaft controller
+    description: Controller quorum; owns topic metadata, fences brokers that miss heartbeats and elects partition leaders from the ISR
+    icon: crown
+    costPerInstanceMonth: 100
+    knobs:
+      - { key: partitions, label: Partitions, kind: int, default: 6, min: 1, max: 64, help: Upper bound on consumer parallelism }
+      - { key: replicationFactor, label: Replication factor, kind: int, default: 3, min: 1, max: 5 }
+      - { key: minInsyncReplicas, label: min.insync.replicas, kind: int, default: 2, min: 1, max: 5, help: acks=all writes fail with NOT_ENOUGH_REPLICAS when the ISR is smaller }
+      - { key: uncleanElection, label: unclean.leader.election, kind: bool, default: false, help: Let an out-of-sync replica lead (availability over durability → loses acked records) }
+      - { key: brokerSessionMs, label: Broker session timeout, kind: ms, default: 1500, min: 100, max: 60000, help: Missed heartbeats this long → broker fenced (real 9s) }
+      - { key: electionMs, label: Quorum election, kind: ms, default: 1000, min: 50, max: 30000, advanced: true }
+      - { key: autoLeaderRebalance, label: Preferred leader rebalance, kind: bool, default: true, advanced: true, help: Moves leadership back to the first replica once it is in sync }
+      - { key: costMonth, label: Cost / month, kind: number, default: 100, min: 0, max: 100000, unit: $ }
+      - { key: cluster, label: Cluster, kind: string, default: "", advanced: true }
+  - type: kafka-producer
+    label: Kafka producer
+    description: Client library in your service; batches records per partition and sends them to partition leaders
+    icon: send
+    costPerInstanceMonth: 0
+    knobs:
+      - { key: acks, label: acks, kind: enum, default: all, options: ["0", "1", all], help: "0 = fire and forget · 1 = leader wrote it · all = every in-sync replica has it" }
+      - { key: idempotence, label: enable.idempotence, kind: bool, default: true, help: Broker dedupes retried batches by producer id + sequence (needs acks=all) }
+      - { key: lingerMs, label: linger.ms, kind: ms, default: 5, min: 0, max: 5000, help: Wait this long to fill a batch }
+      - { key: batchRecords, label: batch.size (records), kind: int, default: 16, min: 1, max: 10000, help: 16 KB ÷ ~1 KB records }
+      - { key: partitioner, label: Partitioner, kind: enum, default: key, options: [key, round-robin], help: key = hash(key) % partitions keeps per-key order but a hot key makes a hot partition }
+      - { key: requestTimeoutMs, label: request.timeout.ms, kind: ms, default: 1000, min: 10, max: 120000, advanced: true, help: Real 30s }
+      - { key: deliveryTimeoutMs, label: delivery.timeout.ms, kind: ms, default: 5000, min: 100, max: 600000, help: Give up and fail the send (real 120s) }
+      - { key: retryBackoffMs, label: retry.backoff.ms, kind: ms, default: 100, min: 0, max: 10000, advanced: true }
+      - { key: retryBackoffMaxMs, label: retry.backoff.max.ms, kind: ms, default: 1000, min: 0, max: 60000, advanced: true }
+      - { key: cluster, label: Cluster, kind: string, default: "", advanced: true }
+  - type: kafka-consumer
+    label: Kafka consumer
+    description: Consumer-group member; polls its assigned partitions from their leaders, processes, commits offsets to the group coordinator
+    icon: download
+    costPerInstanceMonth: 50
+    knobs:
+      - { key: group, label: group.id, kind: string, default: g1 }
+      - { key: commit, label: Commit, kind: enum, default: after, options: [after, before], help: "before processing = crash loses the batch · after = crash re-reads (duplicates)" }
+      - { key: commitIntervalMs, label: auto.commit.interval.ms, kind: ms, default: 1000, min: 0, max: 60000, help: Commit processed offsets at most this often (after mode; real 5s) }
+      - { key: maxPollRecords, label: max.poll.records, kind: int, default: 500, min: 1, max: 100000 }
+      - { key: maxPollIntervalMs, label: max.poll.interval.ms, kind: ms, default: 5000, min: 100, max: 3600000, help: A batch taking longer → member leaves the group → rebalance (real 5 min) }
+      - { key: sessionTimeoutMs, label: session.timeout.ms, kind: ms, default: 3000, min: 100, max: 300000, help: Missed heartbeats this long → kicked (real 45s) }
+      - { key: heartbeatMs, label: heartbeat.interval.ms, kind: ms, default: 300, min: 10, max: 30000, advanced: true, help: Real 3s }
+      - { key: startFrom, label: auto.offset.reset, kind: enum, default: latest, options: [latest, earliest] }
+      - { key: instances, label: Instances, kind: int, default: 1, min: 1, max: 1 }
+      - { key: slots, label: Processing threads, kind: int, default: 1, min: 1, max: 64, help: The poll loop processes a batch on this many threads }
+      - { key: p50Ms, label: Process p50 / record, kind: ms, default: 1, min: 0.01, max: 60000 }
+      - { key: p99Ms, label: Process p99 / record, kind: ms, default: 5, min: 0.01, max: 60000 }
+      - { key: pollIdleMs, label: Idle poll wait, kind: ms, default: 50, min: 1, max: 5000, advanced: true, help: fetch.max.wait when caught up }
+      - { key: retryBackoffMs, label: Retry backoff, kind: ms, default: 200, min: 0, max: 60000, advanced: true }
+      - { key: costMonth, label: Cost / month, kind: number, default: 50, min: 0, max: 100000, unit: $ }
+      - { key: cluster, label: Cluster, kind: string, default: "", advanced: true }
+skins:
+  - name: kafka-cluster
+    type: log-stream
+    label: Kafka (internals)
+    description: A real Kafka cluster inside one node — producer, 3 brokers, KRaft controller, consumer group; tap ⤢ to drill in
+    icon: brand:kafka
+    tags: [stream, self-hosted, composite]
+    tech: kafka
+    defaults: { instances: 3, partitions: 6, acks: all, costMonth: 250 }
+    ports: { in: producer, out: consumer }
+    internals:
+      schemaVersion: 1
+      id: kafka-cluster
+      name: Kafka cluster
+      nodes:
+        - { id: producer, type: kafka-producer, name: producer, pos: { x: 195, y: 60 }, config: { acks: all } }
+        - { id: broker-1, type: kafka-broker, name: broker-1, pos: { x: 55, y: 200 } }
+        - { id: broker-2, type: kafka-broker, name: broker-2, pos: { x: 195, y: 200 } }
+        - { id: broker-3, type: kafka-broker, name: broker-3, pos: { x: 335, y: 200 } }
+        - { id: controller, type: kraft-controller, name: controller, pos: { x: 195, y: 330 }, config: { partitions: 6, replicationFactor: 3, minInsyncReplicas: 2 } }
+        - { id: consumer, type: kafka-consumer, name: consumer, pos: { x: 195, y: 460 }, config: { group: g1 } }
+      edges:
+        - { id: p-b1, from: producer, to: broker-1, config: { mode: async } }
+        - { id: p-b2, from: producer, to: broker-2, config: { mode: async } }
+        - { id: p-b3, from: producer, to: broker-3, config: { mode: async } }
+        - { id: c-b1, from: controller, to: broker-1, config: { mode: async } }
+        - { id: c-b2, from: controller, to: broker-2, config: { mode: async } }
+        - { id: c-b3, from: controller, to: broker-3, config: { mode: async } }
+        - { id: b1-cons, from: broker-1, to: consumer, config: { mode: async } }
+        - { id: b2-cons, from: broker-2, to: consumer, config: { mode: async } }
+        - { id: b3-cons, from: broker-3, to: consumer, config: { mode: async } }
+      containers: []

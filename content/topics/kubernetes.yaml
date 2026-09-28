@@ -1,0 +1,144 @@
+id: kubernetes
+title: Kubernetes
+group: under-the-hood
+icon: ship-wheel
+order: 14
+summary: Control loops over etcd — how a Deployment becomes running pods, and what keeps serving when parts of the cluster die.
+info: Every change goes through the API server, which is the only component that talks to etcd (Raft). The scheduler binds Pending pods to nodes, controllers reconcile Deployments, nodes and the HPA, and each node's kubelet starts pods and probes them. A Service only sends traffic to pods whose readiness probe passes. Times are sim-scaled (grace 5s, eviction 10s).
+algos: [raft-log]
+problems: [kv-store]
+lessons:
+  - id: anatomy
+    title: "Anatomy: from Deployment to traffic"
+    minutes: 4
+    template: tech-k8s-anatomy
+    steps:
+      - title: The parts
+        body: Three worker nodes run kubelets. The control plane is the API server, scheduler, controller manager and a 3-member etcd.
+        watch: etcd elects a 👑 leader first; nothing else talks to etcd except the API server.
+        check: { metric: time, op: '>=', value: 2 }
+      - title: The ReplicaSet creates pods
+        body: The Deployment wants 3 replicas, so the controller manager asks the API server to create 3 pod objects. Each is written to etcd before it exists.
+        check: { metric: eventMatch:created pod, op: '>=', value: 3 }
+      - title: The scheduler binds them
+        body: Pending pods have no node. The scheduler picks the node with the most free CPU and writes the binding.
+        check: { metric: eventMatch:scheduled web, op: '>=', value: 3 }
+      - title: Kubelets start them
+        body: Each kubelet sees pods bound to its node, pulls the image and starts the container. It is Ready once its readiness probe passes.
+        check: { metric: eventMatch:readiness probe passed, op: '>=', value: 3 }
+      - title: The Service gets endpoints
+        body: kube-proxy only routes to Ready pods. Before this, users got 503s.
+        watch: The Service badge shows 3 endpoints; availability climbs to 100%.
+        check: { metric: availability, op: '>=', value: 99 }
+      - title: Everything went through etcd
+        body: Every create, bind and status update was an etcd write, and resourceVersion counts them.
+        check: { metric: gauge:resourceVersion, target: api, op: '>=', value: 10 }
+
+  - id: rolling-update
+    title: Rolling update with maxUnavailable
+    minutes: 4
+    template: tech-k8s-rolling
+    steps:
+      - title: Four replicas
+        body: maxSurge 25% allows 1 extra pod and maxUnavailable 25% allows 1 pod not Ready.
+        check: { metric: gauge:readyPods, target: ctrl, op: '>=', value: 4 }
+      - title: Push revision 2
+        body: Tap ⚡ Break → Config push on controllers. A new pod template starts a rolling update.
+        action: { event: { kind: config-push, target: ctrl } }
+        check: { metric: eventMatch:rollout to revision 2 complete, op: '>=', value: 1 }
+      - title: Zero downtime
+        body: One new pod starts and one old pod goes at a time, so at least 3 stay Ready. Deleted pods finish in-flight requests first.
+        check: { metric: availability, op: '>=', value: 99 }
+      - title: Push a broken revision
+        body: Revision 3's readiness probe always fails. Tap ⚡ Break → Bad deploy on controllers.
+        action: { event: { kind: bad-deploy, target: ctrl } }
+        check: { metric: eventMatch:ProgressDeadlineExceeded, op: '>=', value: 1 }
+      - title: The rollout stalls safely
+        body: New pods never become Ready, so the controller never removes more than 1 old pod. Three old pods keep serving.
+        watch: Service endpoints stay at 3; the log shows readiness failures.
+        check: { metric: gauge:endpoints, target: svc, op: '>=', value: 3 }
+
+  - id: no-endpoints
+    title: Bad readiness probe, no endpoints
+    minutes: 3
+    template: tech-k8s-no-endpoints
+    steps:
+      - title: maxUnavailable 100%
+        body: This Deployment may take every pod down at once, like strategy Recreate.
+        check: { metric: gauge:endpoints, target: svc, op: '>=', value: 3 }
+      - title: Roll out a bad probe
+        body: Tap ⚡ Break → Bad deploy on controllers. All old pods are deleted at once.
+        action: { event: { kind: bad-deploy, target: ctrl } }
+        check: { metric: gauge:endpoints, target: svc, op: '=', value: 0 }
+      - title: Pods run, nobody gets traffic
+        body: The new containers are Running but never Ready, so the Service has no endpoints and returns 503.
+        check: { metric: availability, op: '<', value: 5 }
+      - title: Roll back
+        body: kubectl rollout undo pushes the last good template again. Tap ⚡ Break → Config push on controllers.
+        action: { event: { kind: config-push, target: ctrl } }
+        check: { metric: gauge:endpoints, target: svc, op: '>=', value: 3 }
+
+  - id: crash-loop
+    title: CrashLoopBackOff
+    minutes: 3
+    template: tech-k8s-crashloop
+    steps:
+      - title: Three pods
+        body: One pod per node, all Ready.
+        check: { metric: gauge:endpoints, target: svc, op: '>=', value: 3 }
+      - title: The container exits on start
+        body: Tap ⚡ Break → Crash-loop on node-1.
+        action: { event: { kind: crash-loop, target: node-1 } }
+        check: { metric: eventMatch:CrashLoopBackOff, op: '>=', value: 1 }
+      - title: Back-off doubles
+        body: The kubelet restarts the container on the same node after 1s, 2s, 4s, 8s… (real clusters use 10s up to 5 min).
+        check: { metric: eventMatch:back-off 8s, op: '>=', value: 1 }
+      - title: Not rescheduled
+        body: Restarts are the kubelet's job. The pod stays on node-1 and out of the endpoints; nothing moves it elsewhere.
+        watch: node-1's restarts gauge climbs while the Service has 2 endpoints.
+        check: { metric: gauge:restarts, target: node-1, op: '>=', value: 4 }
+
+  - id: node-not-ready
+    title: Node NotReady, pods rescheduled
+    minutes: 4
+    template: tech-k8s-node-down
+    steps:
+      - title: Healthy
+        body: Each node's kubelet renews its heartbeat lease every second.
+        check: { metric: gauge:endpoints, target: svc, op: '>=', value: 3 }
+      - title: Kill node-2
+        body: Tap ⚡ Break → Kill on node-2. Its pod is still listed as Ready, so a third of requests time out.
+        action: { event: { kind: kill, target: node-2 } }
+        check: { metric: availability, op: '<', value: 90 }
+      - title: NotReady after the grace period
+        body: No heartbeat for 5s. The node controller marks node-2 NotReady and its pod not Ready, so it leaves the endpoints.
+        check: { metric: eventMatch:NotReady (no heartbeat, op: '>=', value: 1 }
+      - title: Eviction
+        body: After 10s NotReady the controller evicts the pod, and the ReplicaSet creates a replacement.
+        check: { metric: eventMatch:evicting, op: '>=', value: 1 }
+      - title: Rescheduled
+        body: The scheduler binds the new pod to a node with free CPU. The Service is back to 3 endpoints.
+        check: { metric: gauge:endpoints, target: svc, op: '>=', value: 3 }
+
+  - id: hpa-api-down
+    title: HPA, and the API server going down
+    minutes: 4
+    template: tech-k8s-hpa
+    steps:
+      - title: Two replicas
+        body: The HPA targets 50% average CPU across Ready pods, with 2 to 10 replicas.
+        check: { metric: gauge:readyPods, target: ctrl, op: '>=', value: 2 }
+      - title: Traffic ×2.5
+        body: Tap Traffic → Burst. CPU goes above target and the HPA raises spec.replicas.
+        action: { event: { kind: traffic, action: burst, params: { x: 2.5 }, durationSec: 90 } }
+        check: { metric: 'eventMatch:HPA: cpu', op: '>=', value: 1 }
+      - title: New pods take load
+        body: New pods need to be scheduled, started and Ready before CPU drops back.
+        check: { metric: gauge:endpoints, target: svc, op: '>=', value: 4 }
+      - title: Kill the API server
+        body: Tap ⚡ Break → Kill on API server for 20s. Controllers, scheduler and kubelets can no longer read or write.
+        action: { event: { kind: kill, target: api, durationSec: 20 } }
+        check: { metric: eventMatch:API server unreachable, op: '>=', value: 1 }
+      - title: Pods keep serving
+        body: The data plane doesn't need the API server. kube-proxy keeps its last endpoints, but no scaling, rollout or rescheduling can happen until it's back.
+        check: { metric: availability, op: '>=', value: 99 }

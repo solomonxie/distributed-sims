@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "id": "problem-ticket-booking-v2",
+  "name": "Ticket booking: waiting room + seat holds",
+  "description": "Seat-map reads come from the CDN. Purchases pass a waiting room that admits a steady rate, then take a short hold on seats (reservation) that either confirms on payment or expires.",
+  "nodes": [
+    {"id":"users","type":"mobile-client","skin":"ios-app","name":"Fans","pos":{"x":0,"y":0}},
+    {"id":"cdn","type":"cdn","skin":"cloudfront","name":"CDN (seat maps)","pos":{"x":0,"y":110},"config":{"cacheablePct":95,"ttlSec":2}},
+    {"id":"room","type":"rate-limiter","name":"Waiting room","pos":{"x":0,"y":220},"config":{"algorithm":"leaky-bucket","limit":400,"burst":4000,"instances":2}},
+    {"id":"api","type":"service","skin":"node-service","name":"Booking API","pos":{"x":0,"y":330},"config":{"instances":2}},
+    {"id":"inv","type":"inventory","skin":"ticket-inventory","name":"Seats","pos":{"x":0,"y":440},"config":{"mode":"reservation","seatsPerKey":2000,"holdTtlMs":10000,"confirmMs":3000}}
+  ],
+  "edges": [
+    {"id":"users-cdn","from":"users","to":"cdn","config":{"timeoutMs":5000}},
+    {"id":"cdn-room","from":"cdn","to":"room"},
+    {"id":"room-api","from":"room","to":"api"},
+    {"id":"api-inv","from":"api","to":"inv","config":{"timeoutMs":3000}}
+  ],
+  "containers": [],
+  "scenario": {"durationSec":60,"sources":[{"id":"fans","node":"users","shape":{"kind":"constant","rps":50},"readRatio":0.8,"keys":{"kind":"zipf","s":1.2,"keys":8}}],"events":[]},
+  "wire": {
+    "host": "api.tickets.example",
+    "read": {
+      "method": "GET",
+      "path": "/v1/events/{key}/seats",
+      "status": 200,
+      "body": "{\"event_id\": {key}, \"available\": {value}}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/v1/events/{key}/holds",
+      "reqBody": "{\"seats\": [\"A12\", \"A13\"]}",
+      "status": 201,
+      "body": "{\"hold_id\": \"{code}\", \"expires_in\": 300}"
+    }
+  }
+}

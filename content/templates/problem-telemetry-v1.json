@@ -1,0 +1,100 @@
+{
+  "schemaVersion": 1,
+  "id": "problem-telemetry-v1",
+  "name": "Telemetry — naive",
+  "description": "Agents push straight into one Prometheus-style TSDB; every label combination becomes an in-memory series.",
+  "nodes": [
+    {
+      "id": "users",
+      "type": "iot-device",
+      "skin": "sensor",
+      "name": "Hosts (agents)",
+      "pos": {
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "id": "ingest",
+      "type": "service",
+      "skin": "go-service",
+      "name": "Ingest API",
+      "pos": {
+        "x": 0,
+        "y": 110
+      },
+      "config": {
+        "instances": 3
+      }
+    },
+    {
+      "id": "tsdb",
+      "type": "time-series-db",
+      "skin": "prometheus-tsdb",
+      "name": "TSDB",
+      "pos": {
+        "x": 0,
+        "y": 220
+      },
+      "config": {
+        "cardinality": 1000000,
+        "memoryMb": 8192
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "users->ingest",
+      "from": "users",
+      "to": "ingest"
+    },
+    {
+      "id": "ingest->tsdb",
+      "from": "ingest",
+      "to": "tsdb"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 60,
+    "sources": [
+      {
+        "id": "agents",
+        "node": "users",
+        "shape": {
+          "kind": "constant",
+          "rps": 2000
+        },
+        "readRatio": 0
+      },
+      {
+        "id": "dashboards",
+        "node": "users",
+        "shape": {
+          "kind": "constant",
+          "rps": 50
+        },
+        "readRatio": 1
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "ingest.metrics.example",
+    "read": {
+      "method": "GET",
+      "path": "/api/v1/query?query=cpu_usage&device={key}",
+      "status": 200,
+      "body": "{\"status\": \"success\", \"data\": {\"result\": [{\"value\": [1767225600, \"0.42\"]}]}}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/v1/write",
+      "reqBody": "{\"device\": {key}, \"metric\": \"cpu_usage\", \"value\": {value}}",
+      "status": 204,
+      "body": ""
+    },
+    "table": "samples",
+    "valCol": "value"
+  }
+}

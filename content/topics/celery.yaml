@@ -1,0 +1,167 @@
+id: celery
+title: Celery
+group: under-the-hood
+icon: list-checks
+order: 4
+summary: Python task queue — what really happens between .delay() and the result, and where tasks get lost or run twice.
+info: Your app publishes task messages to a broker (Redis or RabbitMQ). Prefork workers reserve a batch (prefetch), run each task in a child process and ack it early or late. Results go to a result backend; beat publishes periodic tasks. Every guarantee depends on when the ack happens.
+problems: [distributed-mq, notifications]
+lessons:
+  - id: anatomy
+    title: Anatomy of Celery
+    minutes: 3
+    template: tech-celery-anatomy
+    steps:
+      - title: The parts
+        body: The app calls .delay(), the Redis broker queues the message, two prefork workers run it and store the result.
+        watch: Messages flow app → broker → workers → result backend.
+        check: { metric: time, op: '>=', value: 3 }
+      - title: Workers pull work
+        body: Each worker runs up to 4 tasks at once, one per child process.
+        watch: The 2/4-style badge on each worker is busy child processes.
+        check: { metric: gauge:done, target: w1, op: '>=', value: 5 }
+      - title: Results pile up
+        body: Every finished task writes its return value to the result backend, even if nobody reads it.
+        check: { metric: gauge:results, target: results, op: '>=', value: 20 }
+      - title: Beat adds a schedule
+        body: celery beat is a separate process that publishes send_digest every 5s, like cron.
+        check: { metric: gauge:ticks, target: beat, op: '>=', value: 2 }
+
+  - id: lifecycle
+    title: "Lifecycle: delay() to result"
+    minutes: 3
+    template: tech-celery-anatomy
+    steps:
+      - title: delay()
+        body: The app serializes the call into a message and sends it to the broker; .delay() returns right away.
+        watch: Log shows "delay() → t1".
+        check: { metric: eventMatch:sent to broker, op: '>=', value: 1 }
+      - title: Queued
+        body: The broker appends the message to the 'celery' queue.
+        check: { metric: eventMatch:appended to queue, op: '>=', value: 1 }
+      - title: Reserved (prefetch)
+        body: A worker takes the message into its local buffer. The broker marks it unacked, not done.
+        check: { metric: eventMatch:reserved t, op: '>=', value: 1 }
+      - title: Ack early
+        body: By default (acks_late=False) the worker acks the moment the task starts; the broker forgets it.
+        check: { metric: eventMatch:acked early, op: '>=', value: 1 }
+      - title: Result stored
+        body: When the task returns, the worker writes the result to the backend for AsyncResult.get().
+        check: { metric: eventMatch:result stored, op: '>=', value: 1 }
+
+  - id: crash-early-ack
+    title: Worker crash with acks_late=False
+    minutes: 3
+    template: tech-celery-crash-early
+    steps:
+      - title: Tasks take 3s
+        body: Workers ack each task as it starts (the default). Watch them fill their 4 slots.
+        check: { metric: time, op: '>=', value: 10 }
+      - title: Kill worker-1
+        body: Tap ⚡ Break → Kill on worker-1 while it is mid-task.
+        action: { event: { kind: kill, target: w1 } }
+        check: { metric: anomaly:lost-write, op: '>=', value: 1 }
+      - title: Running tasks are gone
+        body: The broker deleted each task when it was acked, so nothing brings them back. Tasks still waiting unacked in the buffer would be redelivered.
+        watch: worker-1's lost gauge; worker-2 keeps serving new tasks.
+        check: { metric: gauge:lost, target: w1, op: '>=', value: 1 }
+
+  - id: crash-late-ack
+    title: acks_late=True survives the crash
+    minutes: 3
+    template: tech-celery-crash-late
+    steps:
+      - title: Ack after finishing
+        body: Same workers, but acks_late=True; a task stays unacked until it returns.
+        check: { metric: time, op: '>=', value: 10 }
+      - title: Kill worker-1
+        body: Tap ⚡ Break → Kill on worker-1 mid-task.
+        action: { event: { kind: kill, target: w1 } }
+        check: { metric: eventMatch:redelivered, op: '>=', value: 1 }
+      - title: Nothing lost
+        body: RabbitMQ sees the connection drop and hands every unacked task to worker-2. The price is at-least-once, so tasks must be idempotent.
+        check: { metric: anomaly:lost-write, op: '=', value: 0 }
+
+  - id: prefetch-hoarding
+    title: Prefetch hoards tasks behind a long one
+    minutes: 3
+    template: tech-celery-prefetch
+    steps:
+      - title: Short and long tasks
+        body: Most tasks take 200ms, a few take 10s. Each worker has 1 child process and reserves 1 × 4 = 4 tasks.
+        check: { metric: time, op: '>=', value: 5 }
+      - title: Stuck behind the long one
+        body: When a worker runs a 10s task, the short tasks it already reserved wait behind it, even though the other worker is idle.
+        watch: Broker gauge hoarded and the worker's "reserved" badge.
+        check: { metric: gauge:waitP95, target: broker, op: '>=', value: 3000 }
+
+  - id: fair-dispatch
+    title: "The fix: prefetch 1 + acks_late"
+    minutes: 2
+    template: tech-celery-prefetch-fair
+    steps:
+      - title: Same traffic
+        body: Now prefetch_multiplier=1 and acks_late=True, so a worker only holds tasks it is running.
+        check: { metric: time, op: '>=', value: 30 }
+      - title: Nothing hoarded
+        body: Waiting tasks stay in the broker and whichever worker frees a slot takes the next, so hoarded stays 0. If both workers are on long tasks, short ones still wait — add workers or a separate queue.
+        watch: Broker gauge hoarded stays 0; compare waitP95 with the previous lesson.
+        check: { metric: gauge:hoarded, target: broker, op: '=', value: 0 }
+
+  - id: visibility-timeout
+    title: Redis visibility timeout runs a task twice
+    minutes: 3
+    template: tech-celery-visibility
+    steps:
+      - title: A 5s visibility timeout
+        body: With Redis, an unacked task goes back on the queue after visibility_timeout. Some tasks here take 8s, with acks_late=True.
+        check: { metric: eventMatch:visibility timeout, op: '>=', value: 1 }
+      - title: Double execution
+        body: The broker restored the task while the first worker was still running it, so a second worker runs it too.
+        watch: The anomaly counter shows duplicate side effects.
+        check: { metric: anomaly:duplicate, op: '>=', value: 1 }
+
+  - id: beat-twice
+    title: Two beats, duplicate schedules
+    minutes: 2
+    template: tech-celery-beat
+    steps:
+      - title: One beat
+        body: beat publishes send_digest every 2s. Each run of that schedule must happen once.
+        check: { metric: gauge:ticks, target: beat, op: '>=', value: 2 }
+      - title: Start a second beat
+        body: A deploy starts beat on two machines. Tap ⚡ Break → Split brain on beat.
+        action: { event: { kind: split-brain, target: beat } }
+        check: { metric: anomaly:duplicate, op: '>=', value: 1 }
+
+  - id: result-backend-full
+    title: Result backend fills up
+    minutes: 3
+    template: tech-celery-results
+    steps:
+      - title: Results nobody reads
+        body: Each task stores a 32 KB result that expires after a day, in a 4 MB Redis.
+        check: { metric: gauge:results, target: results, op: '>=', value: 50 }
+      - title: Full
+        body: Redis hits maxmemory and rejects writes; workers fail to store results.
+        check: { metric: eventMatch:result backend full, op: '>=', value: 1 }
+      - title: Flush it
+        body: Tap ⚡ Break → Cache flush on the result backend. The real fix is ignore_result=True or a short result_expires.
+        action: { event: { kind: cache-flush, target: results } }
+        check: { metric: gauge:results, target: results, op: '<', value: 20 }
+
+  - id: broker-down
+    title: Broker down
+    minutes: 2
+    template: tech-celery-anatomy
+    steps:
+      - title: Healthy
+        body: Every .delay() needs the broker to accept the message.
+        check: { metric: time, op: '>=', value: 5 }
+      - title: Kill the broker
+        body: Tap ⚡ Break → Kill on the broker for 10s.
+        action: { event: { kind: kill, target: broker, durationSec: 10 } }
+        check: { metric: availability, op: '<', value: 90 }
+      - title: It comes back
+        body: Once the broker restarts, .delay() works again and workers drain the queue.
+        check: { metric: availability, op: '>=', value: 99 }

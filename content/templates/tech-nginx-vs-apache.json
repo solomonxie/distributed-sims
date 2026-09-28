@@ -1,0 +1,112 @@
+{
+  "schemaVersion": 1,
+  "id": "tech-nginx-vs-apache",
+  "name": "nginx vs Apache prefork at 10k connections",
+  "description": "10,000 open keep-alive connections, 5k req/s each. Left: nginx, 4 event-loop workers. Right: Apache prefork, one process per connection, 256 max.",
+  "nodes": [
+    {
+      "id": "users-a",
+      "type": "web-client",
+      "name": "Users → nginx",
+      "pos": {
+        "x": 110,
+        "y": 40
+      }
+    },
+    {
+      "id": "nginx",
+      "type": "nginx-server",
+      "name": "nginx",
+      "pos": {
+        "x": 110,
+        "y": 160
+      },
+      "skin": "nginx-internals",
+      "config": {
+        "workers": 4,
+        "workerConnections": 4096,
+        "clients": 10000
+      }
+    },
+    {
+      "id": "users-b",
+      "type": "web-client",
+      "name": "Users → Apache",
+      "pos": {
+        "x": 280,
+        "y": 40
+      }
+    },
+    {
+      "id": "apache",
+      "type": "apache-prefork",
+      "name": "Apache prefork",
+      "pos": {
+        "x": 280,
+        "y": 160
+      },
+      "skin": "apache-httpd-prefork",
+      "config": {
+        "maxRequestWorkers": 256,
+        "clients": 10000
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "users-a-nginx",
+      "from": "users-a",
+      "to": "nginx",
+      "config": {
+        "timeoutMs": 3000
+      }
+    },
+    {
+      "id": "users-b-apache",
+      "from": "users-b",
+      "to": "apache",
+      "config": {
+        "timeoutMs": 3000
+      }
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 300,
+    "sources": [
+      {
+        "id": "s-a",
+        "node": "users-a",
+        "shape": {
+          "kind": "constant",
+          "rps": 5000
+        },
+        "readRatio": 1
+      },
+      {
+        "id": "s-b",
+        "node": "users-b",
+        "shape": {
+          "kind": "constant",
+          "rps": 5000
+        },
+        "readRatio": 1
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "wiki.openatlas.org",
+    "read": {
+      "path": "/api/pages/{key}",
+      "body": "{\"page_id\": {key}, \"title\": \"Andes\", \"rev\": {value}}"
+    },
+    "write": {
+      "method": "PUT",
+      "path": "/api/pages/{key}",
+      "reqBody": "{\"rev\": {value}, \"text\": \"The Andes are…\"}",
+      "status": 200,
+      "body": "{\"page_id\": {key}, \"rev\": {value}}"
+    }
+  }
+}

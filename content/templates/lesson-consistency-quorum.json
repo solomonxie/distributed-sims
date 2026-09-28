@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "id": "lesson-consistency-quorum",
+  "name": "Lesson: quorum N/R/W",
+  "description": "Two Cassandra clusters, 3 members, every key on all 3 (N=3). Left: R=1, W=1. Right: R=2, W=2 (QUORUM), so every read overlaps the latest write.",
+  "nodes": [
+    { "id": "web", "type": "web-client", "name": "Users", "pos": { "x": 195, "y": 60 } },
+    { "id": "api-one", "type": "service", "name": "API A", "pos": { "x": 90, "y": 190 } },
+    { "id": "api-q", "type": "service", "name": "API B", "pos": { "x": 300, "y": 190 } },
+    { "id": "kv-one", "type": "kv-store", "skin": "cassandra", "name": "Cassandra ONE", "pos": { "x": 90, "y": 330 }, "config": { "members": 3, "replicationFactor": 3, "readConsistency": "one", "writeConsistency": "one" } },
+    { "id": "kv-q", "type": "kv-store", "skin": "cassandra", "name": "Cassandra QUORUM", "pos": { "x": 300, "y": 330 }, "config": { "members": 3, "replicationFactor": 3, "readConsistency": "quorum", "writeConsistency": "quorum" } }
+  ],
+  "edges": [
+    { "id": "e1", "from": "web", "to": "api-one", "config": { "ratio": 0.5 } },
+    { "id": "e2", "from": "web", "to": "api-q", "config": { "ratio": 0.5 } },
+    { "id": "e3", "from": "api-one", "to": "kv-one" },
+    { "id": "e4", "from": "api-q", "to": "kv-q" }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 300,
+    "sources": [{ "id": "s1", "node": "web", "shape": { "kind": "constant", "rps": 400 }, "readRatio": 0.6 }],
+    "events": []
+  },
+  "wire": {
+    "host": "api.messenger.example",
+    "read": {
+      "path": "/v1/inbox/{key}/unread"
+    },
+    "write": {
+      "method": "PUT",
+      "path": "/v1/inbox/{key}/unread",
+      "reqBody": "{\"count\": {value}}",
+      "status": 200,
+      "body": "{\"user\": {key}, \"count\": {value}}"
+    },
+    "table": "inbox_counters"
+  }
+}

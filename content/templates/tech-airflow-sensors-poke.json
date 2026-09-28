@@ -1,0 +1,127 @@
+{
+  "schemaVersion": 1,
+  "id": "tech-airflow-sensors-poke",
+  "name": "Airflow: sensors eating slots",
+  "description": "Each DagRun starts with a sensor in poke mode that waits 30s for a file while holding a worker slot.",
+  "nodes": [
+    {
+      "id": "scheduler",
+      "type": "airflow-scheduler",
+      "skin": "airflow-scheduler-std",
+      "name": "Scheduler",
+      "pos": {
+        "x": 110,
+        "y": 60
+      },
+      "config": {
+        "scheduleSec": 3,
+        "sensor": "poke",
+        "sensorWaitSec": 30
+      }
+    },
+    {
+      "id": "meta-db",
+      "type": "airflow-metadata-db",
+      "skin": "airflow-postgres-db",
+      "name": "Metadata DB",
+      "pos": {
+        "x": 290,
+        "y": 60
+      },
+      "config": {}
+    },
+    {
+      "id": "executor",
+      "type": "airflow-executor",
+      "skin": "airflow-celery-executor",
+      "name": "CeleryExecutor",
+      "pos": {
+        "x": 110,
+        "y": 200
+      },
+      "config": {}
+    },
+    {
+      "id": "worker-1",
+      "type": "airflow-worker",
+      "skin": "airflow-worker-std",
+      "name": "Worker 1",
+      "pos": {
+        "x": 80,
+        "y": 340
+      },
+      "config": {
+        "slots": 4
+      }
+    },
+    {
+      "id": "worker-2",
+      "type": "airflow-worker",
+      "skin": "airflow-worker-std",
+      "name": "Worker 2",
+      "pos": {
+        "x": 310,
+        "y": 340
+      },
+      "config": {
+        "slots": 4
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "scheduler-db",
+      "from": "scheduler",
+      "to": "meta-db"
+    },
+    {
+      "id": "scheduler-ex",
+      "from": "scheduler",
+      "to": "executor"
+    },
+    {
+      "id": "ex-worker-1",
+      "from": "executor",
+      "to": "worker-1"
+    },
+    {
+      "id": "worker-1-db",
+      "from": "worker-1",
+      "to": "meta-db"
+    },
+    {
+      "id": "ex-worker-2",
+      "from": "executor",
+      "to": "worker-2"
+    },
+    {
+      "id": "worker-2-db",
+      "from": "worker-2",
+      "to": "meta-db"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 120,
+    "sources": [],
+    "events": []
+  },
+  "wire": {
+    "host": "airflow.acme.io",
+    "read": {
+      "method": "GET",
+      "path": "/api/v1/dags/ingest_partner_files/dagRuns/run_{key}",
+      "status": 200,
+      "body": "{\"dag_run_id\": \"run_{key}\", \"state\": \"up_for_reschedule\"}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/v1/dags/ingest_partner_files/dagRuns",
+      "reqBody": "{\"dag_run_id\": \"run_{key}\", \"conf\": {\"batch\": {value}}}",
+      "status": 200,
+      "body": "{\"dag_run_id\": \"run_{key}\", \"state\": \"queued\"}"
+    },
+    "table": "task_instance",
+    "valCol": "state"
+  }
+}

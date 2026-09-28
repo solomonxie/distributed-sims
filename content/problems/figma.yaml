@@ -1,0 +1,45 @@
+id: figma
+title: Figma
+icon: pen-tool
+category: product
+order: 14
+summary: Many people editing one design file live, without losing a stroke.
+requirements:
+  - Open a file, see others' cursors, apply edits in real time, version history
+  - 4M DAU · up to 500 editors on one file · edits ~5/s per active editor
+  - Edit echo p99 < 150ms · an acked edit is never lost
+estimates:
+  - ~200k edits/s at peak · docs 1–100 MB · checkpoints every 30–60s
+designs:
+  - { id: v1, title: "Naive: doc in server RAM, periodic checkpoint", template: problem-figma-v1 }
+  - { id: v2, title: "Reference: stateless servers, edit journal, checkpointer", template: problem-figma-v2 }
+challenges:
+  - id: server-kill
+    title: "Kill a multiplayer server"
+    template: problem-figma-v2
+    scenario:
+      durationSec: 60
+      sources: [{ id: editors, node: users, shape: { kind: constant, rps: 1000 }, readRatio: 0.3 }]
+      events:
+        - { atSec: 20, event: { kind: kill, target: mp-a, durationSec: 10 } }
+    pass:
+      - { metric: anomalies, op: '=', value: 0 }
+      - { metric: availability, op: '>=', value: 99.5 }
+      - { metric: p99, op: '<', value: 150 }
+      - { metric: costMonth, op: '<=', value: 2500 }
+  - id: design-review
+    title: "Design review: 5× edits"
+    template: problem-figma-v2
+    scenario:
+      durationSec: 60
+      sources: [{ id: editors, node: users, shape: { kind: constant, rps: 1000 }, readRatio: 0.3 }]
+      events:
+        - { atSec: 15, event: { kind: traffic, action: burst, params: { x: 5 }, durationSec: 45 } }
+    pass:
+      - { metric: p99, op: '<', value: 150 }
+      - { metric: availability, op: '>=', value: 99.5 }
+keyIdeas:
+  - { label: CRDT merge, link: "algo:crdt" }
+  - { label: Write-behind loses acked writes, link: "lesson:caching/write-through-vs-behind" }
+  - { label: Durable journal before ack, link: "lesson:message-queue/at-least-once" }
+  - { label: Replicated log, link: "algo:raft-log" }

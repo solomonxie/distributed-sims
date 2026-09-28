@@ -1,0 +1,162 @@
+{
+  "schemaVersion": 1,
+  "id": "lesson-consistency-ladder",
+  "name": "Lesson: consistency ladder",
+  "description": "Four identical Postgres clusters (primary + 2 async replicas, ~200ms lag), same traffic. Only the read consistency level differs: eventual, read-your-writes, monotonic, linearizable.",
+  "nodes": [
+    {
+      "id": "web",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 195,
+        "y": 60
+      }
+    },
+    {
+      "id": "db-ev",
+      "type": "relational-db",
+      "skin": "postgres",
+      "name": "Eventual",
+      "pos": {
+        "x": 40,
+        "y": 220
+      },
+      "config": {
+        "replicas": 2,
+        "replication": "async",
+        "readFrom": "replicas",
+        "replicaLagMs": 200,
+        "replicaLagP99Ms": 800,
+        "leaseCheckMs": 15,
+        "consistency": "eventual"
+      }
+    },
+    {
+      "id": "db-ryw",
+      "type": "relational-db",
+      "skin": "postgres",
+      "name": "Read-your-writes",
+      "pos": {
+        "x": 142,
+        "y": 220
+      },
+      "config": {
+        "replicas": 2,
+        "replication": "async",
+        "readFrom": "replicas",
+        "replicaLagMs": 200,
+        "replicaLagP99Ms": 800,
+        "leaseCheckMs": 15,
+        "consistency": "read-your-writes"
+      }
+    },
+    {
+      "id": "db-mono",
+      "type": "relational-db",
+      "skin": "postgres",
+      "name": "Monotonic",
+      "pos": {
+        "x": 248,
+        "y": 220
+      },
+      "config": {
+        "replicas": 2,
+        "replication": "async",
+        "readFrom": "replicas",
+        "replicaLagMs": 200,
+        "replicaLagP99Ms": 800,
+        "leaseCheckMs": 15,
+        "consistency": "monotonic"
+      }
+    },
+    {
+      "id": "db-lin",
+      "type": "relational-db",
+      "skin": "postgres",
+      "name": "Linearizable",
+      "pos": {
+        "x": 350,
+        "y": 220
+      },
+      "config": {
+        "replicas": 2,
+        "replication": "async",
+        "readFrom": "replicas",
+        "replicaLagMs": 200,
+        "replicaLagP99Ms": 800,
+        "leaseCheckMs": 15,
+        "consistency": "linearizable"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e0",
+      "from": "web",
+      "to": "db-ev",
+      "config": {
+        "ratio": 0.25
+      }
+    },
+    {
+      "id": "e1",
+      "from": "web",
+      "to": "db-ryw",
+      "config": {
+        "ratio": 0.25
+      }
+    },
+    {
+      "id": "e2",
+      "from": "web",
+      "to": "db-mono",
+      "config": {
+        "ratio": 0.25
+      }
+    },
+    {
+      "id": "e3",
+      "from": "web",
+      "to": "db-lin",
+      "config": {
+        "ratio": 0.25
+      }
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 300,
+    "sources": [
+      {
+        "id": "s1",
+        "node": "web",
+        "shape": {
+          "kind": "constant",
+          "rps": 800
+        },
+        "readRatio": 0.7,
+        "keys": {
+          "kind": "zipf",
+          "s": 1.1
+        }
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "social.example",
+    "read": {
+      "path": "/api/profiles/{key}"
+    },
+    "write": {
+      "method": "PATCH",
+      "path": "/api/profiles/{key}",
+      "reqBody": "{\"bio\": \"v{value}\"}",
+      "status": 200,
+      "body": "{\"id\": {key}, \"updated\": true}"
+    },
+    "table": "profiles",
+    "valCol": "bio"
+  }
+}

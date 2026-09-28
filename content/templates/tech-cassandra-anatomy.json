@@ -1,0 +1,174 @@
+{
+  "schemaVersion": 1,
+  "id": "tech-cassandra-anatomy",
+  "name": "Cassandra: anatomy",
+  "description": "Six nodes on a token ring (16 vnodes each), RF 3. The token-aware driver sends each query to a replica, which coordinates it.",
+  "nodes": [
+    {
+      "id": "users",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 195,
+        "y": 40
+      },
+      "config": {}
+    },
+    {
+      "id": "driver",
+      "type": "cassandra-driver",
+      "name": "driver",
+      "pos": {
+        "x": 195,
+        "y": 140
+      },
+      "config": {
+        "writeCL": "QUORUM",
+        "readCL": "ONE"
+      }
+    },
+    {
+      "id": "n1",
+      "type": "cassandra-node",
+      "name": "n1",
+      "pos": {
+        "x": 195,
+        "y": 240
+      },
+      "config": {
+        "memtableMb": 1
+      }
+    },
+    {
+      "id": "n2",
+      "type": "cassandra-node",
+      "name": "n2",
+      "pos": {
+        "x": 316,
+        "y": 310
+      },
+      "config": {
+        "memtableMb": 1
+      }
+    },
+    {
+      "id": "n3",
+      "type": "cassandra-node",
+      "name": "n3",
+      "pos": {
+        "x": 316,
+        "y": 450
+      },
+      "config": {
+        "memtableMb": 1
+      }
+    },
+    {
+      "id": "n4",
+      "type": "cassandra-node",
+      "name": "n4",
+      "pos": {
+        "x": 195,
+        "y": 520
+      },
+      "config": {
+        "memtableMb": 1
+      }
+    },
+    {
+      "id": "n5",
+      "type": "cassandra-node",
+      "name": "n5",
+      "pos": {
+        "x": 74,
+        "y": 450
+      },
+      "config": {
+        "memtableMb": 1
+      }
+    },
+    {
+      "id": "n6",
+      "type": "cassandra-node",
+      "name": "n6",
+      "pos": {
+        "x": 74,
+        "y": 310
+      },
+      "config": {
+        "memtableMb": 1
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-users-driver",
+      "from": "users",
+      "to": "driver"
+    },
+    {
+      "id": "e-driver-n1",
+      "from": "driver",
+      "to": "n1"
+    },
+    {
+      "id": "e-driver-n2",
+      "from": "driver",
+      "to": "n2"
+    },
+    {
+      "id": "e-driver-n3",
+      "from": "driver",
+      "to": "n3"
+    },
+    {
+      "id": "e-driver-n4",
+      "from": "driver",
+      "to": "n4"
+    },
+    {
+      "id": "e-driver-n5",
+      "from": "driver",
+      "to": "n5"
+    },
+    {
+      "id": "e-driver-n6",
+      "from": "driver",
+      "to": "n6"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 120,
+    "sources": [
+      {
+        "id": "s1",
+        "node": "users",
+        "shape": {
+          "kind": "constant",
+          "rps": 800
+        },
+        "readRatio": 0.7
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "chat.example.com",
+    "read": {
+      "method": "GET",
+      "path": "/api/conversations/{key}/messages",
+      "status": 200,
+      "body": "{\"conversation_id\": {key}, \"messages\": [{\"body\": \"{value}\"}]}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/conversations/{key}/messages",
+      "reqBody": "{\"body\": \"on my way\", \"seq\": {value}}",
+      "status": 201,
+      "body": "{\"message_id\": \"{code}\"}"
+    },
+    "table": "messages_by_conversation",
+    "valCol": "body"
+  }
+}

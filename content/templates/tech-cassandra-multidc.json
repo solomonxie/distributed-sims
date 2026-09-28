@@ -1,0 +1,262 @@
+{
+  "schemaVersion": 1,
+  "id": "tech-cassandra-multidc",
+  "name": "Cassandra: two datacenters",
+  "description": "RF 3 in each of dc1 (us-east-1) and dc2 (eu-west-1). One app writes at LOCAL_QUORUM, the other at QUORUM (4 of 6 replicas).",
+  "nodes": [
+    {
+      "id": "users-lq",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 110,
+        "y": 30
+      },
+      "config": {}
+    },
+    {
+      "id": "users-q",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 280,
+        "y": 30
+      },
+      "config": {}
+    },
+    {
+      "id": "app-lq",
+      "type": "cassandra-driver",
+      "name": "app LOCAL_QUORUM",
+      "pos": {
+        "x": 110,
+        "y": 120
+      },
+      "parent": "us",
+      "config": {
+        "writeCL": "LOCAL_QUORUM",
+        "readCL": "LOCAL_QUORUM",
+        "localDc": "dc1"
+      }
+    },
+    {
+      "id": "app-q",
+      "type": "cassandra-driver",
+      "name": "app QUORUM",
+      "pos": {
+        "x": 280,
+        "y": 120
+      },
+      "parent": "us",
+      "config": {
+        "writeCL": "QUORUM",
+        "readCL": "QUORUM",
+        "localDc": "dc1"
+      }
+    },
+    {
+      "id": "n1",
+      "type": "cassandra-node",
+      "name": "n1 (dc1)",
+      "pos": {
+        "x": 70,
+        "y": 240
+      },
+      "parent": "us",
+      "config": {
+        "dc": "dc1"
+      }
+    },
+    {
+      "id": "n2",
+      "type": "cassandra-node",
+      "name": "n2 (dc1)",
+      "pos": {
+        "x": 195,
+        "y": 240
+      },
+      "parent": "us",
+      "config": {
+        "dc": "dc1"
+      }
+    },
+    {
+      "id": "n3",
+      "type": "cassandra-node",
+      "name": "n3 (dc1)",
+      "pos": {
+        "x": 320,
+        "y": 240
+      },
+      "parent": "us",
+      "config": {
+        "dc": "dc1"
+      }
+    },
+    {
+      "id": "n4",
+      "type": "cassandra-node",
+      "name": "n4 (dc2)",
+      "pos": {
+        "x": 70,
+        "y": 420
+      },
+      "parent": "eu",
+      "config": {
+        "dc": "dc2"
+      }
+    },
+    {
+      "id": "n5",
+      "type": "cassandra-node",
+      "name": "n5 (dc2)",
+      "pos": {
+        "x": 195,
+        "y": 420
+      },
+      "parent": "eu",
+      "config": {
+        "dc": "dc2"
+      }
+    },
+    {
+      "id": "n6",
+      "type": "cassandra-node",
+      "name": "n6 (dc2)",
+      "pos": {
+        "x": 320,
+        "y": 420
+      },
+      "parent": "eu",
+      "config": {
+        "dc": "dc2"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-users-lq-app-lq",
+      "from": "users-lq",
+      "to": "app-lq"
+    },
+    {
+      "id": "e-users-q-app-q",
+      "from": "users-q",
+      "to": "app-q"
+    },
+    {
+      "id": "e-app-lq-n1",
+      "from": "app-lq",
+      "to": "n1"
+    },
+    {
+      "id": "e-app-lq-n2",
+      "from": "app-lq",
+      "to": "n2"
+    },
+    {
+      "id": "e-app-lq-n3",
+      "from": "app-lq",
+      "to": "n3"
+    },
+    {
+      "id": "e-app-lq-n4",
+      "from": "app-lq",
+      "to": "n4"
+    },
+    {
+      "id": "e-app-lq-n5",
+      "from": "app-lq",
+      "to": "n5"
+    },
+    {
+      "id": "e-app-lq-n6",
+      "from": "app-lq",
+      "to": "n6"
+    },
+    {
+      "id": "e-app-q-n1",
+      "from": "app-q",
+      "to": "n1"
+    },
+    {
+      "id": "e-app-q-n2",
+      "from": "app-q",
+      "to": "n2"
+    },
+    {
+      "id": "e-app-q-n3",
+      "from": "app-q",
+      "to": "n3"
+    },
+    {
+      "id": "e-app-q-n4",
+      "from": "app-q",
+      "to": "n4"
+    },
+    {
+      "id": "e-app-q-n5",
+      "from": "app-q",
+      "to": "n5"
+    },
+    {
+      "id": "e-app-q-n6",
+      "from": "app-q",
+      "to": "n6"
+    }
+  ],
+  "containers": [
+    {
+      "id": "us",
+      "kind": "region",
+      "name": "us-east-1"
+    },
+    {
+      "id": "eu",
+      "kind": "region",
+      "name": "eu-west-1"
+    }
+  ],
+  "scenario": {
+    "durationSec": 120,
+    "sources": [
+      {
+        "id": "s-lq",
+        "node": "users-lq",
+        "shape": {
+          "kind": "constant",
+          "rps": 300
+        },
+        "readRatio": 0.8
+      },
+      {
+        "id": "s-q",
+        "node": "users-q",
+        "shape": {
+          "kind": "constant",
+          "rps": 300
+        },
+        "readRatio": 0.8
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "accounts.example.com",
+    "read": {
+      "method": "GET",
+      "path": "/api/profiles/{key}",
+      "status": 200,
+      "body": "{\"user_id\": {key}, \"display_name\": \"{value}\"}"
+    },
+    "write": {
+      "method": "PUT",
+      "path": "/api/profiles/{key}",
+      "reqBody": "{\"display_name\": \"user{value}\"}",
+      "status": 200,
+      "body": "{\"user_id\": {key}, \"updated\": true}"
+    },
+    "table": "user_profiles",
+    "valCol": "display_name"
+  }
+}

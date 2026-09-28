@@ -1,0 +1,130 @@
+{
+  "schemaVersion": 1,
+  "id": "lesson-consistency-sync-async",
+  "name": "Lesson: sync vs async replication",
+  "description": "Two Postgres clusters, primary + 2 replicas, 5s automatic failover. Left acks a write once the primary has it (async). Right waits until at least one replica has it too (semi-sync).",
+  "nodes": [
+    {
+      "id": "web",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 195,
+        "y": 60
+      }
+    },
+    {
+      "id": "api-a",
+      "type": "service",
+      "name": "API A",
+      "pos": {
+        "x": 90,
+        "y": 190
+      }
+    },
+    {
+      "id": "api-s",
+      "type": "service",
+      "name": "API B",
+      "pos": {
+        "x": 300,
+        "y": 190
+      }
+    },
+    {
+      "id": "db-async",
+      "type": "relational-db",
+      "skin": "postgres",
+      "name": "Postgres async",
+      "pos": {
+        "x": 90,
+        "y": 330
+      },
+      "config": {
+        "replicas": 2,
+        "readFrom": "primary",
+        "replicaLagMs": 40,
+        "replicaLagP99Ms": 150,
+        "failoverSec": 5,
+        "replication": "async"
+      }
+    },
+    {
+      "id": "db-sync",
+      "type": "relational-db",
+      "skin": "postgres",
+      "name": "Postgres semi-sync",
+      "pos": {
+        "x": 300,
+        "y": 330
+      },
+      "config": {
+        "replicas": 2,
+        "readFrom": "primary",
+        "replicaLagMs": 40,
+        "replicaLagP99Ms": 150,
+        "failoverSec": 5,
+        "replication": "semi-sync"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "web",
+      "to": "api-a",
+      "config": {
+        "ratio": 0.5
+      }
+    },
+    {
+      "id": "e2",
+      "from": "web",
+      "to": "api-s",
+      "config": {
+        "ratio": 0.5
+      }
+    },
+    {
+      "id": "e3",
+      "from": "api-a",
+      "to": "db-async"
+    },
+    {
+      "id": "e4",
+      "from": "api-s",
+      "to": "db-sync"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 300,
+    "sources": [
+      {
+        "id": "s1",
+        "node": "web",
+        "shape": {
+          "kind": "constant",
+          "rps": 400
+        },
+        "readRatio": 0.5
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "bank.example",
+    "read": {
+      "path": "/api/accounts/{key}/balance"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/accounts/{key}/deposits",
+      "reqBody": "{\"amount_cents\": {value}}",
+      "status": 201,
+      "body": "{\"account\": {key}, \"posted\": true}"
+    },
+    "table": "account_balances",
+    "valCol": "balance_cents"
+  }
+}

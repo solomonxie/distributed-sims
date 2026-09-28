@@ -1,0 +1,128 @@
+{
+  "schemaVersion": 1,
+  "id": "lesson-network-loss",
+  "name": "Packet loss & tail latency",
+  "description": "Two apps share a DB and both give each call 200ms. Left: a lost packet is resent after the timeout (like a TCP retransmit), so the request succeeds but the slowest 1% jump by 200ms+. Right: no resend, so a lost packet means a failed request.",
+  "nodes": [
+    {
+      "id": "users-r",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 75,
+        "y": 60
+      }
+    },
+    {
+      "id": "app-r",
+      "type": "service",
+      "name": "App · resend",
+      "pos": {
+        "x": 75,
+        "y": 200
+      }
+    },
+    {
+      "id": "users-n",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 315,
+        "y": 60
+      }
+    },
+    {
+      "id": "app-n",
+      "type": "service",
+      "name": "App · no resend",
+      "pos": {
+        "x": 315,
+        "y": 200
+      }
+    },
+    {
+      "id": "db",
+      "type": "relational-db",
+      "name": "DB",
+      "pos": {
+        "x": 195,
+        "y": 340
+      },
+      "skin": "postgres"
+    }
+  ],
+  "edges": [
+    {
+      "id": "users-r->app-r",
+      "from": "users-r",
+      "to": "app-r",
+      "config": {
+        "timeoutMs": 3000
+      }
+    },
+    {
+      "id": "app-r->db",
+      "from": "app-r",
+      "to": "db",
+      "config": {
+        "timeoutMs": 200,
+        "retries": 3,
+        "backoffMs": 10
+      }
+    },
+    {
+      "id": "users-n->app-n",
+      "from": "users-n",
+      "to": "app-n",
+      "config": {
+        "timeoutMs": 3000
+      }
+    },
+    {
+      "id": "app-n->db",
+      "from": "app-n",
+      "to": "db",
+      "config": {
+        "timeoutMs": 200
+      }
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 120,
+    "sources": [
+      {
+        "id": "s1",
+        "node": "users-r",
+        "shape": {
+          "kind": "constant",
+          "rps": 200
+        }
+      },
+      {
+        "id": "s2",
+        "node": "users-n",
+        "shape": {
+          "kind": "constant",
+          "rps": 200
+        }
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "shop.example",
+    "read": {
+      "path": "/api/products/{key}"
+    },
+    "write": {
+      "method": "PUT",
+      "path": "/api/products/{key}/stock",
+      "reqBody": "{\"on_hand\": {value}}",
+      "status": 200,
+      "body": "{\"id\": {key}, \"updated\": true}"
+    },
+    "table": "products",
+    "valCol": "on_hand"
+  }
+}

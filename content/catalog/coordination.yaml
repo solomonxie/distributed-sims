@@ -1,0 +1,170 @@
+group: { id: coordination, label: Coordination, order: 7 }
+types:
+  - type: consensus-member
+    label: Consensus member
+    description: One Raft member; members sharing a group elect a leader and replicate a log
+    icon: crown
+    costPerInstanceMonth: 60
+    knobs:
+      - { key: group, label: Group, kind: string, default: g1, help: Members with the same group form one cluster }
+      - { key: electionMinMs, label: Election timeout min, kind: ms, default: 150, min: 10, max: 30000 }
+      - { key: electionMaxMs, label: Election timeout max, kind: ms, default: 300, min: 10, max: 60000, help: Equal min/max → split votes }
+      - { key: heartbeatMs, label: Heartbeat, kind: ms, default: 50, min: 5, max: 10000 }
+      - { key: reads, label: Reads, kind: enum, default: linearizable, options: [linearizable, lease, stale], help: "linearizable = read index; lease = leader-local while lease valid; stale = any member" }
+      - { key: commitTimeoutMs, label: Commit timeout, kind: ms, default: 2000, min: 100, max: 60000 }
+      - { key: instances, label: Instances, kind: int, default: 1, min: 1, max: 1, advanced: true, help: One node per member }
+      - { key: slots, label: Slots, kind: int, default: 64, min: 1, max: 4096, advanced: true }
+      - { key: p50Ms, label: p50, kind: ms, default: 1, min: 0.1, max: 1000 }
+      - { key: p99Ms, label: p99, kind: ms, default: 5, min: 0.1, max: 5000 }
+      - { key: queueLimit, label: Queue limit, kind: int, default: 1000, min: 0, max: 100000, advanced: true }
+      - { key: leaseRatio, label: Lease / election timeout, kind: number, default: 0.9, min: 0.1, max: 2, step: 0.05, advanced: true, help: ">1 is unsafe: stale leader serves reads" }
+      - { key: batchMs, label: Batch window, kind: ms, default: 1, min: 0, max: 100, advanced: true }
+      - { key: maxBatch, label: Max entries per append, kind: int, default: 256, min: 1, max: 10000, advanced: true }
+      - { key: costMonth, label: Cost / month, kind: number, default: 60, unit: $, advanced: true }
+  - type: paxos-proposer
+    label: Paxos proposer
+    description: Proposes a value; races other proposers through prepare/promise, accept/accepted
+    icon: megaphone
+    costPerInstanceMonth: 30
+    knobs:
+      - { key: group, label: Group, kind: string, default: g1 }
+      - { key: value, label: Value, kind: string, default: "", help: Empty = node name }
+      - { key: autoPropose, label: Propose on start, kind: bool, default: true }
+      - { key: startDelayMs, label: Start delay, kind: ms, default: 200, min: 0, max: 10000 }
+      - { key: startJitterMs, label: Start jitter, kind: ms, default: 5, min: 0, max: 1000 }
+      - { key: backoffMs, label: Retry backoff, kind: ms, default: 40, min: 0, max: 5000, help: 0 → dueling proposers livelock }
+      - { key: phaseTimeoutMs, label: Phase timeout, kind: ms, default: 300, min: 10, max: 10000, advanced: true }
+      - { key: maxTries, label: Max tries, kind: int, default: 20, min: 1, max: 1000, advanced: true }
+      - { key: p50Ms, label: p50, kind: ms, default: 1, min: 0.1, max: 1000 }
+      - { key: p99Ms, label: p99, kind: ms, default: 5, min: 0.1, max: 5000 }
+      - { key: costMonth, label: Cost / month, kind: number, default: 30, unit: $, advanced: true }
+  - type: paxos-acceptor
+    label: Paxos acceptor
+    description: Promises and accepts ballots; a majority of acceptors chooses a value
+    icon: vote
+    costPerInstanceMonth: 30
+    knobs:
+      - { key: group, label: Group, kind: string, default: g1 }
+      - { key: costMonth, label: Cost / month, kind: number, default: 30, unit: $, advanced: true }
+  - type: lock-service
+    label: Lock service
+    description: Lease-based distributed lock with TTL and fencing tokens
+    icon: lock
+    costPerInstanceMonth: 80
+    knobs:
+      - { key: leaseTtlMs, label: Lease TTL, kind: ms, default: 3000, min: 100, max: 600000 }
+      - { key: fencing, label: Fencing tokens, kind: bool, default: true, help: Stores reject writes with an older token }
+      - { key: instances, label: Instances, kind: int, default: 1, min: 1, max: 9 }
+      - { key: slots, label: Slots, kind: int, default: 64, min: 1, max: 4096, advanced: true }
+      - { key: p50Ms, label: p50, kind: ms, default: 2, min: 0.1, max: 1000 }
+      - { key: p99Ms, label: p99, kind: ms, default: 10, min: 0.1, max: 5000 }
+      - { key: queueLimit, label: Queue limit, kind: int, default: 1000, min: 0, max: 100000, advanced: true }
+      - { key: costMonth, label: Cost / month, kind: number, default: 80, unit: $, advanced: true }
+  - type: lock-client
+    label: Lock client
+    description: Worker that takes a lock, writes the protected resource with its token, releases
+    icon: key-round
+    costPerInstanceMonth: 40
+    knobs:
+      - { key: resource, label: Resource, kind: string, default: r1 }
+      - { key: everyMs, label: Attempt every, kind: ms, default: 500, min: 0, max: 60000, help: 0 = only on incoming requests }
+      - { key: holdMs, label: Critical section, kind: ms, default: 200, min: 0, max: 60000 }
+      - { key: costMonth, label: Cost / month, kind: number, default: 40, unit: $, advanced: true }
+  - type: id-generator
+    label: ID generator
+    description: Hands out unique IDs without two ever colliding
+    icon: fingerprint
+    costPerInstanceMonth: 40
+    knobs:
+      - { key: scheme, label: Scheme, kind: enum, default: snowflake, options: [snowflake, ticket, uuid] }
+      - { key: workerId, label: Worker ID, kind: int, default: 1, min: 0, max: 1023, help: Snowflake only; duplicates if two workers share one }
+      - { key: onClockBackwards, label: Clock goes back, kind: enum, default: ignore, options: [ignore, wait, refuse], help: ignore → duplicate / out-of-order IDs }
+      - { key: instances, label: Instances, kind: int, default: 1, min: 1, max: 64 }
+      - { key: slots, label: Slots, kind: int, default: 64, min: 1, max: 4096, advanced: true }
+      - { key: p50Ms, label: p50, kind: ms, default: 0.2, min: 0.01, max: 1000 }
+      - { key: p99Ms, label: p99, kind: ms, default: 1, min: 0.01, max: 5000 }
+      - { key: queueLimit, label: Queue limit, kind: int, default: 1000, min: 0, max: 100000, advanced: true }
+      - { key: costMonth, label: Cost / month, kind: number, default: 40, unit: $, advanced: true }
+  - type: gossip-member
+    label: Gossip member
+    description: SWIM-style membership; ping, indirect ping-req, suspicion, piggybacked dissemination
+    icon: radio-tower
+    costPerInstanceMonth: 20
+    knobs:
+      - { key: group, label: Group, kind: string, default: g1 }
+      - { key: periodMs, label: Protocol period, kind: ms, default: 1000, min: 50, max: 60000 }
+      - { key: pingTimeoutMs, label: Ping timeout, kind: ms, default: 200, min: 5, max: 10000 }
+      - { key: indirectK, label: Indirect probes, kind: int, default: 3, min: 0, max: 10 }
+      - { key: suspicionMs, label: Suspicion timeout, kind: ms, default: 3000, min: 100, max: 120000 }
+      - { key: piggyback, label: Updates per message, kind: int, default: 6, min: 1, max: 50, advanced: true }
+      - { key: costMonth, label: Cost / month, kind: number, default: 20, unit: $, advanced: true }
+skins:
+  - name: etcd
+    type: consensus-member
+    label: etcd
+    description: Raft key-value store behind Kubernetes
+    icon: database-zap
+    tags: [raft, kv, cncf]
+    # source: etcd tuning docs — heartbeat 100ms, election 1000ms (randomized up to 2×)
+    defaults: { heartbeatMs: 100, electionMinMs: 1000, electionMaxMs: 2000, p50Ms: 2, p99Ms: 10, reads: linearizable, costMonth: 60 }
+  - name: zookeeper
+    type: consensus-member
+    label: ZooKeeper
+    description: ZAB ensemble; leader + followers, sync reads optional
+    icon: tree-pine
+    tags: [zab, coordination, apache]
+    # source: ZooKeeper admin guide — tickTime 2000ms; followers serve reads locally unless sync()
+    defaults: { heartbeatMs: 500, electionMinMs: 2000, electionMaxMs: 4000, p50Ms: 2, p99Ms: 15, reads: stale, costMonth: 60 }
+  - name: consul
+    type: consensus-member
+    label: Consul
+    description: Raft servers for service catalog and KV; default reads use leader lease
+    icon: compass
+    tags: [raft, service-discovery, hashicorp]
+    # source: Consul server performance docs — heartbeat/election 1000ms, leader lease 500ms; "default" consistency mode
+    defaults: { heartbeatMs: 100, electionMinMs: 1000, electionMaxMs: 2000, reads: lease, leaseRatio: 0.5, p50Ms: 2, p99Ms: 10, costMonth: 60 }
+  - name: chubby-lock
+    type: lock-service
+    label: Chubby
+    description: Google's Paxos-backed lock service with sequencers (fencing)
+    icon: lock-keyhole
+    tags: [lock, paxos, google]
+    # source: Burrows 2006 — 12s default session lease, sequencers
+    defaults: { leaseTtlMs: 12000, fencing: true, p50Ms: 5, p99Ms: 20, costMonth: 120 }
+  - name: redlock
+    type: lock-service
+    label: Redlock
+    description: Redis lock with TTL; no fencing tokens
+    icon: brand:redis
+    tags: [lock, redis]
+    # source: Kleppmann 2016 "How to do distributed locking" — no fencing
+    defaults: { leaseTtlMs: 3000, fencing: false, p50Ms: 0.5, p99Ms: 3, costMonth: 50 }
+  - name: snowflake-idgen
+    type: id-generator
+    label: Snowflake
+    description: 41-bit ms timestamp + 10-bit worker + 12-bit sequence
+    icon: snowflake
+    tags: [id, twitter]
+    defaults: { scheme: snowflake, onClockBackwards: ignore, p50Ms: 0.1, p99Ms: 0.5 }
+  - name: ticket-server
+    type: id-generator
+    label: Ticket server
+    description: Single DB auto-increment counter (Flickr style); simple, a SPOF
+    icon: ticket
+    tags: [id, flickr, spof]
+    defaults: { scheme: ticket, instances: 1, p50Ms: 1, p99Ms: 5 }
+  - name: uuid-gen
+    type: id-generator
+    label: UUID v4
+    description: Random 128-bit IDs; no coordination, not sortable
+    icon: shuffle
+    tags: [id, uuid]
+    defaults: { scheme: uuid, p50Ms: 0.02, p99Ms: 0.1 }
+  - name: serf
+    type: gossip-member
+    label: Serf
+    description: HashiCorp SWIM gossip (memberlist)
+    icon: waves
+    tags: [gossip, swim, hashicorp]
+    # source: memberlist DefaultLANConfig — probe 1s, probe timeout 500ms, 3 indirect checks, suspicion mult 4
+    defaults: { periodMs: 1000, pingTimeoutMs: 500, indirectK: 3, suspicionMs: 4000 }

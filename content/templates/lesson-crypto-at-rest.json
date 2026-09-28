@@ -1,0 +1,130 @@
+{
+  "schemaVersion": 1,
+  "id": "lesson-crypto-at-rest",
+  "name": "At rest vs in transit",
+  "description": "In transit: the sidecar wraps the API hop in mTLS, so a packet sniffer on that link sees ciphertext. At rest: the API encrypts every record with a KMS data key before writing S3. Lose the KMS and nothing can be read or written, even with the network fine.",
+  "nodes": [
+    {
+      "id": "web",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 195,
+        "y": 20
+      },
+      "skin": "react-spa"
+    },
+    {
+      "id": "lb",
+      "type": "load-balancer",
+      "name": "ALB (TLS)",
+      "pos": {
+        "x": 195,
+        "y": 120
+      },
+      "skin": "aws-alb"
+    },
+    {
+      "id": "sc",
+      "type": "service-mesh-sidecar",
+      "name": "Envoy (mTLS)",
+      "pos": {
+        "x": 195,
+        "y": 220
+      },
+      "skin": "envoy-sidecar"
+    },
+    {
+      "id": "api",
+      "type": "service",
+      "name": "Docs API",
+      "pos": {
+        "x": 195,
+        "y": 320
+      },
+      "skin": "go-service"
+    },
+    {
+      "id": "kms",
+      "type": "kms",
+      "name": "KMS",
+      "pos": {
+        "x": 70,
+        "y": 440
+      },
+      "skin": "aws-kms"
+    },
+    {
+      "id": "s3",
+      "type": "object-store",
+      "name": "S3 (SSE)",
+      "pos": {
+        "x": 320,
+        "y": 440
+      },
+      "skin": "s3"
+    }
+  ],
+  "edges": [
+    {
+      "id": "web->lb",
+      "from": "web",
+      "to": "lb"
+    },
+    {
+      "id": "lb->sc",
+      "from": "lb",
+      "to": "sc",
+      "config": {
+        "mtls": true
+      }
+    },
+    {
+      "id": "sc->api",
+      "from": "sc",
+      "to": "api",
+      "config": {
+        "mtls": true
+      }
+    },
+    {
+      "id": "api->kms",
+      "from": "api",
+      "to": "kms"
+    },
+    {
+      "id": "api->s3",
+      "from": "api",
+      "to": "s3"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 60,
+    "sources": [
+      {
+        "id": "s",
+        "node": "web",
+        "shape": {
+          "kind": "constant",
+          "rps": 200
+        },
+        "readRatio": 0.5
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "docs.example",
+    "read": {
+      "path": "/api/files/{key}"
+    },
+    "write": {
+      "method": "PUT",
+      "path": "/api/files/{key}",
+      "reqBody": "{\"name\": \"contract-{key}.pdf\"}",
+      "status": 200,
+      "body": "{\"id\": {key}, \"encrypted\": true}"
+    }
+  }
+}

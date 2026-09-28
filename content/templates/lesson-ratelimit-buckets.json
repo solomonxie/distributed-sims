@@ -1,0 +1,142 @@
+{
+  "schemaVersion": 1,
+  "id": "lesson-ratelimit-buckets",
+  "name": "Token bucket vs leaky bucket",
+  "description": "Both limiters allow 100 req/s with room for 100. A 20× burst: the token bucket spends its saved tokens at once, then answers 429; the leaky bucket queues up to 100 and releases them at a steady 100/s, so accepted requests wait up to ~1s.",
+  "nodes": [
+    {
+      "id": "users-tb",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 55,
+        "y": 60
+      }
+    },
+    {
+      "id": "rl-token",
+      "type": "rate-limiter",
+      "name": "Token bucket",
+      "pos": {
+        "x": 55,
+        "y": 200
+      },
+      "config": {
+        "algorithm": "token-bucket",
+        "limit": 100,
+        "burst": 100
+      }
+    },
+    {
+      "id": "api-a",
+      "type": "service",
+      "name": "API",
+      "pos": {
+        "x": 55,
+        "y": 340
+      },
+      "config": {
+        "instances": 4
+      }
+    },
+    {
+      "id": "users-lb",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 305,
+        "y": 60
+      }
+    },
+    {
+      "id": "rl-leaky",
+      "type": "rate-limiter",
+      "name": "Leaky bucket",
+      "pos": {
+        "x": 305,
+        "y": 200
+      },
+      "config": {
+        "algorithm": "leaky-bucket",
+        "limit": 100,
+        "burst": 100
+      }
+    },
+    {
+      "id": "api-b",
+      "type": "service",
+      "name": "API",
+      "pos": {
+        "x": 305,
+        "y": 340
+      },
+      "config": {
+        "instances": 4
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "users-tb->rl-token",
+      "from": "users-tb",
+      "to": "rl-token",
+      "config": {
+        "timeoutMs": 3000
+      }
+    },
+    {
+      "id": "rl-token->api-a",
+      "from": "rl-token",
+      "to": "api-a"
+    },
+    {
+      "id": "users-lb->rl-leaky",
+      "from": "users-lb",
+      "to": "rl-leaky",
+      "config": {
+        "timeoutMs": 3000
+      }
+    },
+    {
+      "id": "rl-leaky->api-b",
+      "from": "rl-leaky",
+      "to": "api-b"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 90,
+    "sources": [
+      {
+        "id": "s1",
+        "node": "users-tb",
+        "shape": {
+          "kind": "constant",
+          "rps": 60
+        }
+      },
+      {
+        "id": "s2",
+        "node": "users-lb",
+        "shape": {
+          "kind": "constant",
+          "rps": 60
+        }
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "api.weather.example",
+    "read": {
+      "path": "/v1/forecast/{key}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/v1/alerts/subscriptions",
+      "reqBody": "{\"city_id\": {key}}",
+      "status": 201,
+      "body": "{\"subscription_id\": {key}}"
+    }
+  }
+}

@@ -1,0 +1,126 @@
+{
+  "schemaVersion": 1,
+  "id": "edge-lb-algorithms",
+  "name": "Load balancer algorithms",
+  "description": "One backend is 20\u00d7 slower. Round-robin still sends it a third of traffic (p99 jumps); switch the LB to least-conn or P2C and the slow box gets starved. At 30s a backend dies: health checks mark it down after 2 intervals and traffic shifts.",
+  "nodes": [
+    {
+      "id": "web",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 195,
+        "y": 60
+      }
+    },
+    {
+      "id": "lb",
+      "type": "load-balancer",
+      "name": "Load balancer",
+      "pos": {
+        "x": 195,
+        "y": 200
+      },
+      "skin": "envoy-lb",
+      "config": {
+        "algorithm": "round-robin",
+        "healthIntervalMs": 2000
+      }
+    },
+    {
+      "id": "a",
+      "type": "service",
+      "name": "Backend A",
+      "pos": {
+        "x": 55,
+        "y": 340
+      }
+    },
+    {
+      "id": "b",
+      "type": "service",
+      "name": "Backend B",
+      "pos": {
+        "x": 195,
+        "y": 340
+      }
+    },
+    {
+      "id": "slow",
+      "type": "service",
+      "name": "Backend C (slow)",
+      "pos": {
+        "x": 335,
+        "y": 340
+      },
+      "config": {
+        "p50Ms": 100,
+        "p99Ms": 300
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "web->lb",
+      "from": "web",
+      "to": "lb"
+    },
+    {
+      "id": "lb->a",
+      "from": "lb",
+      "to": "a"
+    },
+    {
+      "id": "lb->b",
+      "from": "lb",
+      "to": "b"
+    },
+    {
+      "id": "lb->slow",
+      "from": "lb",
+      "to": "slow",
+      "config": {
+        "timeoutMs": 2000
+      }
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 90,
+    "sources": [
+      {
+        "id": "s",
+        "node": "web",
+        "shape": {
+          "kind": "constant",
+          "rps": 400
+        }
+      }
+    ],
+    "events": [
+      {
+        "atSec": 30,
+        "event": {
+          "kind": "kill",
+          "target": "b",
+          "durationSec": 25
+        }
+      }
+    ]
+  },
+  "wire": {
+    "host": "api.shop.io",
+    "read": {
+      "method": "GET",
+      "path": "/api/search?q=item{key}",
+      "body": "{\"q\": \"item{key}\", \"hits\": 24}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/cart/items",
+      "reqBody": "{\"sku\": {key}, \"qty\": 1}",
+      "status": 201,
+      "body": "{\"cart_size\": 3}"
+    }
+  }
+}

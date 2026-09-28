@@ -1,0 +1,133 @@
+id: elasticsearch
+title: Elasticsearch
+group: under-the-hood
+icon: search
+order: 12
+summary: Shards on data nodes, a master that tracks them, and searches that fan out to every shard and wait for the slowest.
+info: An index is split into primary shards, each with replicas on other data nodes. A master elected by a majority of master-eligible nodes owns the cluster state — which node holds which shard, the mappings, cluster health. Writes go to the primary and its replicas; they become searchable only after a refresh. Searches run query-then-fetch across one copy of every shard.
+problems: [autocomplete, yelp]
+lessons:
+  - id: anatomy
+    title: Anatomy of a cluster
+    minutes: 4
+    template: tech-es-anatomy
+    steps:
+      - title: The parts
+        body: A coordinating node, 3 master-eligible nodes and 3 data nodes. The index has 3 primary shards (P) with 1 replica (R) each.
+        watch: Shard badges like "P0 R2" on each data node.
+        check: { metric: time, op: '>=', value: 3 }
+      - title: One elected master
+        body: master-1 holds the cluster state and pings every data node each second (follower checks).
+        watch: 👑 and the green health badge on master-1.
+        check: { metric: badge:green, target: m1, op: '=', value: 1 }
+      - title: Cut the master off
+        body: Tap ⚡ Break → Split brain on master-1 for 10s. It can no longer talk to the other master-eligible nodes.
+        action: { event: { kind: split-brain, target: m1, durationSec: 10 } }
+        check: { metric: eventMatch:elected master, op: '>=', value: 1 }
+      - title: Quorum prevents split brain
+        body: master-2 and master-3 are a majority (2 of 3), so they elect master-2 in a new term; master-1 alone can't. There is never a second master.
+        check: { metric: gauge:term, target: m2, op: '>=', value: 2 }
+
+  - id: lifecycle
+    title: "Lifecycle: index a doc, then search"
+    minutes: 4
+    template: tech-es-anatomy
+    steps:
+      - title: Route to the primary
+        body: The coordinating node hashes the doc id to a shard and sends it to that shard's primary.
+        check: { metric: eventMatch:hash(_id), op: '>=', value: 1 }
+      - title: Buffer + translog, then replicas
+        body: The primary writes the doc to an in-memory buffer and the translog, then forwards it to its replica; the client gets an ack when both have it.
+        check: { metric: eventMatch:replica of shard, op: '>=', value: 1 }
+      - title: Refresh makes it searchable
+        body: Every 1s (refresh_interval) the buffer becomes a new Lucene segment. Until then the doc is invisible to search.
+        watch: The seg badge grows; small segments are merged in the background.
+        check: { metric: eventMatch:searchable segment, op: '>=', value: 1 }
+      - title: Query phase
+        body: A search goes to one copy of every shard; each returns its top hits' ids and scores. The slowest shard sets the latency.
+        check: { metric: eventMatch:slowest was shard, op: '>=', value: 1 }
+      - title: Fetch phase
+        body: The coordinator merges the scores, then fetches the full documents only from the shards holding the global top 10.
+        check: { metric: eventMatch:search done, op: '>=', value: 1 }
+
+  - id: node-loss
+    title: Losing a data node
+    minutes: 4
+    template: tech-es-node-loss
+    steps:
+      - title: Green
+        body: Every shard has a primary and a replica on different nodes.
+        check: { metric: badge:green, target: coord, op: '=', value: 1 }
+      - title: Kill data-2
+        body: Tap ⚡ Break → Kill on data-2. After 3 failed follower checks the master removes it.
+        action: { event: { kind: kill, target: d2 } }
+        check: { metric: eventMatch:left the cluster, op: '>=', value: 1 }
+      - title: Replica promoted, health yellow
+        body: data-2 held the primary of shard 1, so its replica on data-3 becomes primary at once. No data lost, but some shards have no replica.
+        check: { metric: badge:yellow, target: coord, op: '=', value: 1 }
+      - title: Re-replication
+        body: After the delayed-allocation timeout the master places new replicas; the survivors stream 200 MB shards to each other.
+        watch: The recovery badges and chunks streaming between data nodes.
+        check: { metric: gauge:recoveryMbps, target: d1, op: '>', value: 0 }
+      - title: Green again
+        body: Once the copies finish, health returns to green on two nodes. Searches were served the whole time.
+        check: { metric: badge:green, target: coord, op: '=', value: 1 }
+
+  - id: refresh-interval
+    title: refresh_interval 1s vs 30s
+    minutes: 3
+    template: tech-es-refresh
+    steps:
+      - title: Same bulk load
+        body: Two identical one-node clusters ingest 1,600 docs/s. Left refreshes every second, right every 30s.
+        check: { metric: time, op: '>=', value: 5 }
+      - title: Refreshing costs
+        body: Each refresh writes a small segment per shard and small segments must be merged. At 1s that steals write threads, so bulk requests queue and get 429s.
+        watch: Error rate and p99 on the left coordinating node.
+        check: { metric: availability, target: coord-a, op: '<', value: 99 }
+      - title: 30s keeps up
+        body: The right cluster spends almost nothing on refreshes and accepts the whole load.
+        check: { metric: availability, target: coord-b, op: '>=', value: 99.5 }
+      - title: The price is freshness
+        body: On the right, up to 30s of docs sit in the buffer, invisible to search. Raise refresh_interval for bulk loads, keep 1s where users expect to see their writes.
+        check: { metric: gauge:unrefreshed, target: data-b, op: '>=', value: 10000 }
+
+  - id: heavy-aggregation
+    title: A heavy aggregation makes a hot node
+    minutes: 3
+    template: tech-es-aggregation
+    steps:
+      - title: Cheap searches
+        body: The app runs match queries; every shard answers in a few ms.
+        check: { metric: time, op: '>=', value: 5 }
+      - title: Open the dashboard
+        body: Analysts open a Kibana dashboard firing 30 terms aggregations per second.
+        action: { event: { kind: traffic, action: set, source: s-kibana, params: { rps: 30 } } }
+        check: { metric: p99, target: app, op: '>=', value: 40 }
+      - title: Everyone waits
+        body: Each aggregation keeps a thread busy on every shard, so the app's searches queue behind them on the data nodes.
+        watch: Data node utilisation and the app's p99.
+        check: { metric: util, target: d1, op: '>=', value: 40 }
+      - title: The coordinator's breaker trips
+        body: Buckets from every shard are merged on the coordinating node; past the memory breaker it rejects requests with 429. Dedicated coordinating nodes and smaller aggregations fix this.
+        check: { metric: eventMatch:circuit_breaking_exception, op: '>=', value: 1 }
+
+  - id: mapping-explosion
+    title: Mapping explosion
+    minutes: 4
+    template: tech-es-mapping
+    steps:
+      - title: A fixed schema
+        body: The log shipper indexes events with 40 known fields.
+        check: { metric: time, op: '>=', value: 5 }
+      - title: Keys become fields
+        body: Tap ⚡ Break → Cardinality burst on the log shipper. 20% of events now carry a never-seen field name, like a user id used as a key.
+        action: { event: { kind: cardinality-burst, target: app, params: { x: 20 }, durationSec: 120 } }
+        check: { metric: gauge:fields, target: m1, op: '>=', value: 300 }
+      - title: The master is the bottleneck
+        body: Every new field is a cluster-state update the master applies one at a time and publishes to all nodes. Bigger mapping, slower updates, and indexing waits on them.
+        watch: master-1 at 100% and the shipper's p99.
+        check: { metric: p99, target: app, op: '>=', value: 200 }
+      - title: Limit of total fields
+        body: At 1,000 fields the index rejects documents with new fields. Map such data as key/value pairs (flattened) or turn dynamic mapping off.
+        check: { metric: eventMatch:Limit of total fields, op: '>=', value: 1 }

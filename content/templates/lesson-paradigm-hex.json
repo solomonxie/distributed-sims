@@ -1,0 +1,156 @@
+{
+  "schemaVersion": 1,
+  "id": "lesson-paradigm-hex",
+  "name": "Hexagonal: ports and adapters",
+  "description": "The domain core knows only ports. Two driving adapters (REST for users, a CLI/batch job) and one driven adapter (Postgres repository) plug into it. Lose one adapter and the core keeps serving through the others; swap the DB adapter without touching the core.",
+  "nodes": [
+    {
+      "id": "web",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 100,
+        "y": 20
+      },
+      "skin": "react-spa"
+    },
+    {
+      "id": "bot",
+      "type": "bot",
+      "name": "Batch job",
+      "pos": {
+        "x": 290,
+        "y": 20
+      },
+      "skin": "crawler"
+    },
+    {
+      "id": "rest",
+      "type": "service",
+      "name": "REST adapter",
+      "pos": {
+        "x": 100,
+        "y": 140
+      },
+      "skin": "node-service"
+    },
+    {
+      "id": "cli",
+      "type": "service",
+      "name": "CLI adapter",
+      "pos": {
+        "x": 290,
+        "y": 140
+      },
+      "skin": "go-service"
+    },
+    {
+      "id": "core",
+      "type": "service",
+      "name": "Domain core",
+      "pos": {
+        "x": 195,
+        "y": 260
+      },
+      "skin": "go-service",
+      "config": {
+        "p50Ms": 2,
+        "p99Ms": 6
+      }
+    },
+    {
+      "id": "repo",
+      "type": "service",
+      "name": "Postgres adapter",
+      "pos": {
+        "x": 195,
+        "y": 370
+      },
+      "skin": "go-service",
+      "config": {
+        "p50Ms": 1,
+        "p99Ms": 3
+      }
+    },
+    {
+      "id": "pg",
+      "type": "relational-db",
+      "name": "Postgres",
+      "pos": {
+        "x": 195,
+        "y": 480
+      },
+      "skin": "postgres"
+    }
+  ],
+  "edges": [
+    {
+      "id": "web->rest",
+      "from": "web",
+      "to": "rest"
+    },
+    {
+      "id": "bot->cli",
+      "from": "bot",
+      "to": "cli"
+    },
+    {
+      "id": "rest->core",
+      "from": "rest",
+      "to": "core"
+    },
+    {
+      "id": "cli->core",
+      "from": "cli",
+      "to": "core"
+    },
+    {
+      "id": "core->repo",
+      "from": "core",
+      "to": "repo"
+    },
+    {
+      "id": "repo->pg",
+      "from": "repo",
+      "to": "pg"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 60,
+    "sources": [
+      {
+        "id": "su",
+        "node": "web",
+        "shape": {
+          "kind": "constant",
+          "rps": 200
+        }
+      },
+      {
+        "id": "sb",
+        "node": "bot",
+        "shape": {
+          "kind": "constant",
+          "rps": 50
+        }
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "library.example",
+    "read": {
+      "path": "/api/loans/{key}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/loans",
+      "reqBody": "{\"book_id\": {key}, \"member_id\": 7}",
+      "status": 201,
+      "body": "{\"loan_id\": {key}, \"due\": \"2026-10-11\"}"
+    },
+    "table": "loans",
+    "valCol": "status"
+  }
+}

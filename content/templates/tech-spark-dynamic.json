@@ -1,0 +1,111 @@
+{
+  "schemaVersion": 1,
+  "id": "tech-spark-dynamic",
+  "name": "Spark: dynamic allocation",
+  "description": "Starts with 1 executor, requests more (1, 2, 4…) while tasks are backlogged, releases idle ones after 10s.",
+  "nodes": [
+    {
+      "id": "driver",
+      "type": "spark-driver",
+      "skin": "spark-driver-std",
+      "name": "Driver",
+      "pos": {
+        "x": 195,
+        "y": 60
+      },
+      "config": {
+        "cronSec": 30,
+        "dynamicAllocation": true,
+        "minExecutors": 1
+      }
+    },
+    {
+      "id": "exec-1",
+      "type": "spark-executor",
+      "skin": "spark-executor-std",
+      "name": "Executor 1",
+      "pos": {
+        "x": 55,
+        "y": 220
+      },
+      "config": {}
+    },
+    {
+      "id": "exec-2",
+      "type": "spark-executor",
+      "skin": "spark-executor-std",
+      "name": "Executor 2",
+      "pos": {
+        "x": 148,
+        "y": 220
+      },
+      "config": {}
+    },
+    {
+      "id": "exec-3",
+      "type": "spark-executor",
+      "skin": "spark-executor-std",
+      "name": "Executor 3",
+      "pos": {
+        "x": 242,
+        "y": 220
+      },
+      "config": {}
+    },
+    {
+      "id": "exec-4",
+      "type": "spark-executor",
+      "skin": "spark-executor-std",
+      "name": "Executor 4",
+      "pos": {
+        "x": 335,
+        "y": 220
+      },
+      "config": {}
+    }
+  ],
+  "edges": [
+    {
+      "id": "d-e1",
+      "from": "driver",
+      "to": "exec-1"
+    },
+    {
+      "id": "d-e2",
+      "from": "driver",
+      "to": "exec-2"
+    },
+    {
+      "id": "d-e3",
+      "from": "driver",
+      "to": "exec-3"
+    },
+    {
+      "id": "d-e4",
+      "from": "driver",
+      "to": "exec-4"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 120,
+    "sources": [],
+    "events": []
+  },
+  "wire": {
+    "host": "livy.analytics.internal",
+    "read": {
+      "path": "/sessions/{key}/statements/{value}",
+      "body": "{\"id\": {value}, \"state\": \"running\", \"progress\": 0.4}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/sessions/{key}/statements",
+      "reqBody": "{\"code\": \"spark.sql(\\\"SELECT count(*) FROM trips\\\").show()\"}",
+      "status": 201,
+      "body": "{\"id\": {value}, \"state\": \"waiting\"}"
+    },
+    "table": "trips",
+    "valCol": "fare"
+  }
+}

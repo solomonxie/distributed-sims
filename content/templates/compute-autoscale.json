@@ -1,0 +1,177 @@
+{
+  "schemaVersion": 1,
+  "id": "compute-autoscale",
+  "name": "Autoscaling: VM service vs Kubernetes",
+  "description": "Traffic ramps 5x. Left: an autoscaled VM service adds instances after a 30 s boot. Right: Kubernetes HPA adds pods in seconds until the node pool is full, then waits ~90 s for the cluster autoscaler. Watch instance badges, util and cost.",
+  "nodes": [
+    {
+      "id": "web",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 55,
+        "y": 60
+      },
+      "skin": "react-spa"
+    },
+    {
+      "id": "web2",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 335,
+        "y": 60
+      },
+      "skin": "react-spa"
+    },
+    {
+      "id": "api",
+      "type": "service",
+      "name": "Orders API",
+      "pos": {
+        "x": 55,
+        "y": 200
+      },
+      "skin": "java-service",
+      "config": {
+        "instances": 2,
+        "slots": 8,
+        "p50Ms": 20,
+        "p99Ms": 60,
+        "autoscale": true,
+        "targetUtil": 60,
+        "minInstances": 2,
+        "maxInstances": 12,
+        "scaleUpDelaySec": 30,
+        "cooldownSec": 90
+      }
+    },
+    {
+      "id": "k8s",
+      "type": "container-group",
+      "name": "Orders pods",
+      "pos": {
+        "x": 335,
+        "y": 200
+      },
+      "skin": "kubernetes",
+      "config": {
+        "instances": 2,
+        "slots": 8,
+        "p50Ms": 20,
+        "p99Ms": 60,
+        "clusterNodes": 1,
+        "podsPerNode": 4,
+        "maxInstances": 16,
+        "maxClusterNodes": 4,
+        "autoscaleEvalSec": 10
+      }
+    },
+    {
+      "id": "db",
+      "type": "relational-db",
+      "name": "Orders DB",
+      "pos": {
+        "x": 55,
+        "y": 340
+      },
+      "skin": "postgres"
+    },
+    {
+      "id": "db2",
+      "type": "relational-db",
+      "name": "Orders DB",
+      "pos": {
+        "x": 335,
+        "y": 340
+      },
+      "skin": "postgres"
+    }
+  ],
+  "edges": [
+    {
+      "id": "web->api",
+      "from": "web",
+      "to": "api",
+      "config": {
+        "timeoutMs": 5000
+      }
+    },
+    {
+      "id": "web2->k8s",
+      "from": "web2",
+      "to": "k8s",
+      "config": {
+        "timeoutMs": 5000
+      }
+    },
+    {
+      "id": "api->db",
+      "from": "api",
+      "to": "db"
+    },
+    {
+      "id": "k8s->db2",
+      "from": "k8s",
+      "to": "db2"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 240,
+    "sources": [
+      {
+        "id": "s1",
+        "node": "web",
+        "shape": {
+          "kind": "ramp",
+          "from": 150,
+          "to": 900,
+          "overSec": 60
+        },
+        "readRatio": 0.8
+      },
+      {
+        "id": "s2",
+        "node": "web2",
+        "shape": {
+          "kind": "ramp",
+          "from": 150,
+          "to": 900,
+          "overSec": 60
+        },
+        "readRatio": 0.8
+      }
+    ],
+    "events": [
+      {
+        "atSec": 150,
+        "event": {
+          "kind": "traffic",
+          "action": "burst",
+          "params": {
+            "x": 2
+          },
+          "durationSec": 20
+        }
+      }
+    ]
+  },
+  "wire": {
+    "host": "shop.acme.io",
+    "read": {
+      "method": "GET",
+      "path": "/api/orders/{key}",
+      "body": "{\"id\": {key}, \"status\": \"shipped\", \"total\": 42.5}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/orders",
+      "reqBody": "{\"sku\": \"SKU-{key}\", \"qty\": 1}",
+      "status": 201,
+      "body": "{\"id\": {key}, \"status\": \"pending\"}"
+    },
+    "table": "orders",
+    "valCol": "status"
+  }
+}

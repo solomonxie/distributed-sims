@@ -1,0 +1,44 @@
+id: distributed-mq
+title: Distributed message queue
+icon: list-ordered
+category: infra
+order: 20
+summary: A Kafka-style log that never loses a committed message.
+requirements:
+  - Produce to topics, partitioned by key, consumer groups with offsets, replay
+  - 1M msg/s in · 3× fan-out to consumer groups · 7-day retention
+  - A committed (acked) message is never lost · per-key order · broker loss tolerated
+estimates:
+  - 1M msg/s × 1 KB = 1 GB/s in, 3 GB/s out · 7 days ≈ 600 TB × RF 3
+designs:
+  - { id: v1, title: "Naive: one broker, acks=1, auto-commit", template: problem-distributed-mq-v1 }
+  - { id: v2, title: "Reference: RF=3, acks=all, commit after processing", template: problem-distributed-mq-v2 }
+challenges:
+  - id: broker-loss
+    title: "Leader broker dies"
+    template: problem-distributed-mq-v2
+    scenario:
+      durationSec: 60
+      sources: [{ id: producers, node: users, shape: { kind: constant, rps: 1000 }, readRatio: 0 }]
+      events:
+        - { atSec: 20, event: { kind: kill-leader, target: broker } }
+    pass:
+      - { metric: anomalies, op: '=', value: 0 }
+      - { metric: availability, op: '>=', value: 99.5 }
+      - { metric: costMonth, op: '<=', value: 2000 }
+  - id: consumer-crash
+    title: "Consumer crashes mid-batch"
+    template: problem-distributed-mq-v2
+    scenario:
+      durationSec: 60
+      sources: [{ id: producers, node: users, shape: { kind: constant, rps: 1000 }, readRatio: 0 }]
+      events:
+        - { atSec: 20, event: { kind: kill, target: consumer-a, durationSec: 10 } }
+    pass:
+      - { metric: anomalies, op: '=', value: 0 }
+      - { metric: availability, op: '>=', value: 99.5 }
+keyIdeas:
+  - { label: Replicated log (ISR), link: "algo:raft-log" }
+  - { label: At-least-once + idempotent consumers, link: "lesson:message-queue/at-least-once" }
+  - { label: Partitioning by key, link: "algo:consistent-hashing" }
+  - { label: Consensus for leader election, link: "lesson:consensus" }

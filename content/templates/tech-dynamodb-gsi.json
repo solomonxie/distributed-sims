@@ -1,0 +1,136 @@
+{
+  "schemaVersion": 1,
+  "id": "tech-dynamodb-gsi",
+  "name": "DynamoDB: GSI back-pressure",
+  "description": "An on-demand base table with a GSI provisioned at only 300 WCU. 30% of reads Query the index.",
+  "nodes": [
+    {
+      "id": "users",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 195,
+        "y": 90
+      },
+      "config": {}
+    },
+    {
+      "id": "router",
+      "type": "dynamodb-router",
+      "name": "request router",
+      "pos": {
+        "x": 195,
+        "y": 200
+      },
+      "config": {
+        "mode": "on-demand",
+        "peakRcu": 3000,
+        "peakWcu": 1000,
+        "gsiReadPct": 30
+      }
+    },
+    {
+      "id": "s1",
+      "type": "dynamodb-storage",
+      "name": "storage node 1",
+      "pos": {
+        "x": 70,
+        "y": 330
+      },
+      "config": {}
+    },
+    {
+      "id": "s2",
+      "type": "dynamodb-storage",
+      "name": "storage node 2",
+      "pos": {
+        "x": 195,
+        "y": 330
+      },
+      "config": {}
+    },
+    {
+      "id": "s3",
+      "type": "dynamodb-storage",
+      "name": "storage node 3",
+      "pos": {
+        "x": 320,
+        "y": 330
+      },
+      "config": {}
+    },
+    {
+      "id": "gsi",
+      "type": "dynamodb-gsi",
+      "name": "index by-status",
+      "pos": {
+        "x": 195,
+        "y": 450
+      },
+      "config": {
+        "wcu": 300
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-users-router",
+      "from": "users",
+      "to": "router"
+    },
+    {
+      "id": "e-router-s1",
+      "from": "router",
+      "to": "s1"
+    },
+    {
+      "id": "e-router-s2",
+      "from": "router",
+      "to": "s2"
+    },
+    {
+      "id": "e-router-s3",
+      "from": "router",
+      "to": "s3"
+    },
+    {
+      "id": "e-router-gsi",
+      "from": "router",
+      "to": "gsi"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 120,
+    "sources": [
+      {
+        "id": "s1",
+        "node": "users",
+        "shape": {
+          "kind": "constant",
+          "rps": 400
+        },
+        "readRatio": 0.5
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "support.example.com",
+    "read": {
+      "method": "GET",
+      "path": "/api/tickets/{key}",
+      "status": 200,
+      "body": "{\"ticket_id\": {key}, \"status\": \"{value}\"}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/tickets",
+      "reqBody": "{\"subject\": \"Can't log in\", \"priority\": {value}}",
+      "status": 201,
+      "body": "{\"ticket_id\": {key}, \"status\": \"open\"}"
+    },
+    "table": "tickets",
+    "valCol": "status"
+  }
+}

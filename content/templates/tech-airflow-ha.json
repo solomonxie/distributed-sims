@@ -1,0 +1,152 @@
+{
+  "schemaVersion": 1,
+  "id": "tech-airflow-ha",
+  "name": "Airflow: two schedulers without row locks",
+  "description": "Two schedulers on MySQL 5.7 (no SKIP LOCKED): both can pick the same task instance.",
+  "nodes": [
+    {
+      "id": "scheduler-1",
+      "type": "airflow-scheduler",
+      "skin": "airflow-scheduler-std",
+      "name": "Scheduler 1",
+      "pos": {
+        "x": 70,
+        "y": 60
+      },
+      "config": {
+        "scheduleSec": 3,
+        "idempotent": false
+      }
+    },
+    {
+      "id": "scheduler-2",
+      "type": "airflow-scheduler",
+      "skin": "airflow-scheduler-std",
+      "name": "Scheduler 2",
+      "pos": {
+        "x": 195,
+        "y": 60
+      },
+      "config": {
+        "scheduleSec": 3,
+        "idempotent": false
+      }
+    },
+    {
+      "id": "meta-db",
+      "type": "airflow-metadata-db",
+      "skin": "airflow-mysql57-db",
+      "name": "Metadata DB",
+      "pos": {
+        "x": 320,
+        "y": 60
+      },
+      "config": {
+        "skipLocked": false
+      }
+    },
+    {
+      "id": "executor",
+      "type": "airflow-executor",
+      "skin": "airflow-celery-executor",
+      "name": "CeleryExecutor",
+      "pos": {
+        "x": 110,
+        "y": 200
+      },
+      "config": {}
+    },
+    {
+      "id": "worker-1",
+      "type": "airflow-worker",
+      "skin": "airflow-worker-std",
+      "name": "Worker 1",
+      "pos": {
+        "x": 80,
+        "y": 340
+      },
+      "config": {
+        "slots": 4
+      }
+    },
+    {
+      "id": "worker-2",
+      "type": "airflow-worker",
+      "skin": "airflow-worker-std",
+      "name": "Worker 2",
+      "pos": {
+        "x": 310,
+        "y": 340
+      },
+      "config": {
+        "slots": 4
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "scheduler-1-db",
+      "from": "scheduler-1",
+      "to": "meta-db"
+    },
+    {
+      "id": "scheduler-1-ex",
+      "from": "scheduler-1",
+      "to": "executor"
+    },
+    {
+      "id": "scheduler-2-db",
+      "from": "scheduler-2",
+      "to": "meta-db"
+    },
+    {
+      "id": "scheduler-2-ex",
+      "from": "scheduler-2",
+      "to": "executor"
+    },
+    {
+      "id": "ex-worker-1",
+      "from": "executor",
+      "to": "worker-1"
+    },
+    {
+      "id": "worker-1-db",
+      "from": "worker-1",
+      "to": "meta-db"
+    },
+    {
+      "id": "ex-worker-2",
+      "from": "executor",
+      "to": "worker-2"
+    },
+    {
+      "id": "worker-2-db",
+      "from": "worker-2",
+      "to": "meta-db"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 120,
+    "sources": [],
+    "events": []
+  },
+  "wire": {
+    "host": "airflow.acme.io",
+    "read": {
+      "method": "GET",
+      "path": "/api/v1/dags/billing_close/dagRuns/run_{key}",
+      "status": 200,
+      "body": "{\"dag_run_id\": \"run_{key}\", \"state\": \"running\"}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/v1/dags/billing_close/dagRuns",
+      "reqBody": "{\"dag_run_id\": \"run_{key}\", \"conf\": {\"batch\": {value}}}",
+      "status": 200,
+      "body": "{\"dag_run_id\": \"run_{key}\", \"state\": \"queued\"}"
+    },
+    "table": "task_instance",
+    "valCol": "state"
+  }
+}

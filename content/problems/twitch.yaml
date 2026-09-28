@@ -1,0 +1,49 @@
+id: twitch
+title: Twitch
+icon: tv
+category: product
+order: 13
+summary: Live video with seconds of delay plus a chat room of a million people.
+requirements:
+  - Ingest a live stream, transcode, deliver 2s segments, live chat per channel
+  - 30M DAU · 7M concurrent viewers peak · top channels > 1M viewers
+  - Glass-to-glass < 5s · segment p99 < 200ms · chat delivered < 1s
+estimates:
+  - Segment requests ~3.5M/s peak (1 per viewer per 2s) · chat ~50k msg/s in, fan-out × viewers
+  - Egress ~20 Tbps at peak, almost all from CDN
+designs:
+  - { id: v1, title: "Naive: viewers pull from origin, chat loop", template: problem-twitch-v1 }
+  - { id: v2, title: "Reference: low-latency CDN, pub/sub chat", template: problem-twitch-v2 }
+challenges:
+  - id: raid
+    title: "1M viewers join in 10s"
+    template: problem-twitch-v2
+    scenario:
+      durationSec: 60
+      sources:
+        - { id: viewers, node: users, shape: { kind: constant, rps: 500 }, readRatio: 1 }
+        - { id: chat, node: users, shape: { kind: constant, rps: 200 }, readRatio: 0 }
+      events:
+        - { atSec: 20, event: { kind: traffic, source: viewers, action: flash-crowd, params: { x: 100 }, durationSec: 60 } }
+    pass:
+      - { metric: p99, op: '<', value: 200 }
+      - { metric: availability, op: '>=', value: 99.5 }
+      - { metric: costMonth, op: '<=', value: 3000 }
+  - id: chat-storm
+    title: "Hype moment: chat ×20"
+    template: problem-twitch-v2
+    scenario:
+      durationSec: 60
+      sources:
+        - { id: viewers, node: users, shape: { kind: constant, rps: 500 }, readRatio: 1 }
+        - { id: chat, node: users, shape: { kind: constant, rps: 200 }, readRatio: 0 }
+      events:
+        - { atSec: 15, event: { kind: traffic, source: chat, action: burst, params: { x: 20 }, durationSec: 45 } }
+    pass:
+      - { metric: p99, op: '<', value: 200 }
+      - { metric: availability, op: '>=', value: 99.5 }
+keyIdeas:
+  - { label: Short-TTL CDN + shield, link: "lesson:caching/cdn" }
+  - { label: Chat fan-out by channel, link: "lesson:message-queue/fan-out" }
+  - { label: Request coalescing, link: "lesson:caching/stampede" }
+  - { label: Consistent hashing for chat rooms, link: "algo:consistent-hashing" }

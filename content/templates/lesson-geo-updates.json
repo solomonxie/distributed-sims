@@ -1,0 +1,181 @@
+{
+  "schemaVersion": 1,
+  "id": "lesson-geo-updates",
+  "name": "Location updates at scale",
+  "description": "1M drivers pinging every 4 s is ~250k writes/s (scaled down here). Left: every ping writes straight into the geo index. Right: pings land in Kafka and a worker re-buckets them in batches. A rush-hour burst overloads the direct path; the buffered one just builds lag.",
+  "nodes": [
+    {
+      "id": "d1",
+      "type": "iot-device",
+      "name": "Drivers",
+      "pos": {
+        "x": 100,
+        "y": 20
+      },
+      "skin": "sensor"
+    },
+    {
+      "id": "loc1",
+      "type": "service",
+      "name": "Location API",
+      "pos": {
+        "x": 100,
+        "y": 130
+      },
+      "skin": "go-service"
+    },
+    {
+      "id": "geo1",
+      "type": "geo-index",
+      "name": "Geo index",
+      "pos": {
+        "x": 100,
+        "y": 360
+      },
+      "skin": "postgis",
+      "config": {
+        "instances": 1,
+        "slots": 8,
+        "writeP50Ms": 2,
+        "writeP99Ms": 8
+      }
+    },
+    {
+      "id": "d2",
+      "type": "iot-device",
+      "name": "Drivers",
+      "pos": {
+        "x": 290,
+        "y": 20
+      },
+      "skin": "sensor"
+    },
+    {
+      "id": "loc2",
+      "type": "service",
+      "name": "Location API",
+      "pos": {
+        "x": 290,
+        "y": 130
+      },
+      "skin": "go-service"
+    },
+    {
+      "id": "k",
+      "type": "log-stream",
+      "name": "Pings topic",
+      "pos": {
+        "x": 290,
+        "y": 240
+      },
+      "skin": "kafka",
+      "config": {
+        "partitions": 24,
+        "fetchBatch": 50
+      }
+    },
+    {
+      "id": "w",
+      "type": "worker",
+      "name": "Indexer",
+      "pos": {
+        "x": 290,
+        "y": 330
+      },
+      "config": {
+        "instances": 4,
+        "slots": 8,
+        "p50Ms": 1,
+        "p99Ms": 4,
+        "idempotent": true
+      }
+    },
+    {
+      "id": "geo2",
+      "type": "geo-index",
+      "name": "Geo index",
+      "pos": {
+        "x": 290,
+        "y": 440
+      },
+      "skin": "postgis",
+      "config": {
+        "instances": 1,
+        "slots": 20,
+        "writeP50Ms": 2,
+        "writeP99Ms": 8
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "d1->loc1",
+      "from": "d1",
+      "to": "loc1"
+    },
+    {
+      "id": "loc1->geo1",
+      "from": "loc1",
+      "to": "geo1"
+    },
+    {
+      "id": "d2->loc2",
+      "from": "d2",
+      "to": "loc2"
+    },
+    {
+      "id": "loc2->k",
+      "from": "loc2",
+      "to": "k"
+    },
+    {
+      "id": "k->w",
+      "from": "k",
+      "to": "w"
+    },
+    {
+      "id": "w->geo2",
+      "from": "w",
+      "to": "geo2"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 90,
+    "sources": [
+      {
+        "id": "p1",
+        "node": "d1",
+        "shape": {
+          "kind": "constant",
+          "rps": 1500
+        },
+        "readRatio": 0
+      },
+      {
+        "id": "p2",
+        "node": "d2",
+        "shape": {
+          "kind": "constant",
+          "rps": 1500
+        },
+        "readRatio": 0
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "rides.example",
+    "read": {
+      "path": "/v1/drivers/{key}/location"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/v1/drivers/{key}/pings",
+      "reqBody": "{\"lat\": 40.71, \"lng\": -74.0, \"ts\": {value}}",
+      "status": 202,
+      "body": "{\"accepted\": true}"
+    },
+    "topic": "driver-pings"
+  }
+}

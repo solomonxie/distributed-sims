@@ -1,0 +1,208 @@
+group: { id: compute, label: Compute, order: 3 }
+types:
+  - type: service
+    label: Service
+    description: Your app code; handles requests and calls what it depends on
+    icon: server
+    costPerInstanceMonth: 60
+    knobs:
+      - { key: instances, label: Instances, kind: int, default: 2, min: 0, max: 200 }
+      - { key: slots, label: Slots / instance, kind: int, default: 16, min: 1, max: 1024, help: Concurrent requests one instance serves (threads / workers) }
+      - { key: p50Ms, label: Work p50, kind: ms, default: 5, min: 0.1, max: 10000 }
+      - { key: p99Ms, label: Work p99, kind: ms, default: 25, min: 0.1, max: 30000 }
+      - { key: queueLimit, label: Queue limit, kind: int, default: 1000, min: 0, max: 100000 }
+      - { key: fanout, label: Downstream calls, kind: enum, default: all, options: [all, one], help: all = call every dependency in order, one = pick one }
+      - { key: memoryMb, label: Memory, kind: int, default: 2048, min: 128, max: 65536, unit: MB }
+      - { key: costMonth, label: Cost / instance, kind: number, default: 60, min: 0, max: 100000, unit: $/mo }
+      - { key: autoscale, label: Autoscale, kind: bool, default: false }
+      - { key: targetUtil, label: Target utilisation, kind: percent, default: 60, min: 5, max: 100 }
+      - { key: minInstances, label: Min instances, kind: int, default: 1, min: 0, max: 200 }
+      - { key: maxInstances, label: Max instances, kind: int, default: 10, min: 1, max: 1000 }
+      - { key: scaleUpDelaySec, label: Boot time, kind: number, default: 30, min: 0, max: 900, unit: s, help: Time for a new instance to take traffic }
+      - { key: cooldownSec, label: Scale-down cooldown, kind: number, default: 60, min: 0, max: 3600, unit: s }
+      - { key: autoscaleEvalSec, label: Autoscaler period, kind: number, default: 5, min: 1, max: 300, unit: s, advanced: true }
+      - { key: tenantQuotaPct, label: Per-tenant quota, kind: percent, default: 0, min: 0, max: 100, advanced: true, help: When saturated, shed a tenant above this share of load (0 = off) }
+      - { key: gcPauses, label: GC pauses, kind: bool, default: false, advanced: true, help: Periodic stop-the-world pauses (JVM) }
+      - { key: gcEverySec, label: GC every, kind: number, default: 8, min: 0.5, max: 600, unit: s, advanced: true }
+      - { key: gcPauseMs, label: GC pause p50, kind: ms, default: 80, min: 1, max: 10000, advanced: true }
+  - type: monolith
+    label: Monolith
+    description: One deployable with many modules sharing one DB connection pool
+    icon: box
+    costPerInstanceMonth: 150
+    knobs:
+      - { key: instances, label: Instances, kind: int, default: 2, min: 0, max: 100 }
+      - { key: slots, label: Slots / instance, kind: int, default: 32, min: 1, max: 1024 }
+      - { key: p50Ms, label: Work p50, kind: ms, default: 15, min: 0.1, max: 10000 }
+      - { key: p99Ms, label: Work p99, kind: ms, default: 80, min: 0.1, max: 30000 }
+      - { key: queueLimit, label: Queue limit, kind: int, default: 1000, min: 0, max: 100000 }
+      - { key: dbPool, label: DB pool size, kind: int, default: 20, min: 1, max: 1000, help: Shared by every module and instance; calls wait for a free connection }
+      - { key: poolTimeoutMs, label: Pool wait timeout, kind: ms, default: 1000, min: 10, max: 60000 }
+      - { key: modules, label: Modules, kind: string, default: "web:presentation,orders:application,billing:domain,repo:infrastructure", help: name:layer list }
+      - { key: fanout, label: Downstream calls, kind: enum, default: all, options: [all, one] }
+      - { key: memoryMb, label: Memory, kind: int, default: 4096, min: 256, max: 131072, unit: MB }
+      - { key: costMonth, label: Cost / instance, kind: number, default: 150, min: 0, max: 100000, unit: $/mo }
+      - { key: autoscale, label: Autoscale, kind: bool, default: false }
+      - { key: targetUtil, label: Target utilisation, kind: percent, default: 60, min: 5, max: 100 }
+      - { key: minInstances, label: Min instances, kind: int, default: 1, min: 0, max: 100 }
+      - { key: maxInstances, label: Max instances, kind: int, default: 6, min: 1, max: 100 }
+      - { key: scaleUpDelaySec, label: Boot time, kind: number, default: 90, min: 0, max: 900, unit: s }
+      - { key: cooldownSec, label: Scale-down cooldown, kind: number, default: 120, min: 0, max: 3600, unit: s }
+      - { key: gcPauses, label: GC pauses, kind: bool, default: false, advanced: true }
+      - { key: gcEverySec, label: GC every, kind: number, default: 8, min: 0.5, max: 600, unit: s, advanced: true }
+      - { key: gcPauseMs, label: GC pause p50, kind: ms, default: 120, min: 1, max: 10000, advanced: true }
+  - type: serverless-fn
+    label: Serverless function
+    description: Instances spin up per concurrent request; cold starts, concurrency limit, pay per call
+    icon: zap
+    knobs:
+      - { key: concurrency, label: Concurrency limit, kind: int, default: 1000, min: 1, max: 100000, help: Over the limit requests are throttled (429) }
+      - { key: coldStartMs, label: Cold start, kind: ms, default: 400, min: 0, max: 20000 }
+      - { key: idleSec, label: Idle keep-warm, kind: number, default: 300, min: 1, max: 7200, unit: s, help: Idle instances are reclaimed after this }
+      - { key: p50Ms, label: Work p50, kind: ms, default: 20, min: 0.1, max: 900000 }
+      - { key: p99Ms, label: Work p99, kind: ms, default: 80, min: 0.1, max: 900000 }
+      - { key: timeoutMs, label: Function timeout, kind: ms, default: 15000, min: 100, max: 900000 }
+      - { key: memoryMb, label: Memory, kind: int, default: 512, min: 128, max: 10240, unit: MB }
+      - { key: connsPerInstance, label: DB conns / instance, kind: int, default: 1, min: 0, max: 100, help: Each instance opens its own; scale-out can exhaust a DB's maxConnections }
+      - { key: connectMs, label: Connect on cold start, kind: ms, default: 30, min: 0, max: 5000, advanced: true }
+      - { key: costPerMillion, label: $ per 1M calls, kind: number, default: 0.2, min: 0, max: 100, advanced: true }
+      - { key: gbSecondPrice, label: $ per GB-second, kind: number, default: 0.0000166667, min: 0, max: 1, advanced: true }
+      - { key: fanout, label: Downstream calls, kind: enum, default: all, options: [all, one] }
+  - type: cron
+    label: Cron job
+    description: Fires a batch of requests downstream on a schedule
+    icon: alarm-clock
+    costPerInstanceMonth: 5
+    knobs:
+      - { key: scheduleSec, label: Every, kind: number, default: 60, min: 1, max: 86400, unit: s }
+      - { key: jitterPct, label: Jitter, kind: percent, default: 5, min: 0, max: 100 }
+      - { key: batch, label: Requests / run, kind: int, default: 1, min: 1, max: 100000 }
+      - { key: op, label: Operation, kind: enum, default: write, options: [read, write] }
+      - { key: concurrencyPolicy, label: Overlapping runs, kind: enum, default: allow, options: [allow, forbid] }
+      - { key: p50Ms, label: Work p50, kind: ms, default: 50, min: 0.1, max: 600000 }
+      - { key: p99Ms, label: Work p99, kind: ms, default: 200, min: 0.1, max: 600000 }
+      - { key: fanout, label: Downstream calls, kind: enum, default: all, options: [all, one] }
+      - { key: costMonth, label: Cost, kind: number, default: 5, min: 0, max: 10000, unit: $/mo }
+  - type: container-group
+    label: Container group
+    description: Pods on a cluster of nodes; HPA adds pods, cluster autoscaler adds nodes
+    icon: boxes
+    costPerInstanceMonth: 35
+    knobs:
+      - { key: instances, label: Pods, kind: int, default: 3, min: 0, max: 1000 }
+      - { key: slots, label: Slots / pod, kind: int, default: 8, min: 1, max: 1024 }
+      - { key: p50Ms, label: Work p50, kind: ms, default: 5, min: 0.1, max: 10000 }
+      - { key: p99Ms, label: Work p99, kind: ms, default: 25, min: 0.1, max: 30000 }
+      - { key: queueLimit, label: Queue limit, kind: int, default: 1000, min: 0, max: 100000 }
+      - { key: clusterNodes, label: Cluster nodes, kind: int, default: 3, min: 1, max: 1000 }
+      - { key: podsPerNode, label: Pods / node, kind: int, default: 4, min: 1, max: 250 }
+      - { key: autoscale, label: HPA, kind: bool, default: true }
+      - { key: targetUtil, label: Target CPU, kind: percent, default: 70, min: 5, max: 100 }
+      - { key: minInstances, label: Min pods, kind: int, default: 2, min: 0, max: 1000 }
+      - { key: maxInstances, label: Max pods, kind: int, default: 20, min: 1, max: 1000 }
+      - { key: schedulingDelaySec, label: Scheduling delay, kind: number, default: 2, min: 0, max: 300, unit: s }
+      - { key: podStartSec, label: Pod start (pull + ready), kind: number, default: 8, min: 0, max: 600, unit: s }
+      - { key: clusterAutoscaler, label: Cluster autoscaler, kind: bool, default: true }
+      - { key: maxClusterNodes, label: Max nodes, kind: int, default: 10, min: 1, max: 1000 }
+      - { key: nodeProvisionSec, label: Node provision, kind: number, default: 90, min: 0, max: 1800, unit: s }
+      - { key: cooldownSec, label: Scale-down stabilisation, kind: number, default: 300, min: 0, max: 3600, unit: s }
+      - { key: autoscaleEvalSec, label: HPA period, kind: number, default: 15, min: 1, max: 300, unit: s, advanced: true }
+      - { key: costMonth, label: Cost / pod, kind: number, default: 35, min: 0, max: 100000, unit: $/mo }
+  - type: cell-router
+    label: Cell router
+    description: Routes each tenant (or key) to one cell; a dead cell only hurts its share
+    icon: split
+    costPerInstanceMonth: 40
+    knobs:
+      - { key: routeBy, label: Route by, kind: enum, default: tenant, options: [tenant, key] }
+      - { key: failover, label: Fail over to next cell, kind: bool, default: false, help: Trades blast radius for spill-over load }
+      - { key: instances, label: Instances, kind: int, default: 2, min: 1, max: 64 }
+      - { key: slots, label: Slots / instance, kind: int, default: 256, min: 1, max: 10000 }
+      - { key: p50Ms, label: Route p50, kind: ms, default: 0.3, min: 0.01, max: 1000 }
+      - { key: p99Ms, label: Route p99, kind: ms, default: 2, min: 0.01, max: 5000 }
+      - { key: costMonth, label: Cost / instance, kind: number, default: 40, min: 0, max: 100000, unit: $/mo }
+skins:
+  - name: generic-service
+    type: service
+    label: Service
+    description: Generic stateless microservice
+    icon: brand:microservice
+    tags: [microservice]
+    defaults: { p50Ms: 5, p99Ms: 25, slots: 16 }
+  - name: go-service
+    type: service
+    label: Go service
+    description: Goroutine-per-request; cheap concurrency, short GC pauses
+    icon: brand:microservice
+    tags: [go, microservice]
+    defaults: { p50Ms: 3, p99Ms: 12, slots: 256, memoryMb: 512 }   # source: Go GC STW typically <1 ms (go.dev/blog/ismmkeynote)
+  - name: java-service
+    type: service
+    label: Java service
+    description: Spring Boot / JVM; thread pool, periodic GC pauses stretch the tail
+    icon: coffee
+    tags: [java, jvm, microservice]
+    defaults: { p50Ms: 5, p99Ms: 30, slots: 200, memoryMb: 2048, gcPauses: true, gcEverySec: 8, gcPauseMs: 60, scaleUpDelaySec: 45 }   # source: Tomcat default maxThreads 200; G1 young pauses ~tens of ms
+  - name: node-service
+    type: service
+    label: Node.js service
+    description: Single-threaded event loop per process; CPU work blocks everything
+    icon: hexagon
+    tags: [node, javascript, microservice]
+    defaults: { p50Ms: 4, p99Ms: 20, slots: 64, memoryMb: 1024, scaleUpDelaySec: 15 }
+  - name: rails-monolith
+    type: monolith
+    label: Rails monolith
+    description: Ruby on Rails app, Puma workers, ActiveRecord pool
+    icon: brand:monolith
+    tags: [ruby, rails, monolith]
+    defaults: { p50Ms: 30, p99Ms: 150, slots: 10, dbPool: 5, costMonth: 120 }   # source: Rails default pool 5 (database.yml), Puma 5 threads
+  - name: spring-monolith
+    type: monolith
+    label: Spring monolith
+    description: Java Spring app, HikariCP pool, JVM GC pauses
+    icon: brand:monolith
+    tags: [java, spring, monolith]
+    defaults: { p50Ms: 15, p99Ms: 80, slots: 200, dbPool: 10, gcPauses: true, gcPauseMs: 100 }   # source: HikariCP default maximumPoolSize 10
+  - name: aws-lambda
+    type: serverless-fn
+    label: AWS Lambda
+    description: Managed functions; per-request instances, 1000 default account concurrency
+    icon: brand:aws
+    tags: [serverless, aws, managed]
+    defaults: { concurrency: 1000, coldStartMs: 300, idleSec: 420, memoryMb: 512, costPerMillion: 0.2, gbSecondPrice: 0.0000166667 }   # source: AWS Lambda quotas + pricing pages; idle reclaim ~5-15 min (observed)
+  - name: cloud-functions
+    type: serverless-fn
+    label: Cloud Functions
+    description: Google Cloud Functions (gen 2 on Cloud Run)
+    icon: cloud
+    tags: [serverless, gcp, managed]
+    defaults: { concurrency: 100, coldStartMs: 800, idleSec: 900, memoryMb: 512, costPerMillion: 0.4, gbSecondPrice: 0.0000025 }   # source: cloud.google.com/functions/pricing; default max instances 100
+  - name: k8s-cronjob
+    type: cron
+    label: K8s CronJob
+    description: Kubernetes CronJob; spawns a pod per scheduled run
+    icon: brand:kubernetes
+    tags: [kubernetes, batch]
+    defaults: { scheduleSec: 60, jitterPct: 2, concurrencyPolicy: forbid }   # source: CronJob minimum granularity 1 minute
+  - name: kubernetes
+    type: container-group
+    label: Kubernetes Deployment
+    description: Deployment + HPA on a node pool with cluster autoscaler
+    icon: brand:kubernetes
+    tags: [kubernetes, containers, self-hosted]
+    defaults: { autoscaleEvalSec: 15, cooldownSec: 300, podStartSec: 8, nodeProvisionSec: 90 }   # source: HPA sync period 15s, downscale stabilisation 5 min (k8s docs)
+  - name: ecs
+    type: container-group
+    label: AWS ECS
+    description: ECS service with Fargate-style tasks and target-tracking scaling
+    icon: brand:docker
+    tags: [aws, containers, managed]
+    defaults: { autoscaleEvalSec: 60, podStartSec: 30, schedulingDelaySec: 5, clusterAutoscaler: false, clusterNodes: 100, podsPerNode: 1, costMonth: 30 }   # source: target tracking uses 1-min CloudWatch metrics; Fargate task start ~30-60s
+  - name: cell-router
+    type: cell-router
+    label: Cell router
+    description: Thin routing layer mapping tenants to cells
+    icon: split
+    tags: [cell-based]
+    defaults: {}

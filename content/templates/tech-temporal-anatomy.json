@@ -1,0 +1,142 @@
+{
+  "schemaVersion": 1,
+  "id": "tech-temporal-anatomy",
+  "name": "Temporal: anatomy",
+  "description": "Checkout workflows (charge → reserve → ship) on a Temporal cluster: frontend, history (event histories), matching (task queues), persistence, and two workers running your code.",
+  "nodes": [
+    {
+      "id": "app",
+      "type": "web-client",
+      "name": "Checkout app",
+      "pos": {
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "id": "frontend",
+      "type": "temporal-frontend",
+      "name": "Frontend",
+      "pos": {
+        "x": 0,
+        "y": 120
+      }
+    },
+    {
+      "id": "history",
+      "type": "temporal-history",
+      "name": "History",
+      "pos": {
+        "x": -100,
+        "y": 240
+      }
+    },
+    {
+      "id": "matching",
+      "type": "temporal-matching",
+      "name": "Matching",
+      "pos": {
+        "x": 100,
+        "y": 240
+      }
+    },
+    {
+      "id": "db",
+      "type": "temporal-persistence",
+      "skin": "temporal-cassandra",
+      "name": "Persistence",
+      "pos": {
+        "x": -100,
+        "y": 360
+      }
+    },
+    {
+      "id": "worker-1",
+      "type": "temporal-worker",
+      "name": "Worker 1",
+      "pos": {
+        "x": 40,
+        "y": 360
+      }
+    },
+    {
+      "id": "worker-2",
+      "type": "temporal-worker",
+      "name": "Worker 2",
+      "pos": {
+        "x": 150,
+        "y": 360
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-app",
+      "from": "app",
+      "to": "frontend"
+    },
+    {
+      "id": "e-fh",
+      "from": "frontend",
+      "to": "history"
+    },
+    {
+      "id": "e-fm",
+      "from": "frontend",
+      "to": "matching"
+    },
+    {
+      "id": "e-hdb",
+      "from": "history",
+      "to": "db"
+    },
+    {
+      "id": "e-hm",
+      "from": "history",
+      "to": "matching",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "e-w1",
+      "from": "worker-1",
+      "to": "frontend"
+    },
+    {
+      "id": "e-w2",
+      "from": "worker-2",
+      "to": "frontend"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 180,
+    "sources": [
+      {
+        "id": "starts",
+        "node": "app",
+        "shape": {
+          "kind": "constant",
+          "rps": 1
+        },
+        "readRatio": 1
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "shop.oakandiron.com",
+    "read": {
+      "path": "/api/checkouts/{key}",
+      "body": "{\"workflow_id\": \"checkout-{key}\", \"status\": \"RUNNING\"}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/checkouts",
+      "reqBody": "{\"cart_id\": {key}, \"total_cents\": {value}}",
+      "status": 202,
+      "body": "{\"workflow_id\": \"checkout-{key}\"}"
+    }
+  }
+}

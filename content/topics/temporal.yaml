@@ -1,0 +1,193 @@
+id: temporal
+title: Temporal
+group: under-the-hood
+icon: infinity
+order: 5
+summary: Durable execution — workflow code that survives crashes by replaying its own history.
+info: Temporal stores every step of a workflow as an event in a history. Workers are stateless; any worker can rebuild a workflow's state by replaying its history through your code. That is why your code must be deterministic, and why timers, retries and sagas outlive any process.
+lessons:
+  - id: anatomy
+    title: Anatomy of a Temporal cluster
+    minutes: 3
+    template: tech-temporal-anatomy
+    steps:
+      - title: The frontend
+        body: The app starts checkout workflows through the Frontend. Workers talk to the same Frontend; nothing calls a worker directly.
+        check: { metric: gauge:completed, target: history, op: '>=', value: 1 }
+      - title: History owns the truth
+        body: History keeps one event history per workflow, split across 512 shards by workflow id. Every event is written to Persistence before anything moves.
+        watch: The History label counts running and finished workflows.
+        check: { metric: gauge:workflows, target: db, op: '>=', value: 10 }
+      - title: Matching holds the task queues
+        body: Workers long-poll Matching for workflow tasks and activity tasks. Idle polls sit open, so a new task is handed over in one hop.
+        check: { metric: gauge:pollers, target: matching, op: '>=', value: 1 }
+      - title: Workers run your code
+        body: Worker 1 and 2 each have workflow-task slots (replay code) and activity slots (do the real work).
+        check: { metric: gauge:actBusy, target: worker-1, op: '>=', value: 1 }
+  - id: lifecycle
+    title: One workflow, end to end
+    minutes: 4
+    template: tech-temporal-lifecycle
+    steps:
+      - title: Start
+        body: The app calls StartWorkflowExecution. History writes WorkflowExecutionStarted and WorkflowTaskScheduled, then queues a workflow task.
+        watch: Open the sequence view — temporal.* messages flow app → Frontend → History → Persistence.
+        check: { metric: gauge:running, target: history, op: '>=', value: 1 }
+      - title: Workflow task
+        body: A worker polls, gets the history, runs the workflow code and replies with one command — ScheduleActivityTask(charge).
+        check: { metric: gauge:actBusy, target: worker-1, op: '>=', value: 1 }
+      - title: Activities
+        body: Each activity result becomes an event, which schedules the next workflow task; the code then asks for reserve, then ship.
+        check: { metric: time, op: '>=', value: 12 }
+      - title: Completed
+        body: After ship, the code returns and History writes WorkflowExecutionCompleted. About 20 events for three activities.
+        check: { metric: gauge:completed, target: history, op: '>=', value: 1 }
+  - id: worker-crash
+    title: Kill a worker mid-workflow
+    minutes: 4
+    template: tech-temporal-worker-crash
+    steps:
+      - title: Steady state
+        body: Two workers share one task queue. Each keeps its workflows cached (sticky), so it only replays new events.
+        check: { metric: gauge:completed, target: history, op: '>=', value: 5 }
+      - title: Kill Worker 1
+        body: Tap ⚡ Break → Kill on Worker 1 while it holds running activities.
+        action: { event: { kind: kill, target: worker-1 } }
+        check: { metric: up, target: worker-1, op: '=', value: 0 }
+      - title: Activities time out and retry
+        body: History notices no result within start-to-close (8s) and puts each activity back on the queue for any worker.
+        check: { metric: eventMatch:start-to-close timeout, op: '>=', value: 1 }
+      - title: Replay — the aha
+        body: Worker 2 gets the workflow tasks, replays each history through the same code and resumes at the exact next step.
+        watch: Look for "replayed N events … resuming at" in the log.
+        check: { metric: eventMatch:replayed, op: '>=', value: 1 }
+      - title: Nothing lost
+        body: Every workflow still finishes; the crash cost seconds, not state.
+        check: { metric: anomalies, op: '=', value: 0 }
+  - id: nondeterminism
+    title: Non-deterministic deploy
+    minutes: 4
+    template: tech-temporal-nondeterminism
+    steps:
+      - title: Workflows in flight
+        body: Each workflow charges, sleeps 10s, then reserves and ships. Dozens are mid-sleep at any moment.
+        check: { metric: gauge:running, target: history, op: '>=', value: 10 }
+      - title: Deploy changed code
+        body: Deploy v2 to the worker — it adds a fraudCheck activity before charge.
+        action: { event: { kind: bad-deploy, target: worker-1, durationSec: 20 } }
+        check: { metric: eventCount:chaos, op: '>=', value: 1 }
+      - title: Replay breaks
+        body: Waking workflows replay a history that says charge came first, but the code now says fraudCheck. That's a nondeterminism error.
+        check: { metric: gauge:stuck, target: history, op: '>=', value: 3 }
+      - title: Stuck, not lost
+        body: The workflow task retries every 2s and fails every time; the history is untouched.
+        check: { metric: eventMatch:nondeterminism, op: '>=', value: 5 }
+      - title: Roll back
+        body: After 20s the deploy rolls back and old workflows replay cleanly again. Ones started on v2 now break the other way — real fixes use workflow.patched() versioning.
+        check: { metric: eventMatch:unstuck, op: '>=', value: 1 }
+  - id: heartbeat
+    title: Activity heartbeat timeout
+    minutes: 3
+    template: tech-temporal-heartbeat
+    steps:
+      - title: Long activities heartbeat
+        body: Each activity runs about 5s and heartbeats to History every 0.8s. Heartbeat timeout is 2s; start-to-close is 60s.
+        check: { metric: gauge:actBusy, target: worker-1, op: '>=', value: 1 }
+      - title: Kill Worker 1
+        body: Its running activities stop heartbeating.
+        action: { event: { kind: kill, target: worker-1 } }
+        check: { metric: up, target: worker-1, op: '=', value: 0 }
+      - title: Noticed in 2 seconds
+        body: History sees no heartbeat for 2s and retries the activity on Worker 2. Without heartbeats you would wait the full 60s.
+        check: { metric: eventMatch:heartbeat timeout, op: '>=', value: 1 }
+      - title: Workflows continue
+        body: Worker 2 replays and finishes the workflows.
+        check: { metric: eventMatch:replayed, op: '>=', value: 1 }
+  - id: timer
+    title: A timer that survives restarts
+    minutes: 4
+    template: tech-temporal-timer
+    steps:
+      - title: Sleeping workflows
+        body: Each workflow charges, then calls sleep(20s). The timer is a TimerStarted event in history, not a thread in the worker.
+        check: { metric: gauge:running, target: history, op: '>=', value: 4 }
+      - title: Take Worker 1 down
+        body: Restart Worker 1; it stays down for 30s.
+        action: { event: { kind: restart, target: worker-1, params: { downSec: 30 } } }
+        check: { metric: up, target: worker-1, op: '=', value: 0 }
+      - title: Take Worker 2 down
+        body: Now no worker is running at all.
+        action: { event: { kind: restart, target: worker-2, params: { downSec: 30 } } }
+        check: { metric: up, target: worker-2, op: '=', value: 0 }
+      - title: Restart History too
+        body: History reloads every open workflow and its timers from Persistence.
+        action: { event: { kind: restart, target: history, params: { downSec: 3 } } }
+        check: { metric: eventMatch:reloaded, op: '>=', value: 1 }
+      - title: Timers fire with no workers
+        body: Timers still fire on schedule; their workflow tasks wait in Matching for a worker.
+        check: { metric: gauge:wfBacklog, target: matching, op: '>=', value: 1 }
+      - title: Workers return and replay
+        body: The fresh workers replay each history past the sleep and ship.
+        check: { metric: eventMatch:replayed, op: '>=', value: 1 }
+  - id: saga
+    title: Saga compensation in workflow code
+    minutes: 4
+    template: tech-temporal-saga
+    steps:
+      - title: Three services
+        body: Each workflow calls Payments (charge), Inventory (reserve) and Shipping (ship) as activities.
+        check: { metric: gauge:completed, target: history, op: '>=', value: 3 }
+      - title: Shipping goes down
+        body: Take the Shipping API down for 20s.
+        action: { event: { kind: external-outage, target: shipping, durationSec: 20 } }
+        check: { metric: up, target: shipping, op: '=', value: 0 }
+      - title: Retries run out
+        body: ship fails twice (maxAttempts 2) and the failure lands in history.
+        check: { metric: eventMatch:failed after, op: '>=', value: 1 }
+      - title: Compensate in reverse
+        body: The workflow code catches it and runs undo-reserve, then undo-charge — plain code, durable like any step.
+        check: { metric: gauge:compensated, target: history, op: '>=', value: 1 }
+  - id: db-slow
+    title: Slow persistence slows everything
+    minutes: 3
+    template: tech-temporal-db-slow
+    steps:
+      - title: Every step is a write
+        body: Each event is persisted before History acts on it; about 20 writes per workflow.
+        check: { metric: gauge:completed, target: history, op: '>=', value: 5 }
+      - title: Slow the database
+        body: Slow Persistence ×50 for 15s.
+        action: { event: { kind: slow, target: db, params: { x: 50 }, durationSec: 15 } }
+        check: { metric: eventCount:chaos, op: '>=', value: 1 }
+      - title: Writes pile up
+        body: History waits on each write, so starts and steps slow down together.
+        check: { metric: gauge:pendingWrites, target: history, op: '>=', value: 5 }
+      - title: Slow, never lost
+        body: When the database recovers the backlog drains and every workflow finishes.
+        check: { metric: gauge:pendingWrites, target: history, op: '=', value: 0 }
+  - id: compare-worker-crash
+    title: "Celery vs Airflow vs Temporal: what survives a worker crash"
+    minutes: 5
+    template: tech-compare-worker-crash
+    steps:
+      - title: Same job, three engines
+        body: Orders run charge → reserve → ship on Celery (one task), Airflow (a 3-task DAG) and Temporal (a 3-activity workflow), two workers each.
+        check: { metric: gauge:completed, target: t-history, op: '>=', value: 3 }
+      - title: Kill a Celery worker
+        body: Kill celery w1 (it restarts after 15s). With acks_late=False its running tasks were acked when they started, so the broker forgets them.
+        action: { event: { kind: kill, target: c-w1, durationSec: 15 } }
+        check: { metric: anomaly:lost-write, op: '>=', value: 1 }
+      - title: Kill an Airflow worker
+        body: Kill airflow w1. Its task instances still say running until 10s without heartbeat marks them zombies.
+        action: { event: { kind: kill, target: af-w1, durationSec: 15 } }
+        check: { metric: eventMatch:zombie detected, op: '>=', value: 1 }
+      - title: Rerun from scratch
+        body: Airflow retries the whole task on airflow w2; the work done before the crash is redone.
+        check: { metric: eventMatch:zombie → up_for_retry, op: '>=', value: 1 }
+      - title: Kill a Temporal worker
+        body: Kill temporal w1. Its activities time out and retry; temporal w2 replays each history and resumes after the last finished step.
+        action: { event: { kind: kill, target: t-w1, durationSec: 15 } }
+        check: { metric: eventMatch:replayed, op: '>=', value: 1 }
+      - title: The tally
+        body: Celery lost acked tasks (lost-write), Airflow redid whole tasks, Temporal redid only the in-flight activity. acks_late=True, idempotent tasks and durable history are the fixes.
+        check: { metric: gauge:completed, target: t-history, op: '>=', value: 30 }

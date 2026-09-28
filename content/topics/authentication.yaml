@@ -1,0 +1,109 @@
+id: authentication
+title: Authentication
+group: topics
+icon: key-round
+order: 14
+summary: Sessions, JWTs, revocation and key rotation, and where to check them.
+info: A session is a lookup at the identity provider on every request; a JWT is verified locally with cached public keys. JWTs survive an IdP outage but can't be revoked before they expire without a denylist. Where you validate (gateway or every service) decides IdP load and latency.
+problems: [whatsapp]
+lessons:
+  - id: session-vs-jwt
+    title: Session vs JWT
+    minutes: 5
+    template: sec-jwt-vs-session
+    steps:
+      - title: Two ways to check a user
+        body: The top gateway looks up every session at the IdP. The bottom one verifies JWTs locally with cached keys.
+        watch: The IdP serves one lookup per top request and almost nothing for the bottom.
+        check: { metric: rps, target: idp, op: '>=', value: 150 }
+      - title: The IdP dies
+        body: At 20 s the IdP goes down for 30 s. Every session lookup fails at once.
+        watch: Top users drop to 0% availability.
+        check: { metric: availability, target: webA, op: '<=', value: 10 }
+      - title: JWTs expire one by one
+        body: Bottom users keep working on their existing tokens. As tokens hit their 2-minute TTL they can't be refreshed, so errors creep up.
+        watch: Bottom error rate rises slowly instead of jumping.
+        check: { metric: errRate, target: webB, op: '>=', value: 10 }
+      - title: Signing key rotates
+        body: At 70 s the IdP rotates its signing key. New tokens carry a kid the gateway hasn't cached yet.
+        watch: The jwks-miss counter ticks until the JWKS cache refreshes.
+        check: { metric: anomaly:jwks-miss, op: '>=', value: 1 }
+
+  - id: token-revocation
+    title: Token revocation
+    minutes: 4
+    template: lesson-auth-revoke
+    steps:
+      - title: Same JWT setup, twice
+        body: Both gateways verify JWTs locally with a 30 s token TTL. Only the right IdP keeps a denylist the gateway checks.
+        check: { metric: rps, target: api2, op: '>=', value: 100 }
+      - title: Revoke without a denylist
+        body: Revoke 10% of the left tokens, as after a stolen laptop. A JWT is valid until it expires, so the gateway keeps accepting them.
+        action: { event: { kind: revoke-tokens, target: idp1, params: { pct: 0.1 } } }
+        watch: The revoked-token-accepted counter climbs.
+        check: { metric: anomaly:revoked-token-accepted, op: '>=', value: 1 }
+      - title: Revoke with a denylist
+        body: Revoke 10% of the right tokens. The denylist lookup (~1 ms per request) rejects them at once.
+        action: { event: { kind: revoke-tokens, target: idp2, params: { pct: 0.1 } } }
+        watch: Right users with revoked tokens get 401s; the counter doesn't move for them.
+        check: { metric: errRate, target: web2, op: '>=', value: 5 }
+      - title: TTL is the backstop
+        body: After one TTL every revoked token has expired on both sides. Short TTLs plus a small denylist is the usual fix.
+        check: { metric: availability, target: web2, op: '>=', value: 99.5 }
+
+  - id: oauth2-code-flow
+    title: OAuth2 code flow
+    minutes: 4
+    template: lesson-auth-oauth
+    steps:
+      - title: Tokens at the gateway
+        body: Requests with a valid access token pass the gateway locally. About 10% carry an expired one and go through the IdP to exchange a code or refresh token.
+        watch: Auth0 sees roughly a tenth of the traffic.
+        check: { metric: rps, target: idp, op: '>=', value: 10 }
+      - title: Login is the slow path
+        body: The code exchange (redirects, password, token call) costs 80–400 ms. It only hits a few requests, so it shows in p99, not p50.
+        watch: App p99 is far above the API's own latency.
+        check: { metric: p99, target: app, op: '>=', value: 150 }
+      - title: IdP outage
+        body: Kill Auth0 for 10 s. Users with valid tokens carry on; anyone who needs to log in or refresh fails.
+        action: { event: { kind: kill, target: idp, durationSec: 10 } }
+        watch: Errors equal the share of expired tokens, about 10%.
+        check: { metric: errRate, target: app, op: '>=', value: 5 }
+
+  - id: jwks-caching
+    title: JWKS caching
+    minutes: 4
+    template: lesson-auth-jwks
+    steps:
+      - title: Keys cached at the gateway
+        body: The gateway verifies JWT signatures with public keys fetched from the IdP's JWKS endpoint. It refreshes them every 30 s.
+        watch: The IdP sees almost no traffic.
+        check: { metric: rps, target: api, op: '>=', value: 200 }
+      - title: Rotate the signing key
+        body: Rotate the IdP key. New tokens are signed with a kid the gateway has never seen.
+        action: { event: { kind: key-rotation, target: idp } }
+        watch: jwks-miss counts rejected tokens.
+        check: { metric: anomaly:jwks-miss, op: '>=', value: 1 }
+      - title: The miss window grows
+        body: Each second more users hold new-key tokens, so the failure rate rises. Fetching JWKS on an unknown kid would close this window.
+        check: { metric: errRate, target: web, op: '>=', value: 10 }
+      - title: Cache refresh
+        body: At the next JWKS refresh the gateway learns the new key and errors stop at once.
+        check: { metric: availability, target: web, op: '>=', value: 99.9 }
+
+  - id: gateway-auth-offload
+    title: API gateway auth offload
+    minutes: 3
+    template: lesson-auth-gateway
+    steps:
+      - title: Check once at the edge
+        body: Left, the gateway validates the session once and the services trust it. Its IdP sees one lookup per request.
+        check: { metric: rps, target: idp, op: '>=', value: 150 }
+      - title: Check in every service
+        body: Right, each of the three services re-validates with the IdP. One user request becomes three IdP lookups.
+        watch: The right IdP serves 3× the traffic.
+        check: { metric: rps, target: idp2, op: '>=', value: 450 }
+      - title: Latency adds up
+        body: Every lookup is another hop on the critical path. Offload auth to the gateway and pass a signed identity downstream.
+        watch: Right users' p99 is higher than left.
+        check: { metric: p99, target: web2, op: '>=', value: 140 }

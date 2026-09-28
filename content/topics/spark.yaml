@@ -1,0 +1,129 @@
+id: spark
+title: Spark
+group: under-the-hood
+icon: sparkles
+order: 2
+summary: Batch compute — a driver splits jobs into stages at shuffles and runs one task per partition on executors.
+info: A Spark action becomes a job. The driver's DAG scheduler cuts it into stages wherever data must be shuffled between machines, and the task scheduler runs one task per partition on executor cores. Shuffle outputs live on executors, so losing one means recomputing from lineage; losing the driver loses the job.
+algos: []
+problems: []
+lessons:
+  - id: anatomy
+    title: Anatomy of a Spark app
+    minutes: 3
+    template: tech-spark-anatomy
+    steps:
+      - title: Driver and executors
+        body: The Driver plans; three executors with 4 cores each do the work. A cron submits a job every 12s.
+        watch: The Driver label shows job · stage · tasks done.
+        check: { metric: gauge:running, target: driver, op: '>=', value: 12 }
+      - title: One task per partition
+        body: 16 partitions but only 12 cores, so stage 1 runs in two waves. Each executor badge shows its busy cores.
+        check: { metric: gauge:tasksDone, target: driver, op: '>=', value: 12 }
+      - title: Shuffle boundary
+        body: A groupBy needs all rows with the same key together, so stage 2 starts only after stage 1 is fully done.
+        check: { metric: eventMatch:stage 2/3 shuffle read, op: '>=', value: 1 }
+      - title: Job done
+        body: The last stage returns results to the driver and the job completes.
+        check: { metric: gauge:jobsDone, target: driver, op: '>=', value: 1 }
+  - id: lifecycle
+    title: One job, end to end
+    minutes: 4
+    template: tech-spark-lifecycle
+    steps:
+      - title: Action → job → DAG
+        body: An action (count, write) submits a job; the DAG scheduler splits it into 3 stages at 2 shuffle boundaries.
+        watch: Open the sequence view — spark.task messages fan out from the Driver.
+        check: { metric: eventMatch:submitted, op: '>=', value: 1 }
+      - title: Map side writes shuffle blocks
+        body: Stage 1 tasks read input splits and write their output, bucketed by key, to local disk on the executor.
+        check: { metric: gauge:blocks, target: exec-1, op: '>=', value: 1 }
+      - title: Reduce side fetches
+        body: Each stage 2 task fetches its bucket from every executor (spark.shuffle.fetch), then computes.
+        check: { metric: eventMatch:stage 3/3, op: '>=', value: 1 }
+      - title: Result
+        body: Result-stage tasks send their output to the driver. 3 stages × 16 tasks = 48 tasks for one job.
+        check: { metric: gauge:jobsDone, target: driver, op: '>=', value: 1 }
+  - id: skew
+    title: Data skew makes a straggler
+    minutes: 4
+    template: tech-spark-skew
+    steps:
+      - title: Balanced baseline
+        body: With even keys every task takes about the same time; a job finishes in ~8s.
+        check: { metric: gauge:jobsDone, target: driver, op: '>=', value: 1 }
+      - title: One hot key
+        body: Make 40% of rows share one key. After the shuffle, partition 0 is 10× bigger than the rest.
+        action: { event: { kind: hot-key, target: driver, params: { hot: 0.4 } } }
+        check: { metric: gauge:stragglers, target: driver, op: '>=', value: 1 }
+      - title: Spill to disk
+        body: The big partition doesn't fit in one core's execution memory, so the executor spills to disk and slows further.
+        check: { metric: gauge:spillMB, target: driver, op: '>=', value: 1 }
+      - title: Everyone waits
+        body: 15 tasks finished long ago; the stage (and job) waits for the one straggler. Fix it by salting the key or AQE skew join.
+        check: { metric: gauge:jobsDone, target: driver, op: '>=', value: 2 }
+  - id: executor-lost
+    title: Executor lost mid-shuffle
+    minutes: 4
+    template: tech-spark-executor-lost
+    steps:
+      - title: Jobs running
+        body: Jobs run back to back; shuffle blocks pile up on each executor.
+        check: { metric: gauge:blocks, target: exec-2, op: '>=', value: 3 }
+      - title: Kill Executor 2
+        body: Tap ⚡ Break → Kill on Executor 2. Its running tasks and its shuffle blocks vanish.
+        action: { event: { kind: kill, target: exec-2 } }
+        check: { metric: 'eventMatch:lost (', op: '>=', value: 1 }
+      - title: Recompute from lineage
+        body: The driver knows how each lost partition was made, so it reruns only those tasks on the surviving executors.
+        check: { metric: eventMatch:lineage, op: '>=', value: 1 }
+      - title: Job still finishes
+        body: No data loss, just extra time. Only the driver's knowledge of the DAG made that possible.
+        check: { metric: eventMatch:done in, op: '>=', value: 2 }
+  - id: speculation
+    title: Speculation saves a straggler
+    minutes: 3
+    template: tech-spark-speculation
+    steps:
+      - title: Healthy cluster
+        body: spark.speculation is on. Every task takes ~1.3s.
+        check: { metric: gauge:jobsDone, target: driver, op: '>=', value: 1 }
+      - title: Slow Executor 3
+        body: Slow Executor 3 six times (bad disk, noisy neighbour). Its tasks become stragglers.
+        action: { event: { kind: slow, target: exec-3, params: { x: 6 } } }
+        check: { metric: 'eventMatch:→ copy on', op: '>=', value: 1 }
+      - title: The copy wins
+        body: Once 75% of the stage is done, tasks running 1.5× the median get a duplicate elsewhere; the first to finish wins.
+        check: { metric: eventMatch:copy of task, op: '>=', value: 1 }
+  - id: driver-death
+    title: Driver death loses the job
+    minutes: 3
+    template: tech-spark-driver-death
+    steps:
+      - title: A long job is running
+        body: Jobs of 4 stages run back to back.
+        check: { metric: gauge:tasksDone, target: driver, op: '>=', value: 4 }
+      - title: Kill the driver
+        body: Tap ⚡ Break → Kill on the Driver. It comes back after 5s.
+        action: { event: { kind: kill, target: driver, durationSec: 5 } }
+        check: { metric: eventMatch:job lost, op: '>=', value: 1 }
+      - title: Start over
+        body: The DAG, the shuffle map and progress lived only in the driver, so the job restarts from scratch (cluster mode supervise just resubmits).
+        check: { metric: eventMatch:submitted, op: '>=', value: 2 }
+  - id: dynamic-allocation
+    title: Dynamic allocation
+    minutes: 3
+    template: tech-spark-dynamic
+    steps:
+      - title: One executor
+        body: The app starts with minExecutors=1; the other three are released (badge).
+        check: { metric: gauge:executors, target: driver, op: '>=', value: 1 }
+      - title: Backlog → request executors
+        body: With tasks waiting over 1s the driver asks for 1, then 2, then 4 more executors.
+        check: { metric: eventMatch:requesting, op: '>=', value: 1 }
+      - title: Scaled out
+        body: New executors take ~2s to start, then pick up tasks.
+        check: { metric: gauge:executors, target: driver, op: '>=', value: 3 }
+      - title: Idle → released
+        body: Between jobs, executors idle for 10s are given back to the cluster.
+        check: { metric: eventMatch:released, op: '>=', value: 1 }

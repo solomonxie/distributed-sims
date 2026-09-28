@@ -1,0 +1,119 @@
+{
+  "schemaVersion": 1,
+  "id": "tech-dynamodb-hot-partition",
+  "name": "DynamoDB: hot partition key",
+  "description": "Provisioned 3,000 RCU / 3,000 WCU \u2192 4 partitions. Traffic is spread over many keys until one key gets hot.",
+  "nodes": [
+    {
+      "id": "users",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 195,
+        "y": 90
+      },
+      "config": {}
+    },
+    {
+      "id": "router",
+      "type": "dynamodb-router",
+      "name": "request router",
+      "pos": {
+        "x": 195,
+        "y": 200
+      },
+      "config": {
+        "mode": "provisioned",
+        "rcu": 3000,
+        "wcu": 3000,
+        "splitSec": 5
+      }
+    },
+    {
+      "id": "s1",
+      "type": "dynamodb-storage",
+      "name": "storage node 1",
+      "pos": {
+        "x": 70,
+        "y": 330
+      },
+      "config": {}
+    },
+    {
+      "id": "s2",
+      "type": "dynamodb-storage",
+      "name": "storage node 2",
+      "pos": {
+        "x": 195,
+        "y": 330
+      },
+      "config": {}
+    },
+    {
+      "id": "s3",
+      "type": "dynamodb-storage",
+      "name": "storage node 3",
+      "pos": {
+        "x": 320,
+        "y": 330
+      },
+      "config": {}
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-users-router",
+      "from": "users",
+      "to": "router"
+    },
+    {
+      "id": "e-router-s1",
+      "from": "router",
+      "to": "s1"
+    },
+    {
+      "id": "e-router-s2",
+      "from": "router",
+      "to": "s2"
+    },
+    {
+      "id": "e-router-s3",
+      "from": "router",
+      "to": "s3"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 120,
+    "sources": [
+      {
+        "id": "s1",
+        "node": "users",
+        "shape": {
+          "kind": "constant",
+          "rps": 4000
+        },
+        "readRatio": 0.5
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "store.example.com",
+    "read": {
+      "method": "GET",
+      "path": "/api/products/{key}",
+      "status": 200,
+      "body": "{\"product_id\": {key}, \"stock\": {value}}"
+    },
+    "write": {
+      "method": "PUT",
+      "path": "/api/products/{key}/stock",
+      "reqBody": "{\"stock\": {value}}",
+      "status": 200,
+      "body": "{\"product_id\": {key}, \"stock\": {value}}"
+    },
+    "table": "products",
+    "valCol": "stock"
+  }
+}

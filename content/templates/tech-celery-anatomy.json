@@ -1,0 +1,164 @@
+{
+  "schemaVersion": 1,
+  "id": "tech-celery-anatomy",
+  "name": "Celery: anatomy",
+  "description": "App calls .delay(); the Redis broker queues the task; two prefork workers reserve, run and ack it; results land in the result backend; beat adds a periodic task.",
+  "nodes": [
+    {
+      "id": "users",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 195,
+        "y": 40
+      }
+    },
+    {
+      "id": "app",
+      "type": "celery-producer",
+      "skin": "celery-app",
+      "name": "app (.delay)",
+      "pos": {
+        "x": 195,
+        "y": 150
+      },
+      "config": {
+        "taskMs": 1000,
+        "taskP99Ms": 3000
+      }
+    },
+    {
+      "id": "beat",
+      "type": "celery-beat",
+      "skin": "celery-beat-scheduler",
+      "name": "beat",
+      "pos": {
+        "x": 330,
+        "y": 150
+      },
+      "config": {
+        "scheduleSec": 5
+      }
+    },
+    {
+      "id": "broker",
+      "type": "celery-broker",
+      "skin": "celery-redis-broker",
+      "name": "broker",
+      "pos": {
+        "x": 195,
+        "y": 280
+      },
+      "config": {}
+    },
+    {
+      "id": "w1",
+      "type": "celery-worker",
+      "skin": "celery-prefork",
+      "name": "worker-1",
+      "pos": {
+        "x": 100,
+        "y": 410
+      },
+      "config": {}
+    },
+    {
+      "id": "w2",
+      "type": "celery-worker",
+      "skin": "celery-prefork",
+      "name": "worker-2",
+      "pos": {
+        "x": 290,
+        "y": 410
+      },
+      "config": {}
+    },
+    {
+      "id": "results",
+      "type": "celery-result-backend",
+      "skin": "celery-redis-results",
+      "name": "result backend",
+      "pos": {
+        "x": 195,
+        "y": 540
+      },
+      "config": {}
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-users-app",
+      "from": "users",
+      "to": "app"
+    },
+    {
+      "id": "e-app-broker",
+      "from": "app",
+      "to": "broker"
+    },
+    {
+      "id": "e-broker-w1",
+      "from": "broker",
+      "to": "w1",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "e-broker-w2",
+      "from": "broker",
+      "to": "w2",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "e-w1-results",
+      "from": "w1",
+      "to": "results"
+    },
+    {
+      "id": "e-w2-results",
+      "from": "w2",
+      "to": "results"
+    },
+    {
+      "id": "e-beat-broker",
+      "from": "beat",
+      "to": "broker"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 120,
+    "sources": [
+      {
+        "id": "s1",
+        "node": "users",
+        "shape": {
+          "kind": "constant",
+          "rps": 2
+        },
+        "readRatio": 0
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "photos.example.com",
+    "read": {
+      "method": "GET",
+      "path": "/api/tasks/{code}",
+      "status": 200,
+      "body": "{\"task_id\": \"{code}\", \"status\": \"SUCCESS\"}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/images/{key}/thumbnails",
+      "reqBody": "{\"sizes\": [128, 512], \"quality\": {value}}",
+      "status": 202,
+      "body": "{\"task_id\": \"{code}\", \"status\": \"PENDING\"}"
+    },
+    "topic": "thumbnails"
+  }
+}

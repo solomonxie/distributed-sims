@@ -1,0 +1,123 @@
+{
+  "schemaVersion": 1,
+  "id": "lesson-machine-p99",
+  "name": "Why is my p99 bad?",
+  "description": "A JVM service with a 2 GB heap: every few seconds a GC pause freezes all its threads, and whatever is queued behind it waits. The median is fine, the tail is not. Then a memory leak fills the heap until the OOM killer takes the process down.",
+  "nodes": [
+    {
+      "id": "web",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 195,
+        "y": 20
+      },
+      "skin": "react-spa"
+    },
+    {
+      "id": "lb",
+      "type": "load-balancer",
+      "name": "ALB",
+      "pos": {
+        "x": 195,
+        "y": 130
+      },
+      "skin": "aws-alb"
+    },
+    {
+      "id": "api",
+      "type": "service",
+      "name": "Orders (JVM)",
+      "pos": {
+        "x": 195,
+        "y": 250
+      },
+      "skin": "java-service",
+      "config": {
+        "gcEverySec": 3,
+        "gcPauseMs": 200,
+        "memoryMb": 2048
+      }
+    },
+    {
+      "id": "cache",
+      "type": "cache",
+      "name": "Redis",
+      "pos": {
+        "x": 70,
+        "y": 380
+      },
+      "skin": "redis"
+    },
+    {
+      "id": "db",
+      "type": "relational-db",
+      "name": "Postgres",
+      "pos": {
+        "x": 320,
+        "y": 380
+      },
+      "skin": "postgres"
+    }
+  ],
+  "edges": [
+    {
+      "id": "web->lb",
+      "from": "web",
+      "to": "lb"
+    },
+    {
+      "id": "lb->api",
+      "from": "lb",
+      "to": "api"
+    },
+    {
+      "id": "api->cache",
+      "from": "api",
+      "to": "cache",
+      "config": {
+        "op": "read"
+      }
+    },
+    {
+      "id": "api->db",
+      "from": "api",
+      "to": "db",
+      "config": {
+        "op": "write"
+      }
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 90,
+    "sources": [
+      {
+        "id": "s",
+        "node": "web",
+        "shape": {
+          "kind": "constant",
+          "rps": 300
+        },
+        "readRatio": 0.8
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "shop.example",
+    "read": {
+      "path": "/api/orders/{key}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/orders",
+      "reqBody": "{\"sku\": \"SKU-{key}\", \"qty\": 1}",
+      "status": 201,
+      "body": "{\"order_id\": {key}, \"status\": \"placed\"}"
+    },
+    "table": "orders",
+    "valCol": "status",
+    "cachePrefix": "order:"
+  }
+}

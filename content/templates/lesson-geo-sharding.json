@@ -1,0 +1,160 @@
+{
+  "schemaVersion": 1,
+  "id": "lesson-geo-sharding",
+  "name": "Geo-sharding by region",
+  "description": "Each region owns the geo index for its own map. Local searches stay in-region; 20% of EU searches sit near a border and also query the US shard, paying the Atlantic twice. A stadium emptying in the US makes one US shard hot; the EU shard never notices.",
+  "nodes": [
+    {
+      "id": "ridersUS",
+      "type": "mobile-client",
+      "name": "US riders",
+      "pos": {
+        "x": 100,
+        "y": 40
+      },
+      "skin": "ios-app",
+      "parent": "us"
+    },
+    {
+      "id": "matchUS",
+      "type": "service",
+      "name": "Match US",
+      "pos": {
+        "x": 100,
+        "y": 170
+      },
+      "skin": "go-service",
+      "parent": "us"
+    },
+    {
+      "id": "geoUS",
+      "type": "geo-index",
+      "name": "Geo US",
+      "pos": {
+        "x": 100,
+        "y": 300
+      },
+      "skin": "redis-geo",
+      "parent": "us",
+      "config": {
+        "shards": 4
+      }
+    },
+    {
+      "id": "ridersEU",
+      "type": "mobile-client",
+      "name": "EU riders",
+      "pos": {
+        "x": 290,
+        "y": 40
+      },
+      "skin": "android-app",
+      "parent": "eu"
+    },
+    {
+      "id": "matchEU",
+      "type": "service",
+      "name": "Match EU",
+      "pos": {
+        "x": 290,
+        "y": 170
+      },
+      "skin": "go-service",
+      "parent": "eu"
+    },
+    {
+      "id": "geoEU",
+      "type": "geo-index",
+      "name": "Geo EU",
+      "pos": {
+        "x": 290,
+        "y": 300
+      },
+      "skin": "redis-geo",
+      "parent": "eu",
+      "config": {
+        "shards": 4
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "ridersUS->matchUS",
+      "from": "ridersUS",
+      "to": "matchUS"
+    },
+    {
+      "id": "matchUS->geoUS",
+      "from": "matchUS",
+      "to": "geoUS"
+    },
+    {
+      "id": "ridersEU->matchEU",
+      "from": "ridersEU",
+      "to": "matchEU"
+    },
+    {
+      "id": "matchEU->geoEU",
+      "from": "matchEU",
+      "to": "geoEU"
+    },
+    {
+      "id": "matchEU->geoUS",
+      "from": "matchEU",
+      "to": "geoUS",
+      "config": {
+        "ratio": 0.2
+      }
+    }
+  ],
+  "containers": [
+    {
+      "id": "us",
+      "kind": "region",
+      "name": "us-east-1"
+    },
+    {
+      "id": "eu",
+      "kind": "region",
+      "name": "eu-west-1"
+    }
+  ],
+  "scenario": {
+    "durationSec": 90,
+    "sources": [
+      {
+        "id": "us",
+        "node": "ridersUS",
+        "shape": {
+          "kind": "constant",
+          "rps": 200
+        },
+        "readRatio": 1
+      },
+      {
+        "id": "eu",
+        "node": "ridersEU",
+        "shape": {
+          "kind": "constant",
+          "rps": 200
+        },
+        "readRatio": 1
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "rides.example",
+    "read": {
+      "path": "/v1/drivers/nearby?lat=48.85&lng=2.35",
+      "body": "{\"drivers\": [{key}], \"count\": 8}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/v1/drivers/{key}/location",
+      "reqBody": "{\"lat\": 48.85, \"lng\": 2.35}",
+      "status": 200,
+      "body": "{\"driver\": {key}, \"ok\": true}"
+    }
+  }
+}

@@ -1,0 +1,142 @@
+id: analytics
+title: Columnar & warehouses
+group: under-the-hood
+icon: warehouse
+order: 17
+summary: Analytical queries are scans — cost is bytes read. Columns, pruning, warehouses and lakehouses all fight that number.
+info: OLTP databases store whole rows; analytics reads a few columns of billions of rows, so column stores read only those columns, compressed, and skip partitions outside the filter. Cloud warehouses split storage from compute so you rent compute by the second and scale it per workload. Lakehouses keep open Parquet/Delta files on object storage, where file count and cluster lifecycle matter as much as the query.
+algos: []
+problems: []
+lessons:
+  - id: row-vs-column
+    title: Row store vs column store
+    minutes: 3
+    template: analytics-row-vs-columnar
+    steps:
+      - title: Same query, two engines
+        body: Both analysts sum 5 of 100 columns over 3M rows every ~3s. Postgres answers in about 5s.
+        watch: Compare the queryMs gauge on both databases.
+        check: { metric: gauge:queryMs, target: pg, op: '>=', value: 3000 }
+      - title: Rows drag every column along
+        body: Heap pages hold whole rows, so Postgres reads all 100 columns — 2.4GB per query — with 3 parallel workers.
+        check: { metric: gauge:scannedMB, target: pg, op: '>=', value: 2000 }
+      - title: Columns read only what is asked
+        body: ClickHouse reads 5 column files, 8× compressed (15MB), with 16 vectorized threads per shard — tens of ms.
+        check: { metric: gauge:queryMs, target: ch, op: '<', value: 150 }
+      - title: Four times the analysts
+        body: Quadruple both loads. Each Postgres query holds 3 of 8 cores for 5s, so they queue.
+        action: { event: { kind: traffic, action: burst, params: { x: 4 }, durationSec: 20 } }
+        check: { metric: queue, target: pg, op: '>=', value: 3 }
+      - title: ClickHouse barely notices
+        body: 4× more 20ms queries is still a tiny fraction of 32 cores.
+        check: { metric: gauge:queryMs, target: ch, op: '<', value: 200 }
+  - id: pruning-parts
+    title: Pruning, parts and merges
+    minutes: 4
+    template: analytics-columnar-pruning
+    steps:
+      - title: Scanning all of time
+        body: Left dashboards read 5 columns of 1B rows — 5GB compressed per query, over a second on 32 cores.
+        check: { metric: gauge:queryMs, target: ch-all, op: '>=', value: 800 }
+      - title: A time filter prunes 97%
+        body: "Right dashboards add WHERE ts > now() - 1 day. Partitions by day and the sparse primary index skip everything else: 150MB read."
+        check: { metric: gauge:queryMs, target: ch-day, op: '<', value: 400 }
+      - title: Tiny inserts flood the right cluster
+        body: Ingest jumps 10×. On the right every single-row INSERT writes a new part; merges fold only ~20 parts/s.
+        action: { event: { kind: traffic, source: ingest, action: burst, params: { x: 10 }, durationSec: 15 } }
+        check: { metric: gauge:parts, target: ch-day, op: '>=', value: 150 }
+      - title: Too many parts
+        body: Past 150 parts inserts are delayed; at 300 ClickHouse rejects them with "Too many parts".
+        check: { metric: eventMatch:Too many parts, op: '>=', value: 1 }
+      - title: Batching avoids it
+        body: The left cluster buffers inserts (async insert) and writes one part per second, whatever the rate.
+        check: { metric: gauge:parts, target: ch-all, op: '<=', value: 5 }
+      - title: Merges catch up
+        body: Once the burst ends, background merges fold the backlog down and inserts are accepted again.
+        check: { metric: gauge:parts, target: ch-day, op: '<=', value: 30 }
+  - id: warehouse-sizing
+    title: Warehouse sizing, queueing and multi-cluster
+    minutes: 4
+    template: analytics-snowflake-warehouse
+    steps:
+      - title: Dashboards stuck behind ad-hoc
+        body: One Medium warehouse has 8 slots. An analyst's unpruned 40GB scan takes all of them for 10s; dashboards queue behind it.
+        check: { metric: gauge:queued, target: wh-single, op: '>=', value: 3 }
+      - title: Multi-cluster scales out
+        body: The right warehouse starts another cluster whenever queries queue, so dashboards keep flowing.
+        check: { metric: gauge:clusters, target: wh-multi, op: '>=', value: 2 }
+      - title: Every cluster bills
+        body: Medium = 4 credits/hour per running cluster (~$3/credit). Extra clusters raise the monthly projection.
+        check: { metric: gauge:costMonth, target: wh-multi, op: '>=', value: 9500 }
+      - title: A monster query
+        body: Someone runs a 5TB scan on the single warehouse. It holds all 8 slots for 20s.
+        action: { event: { kind: huge-query, target: wh-single, params: { sec: 20 } } }
+        check: { metric: gauge:queryMs, target: wh-single, op: '>=', value: 5000 }
+      - title: Scale back in
+        body: When the load fits on one fewer cluster for 10s, the extra cluster shuts down and stops billing.
+        check: { metric: eventMatch:cluster shut down, op: '>=', value: 1 }
+  - id: suspend-cache
+    title: Auto-suspend, resume and result cache
+    minutes: 4
+    template: analytics-warehouse-suspend
+    steps:
+      - title: Repeats are free
+        body: Dashboards re-run the same 24 queries. An identical query on unchanged data comes from the result cache in ~20ms, no compute.
+        check: { metric: gauge:hitRatio, target: wh, op: '>=', value: 50 }
+      - title: Idle → suspended
+        body: The burst ends; after 8s idle the warehouse suspends and credits stop.
+        check: { metric: gauge:suspended, target: wh, op: '=', value: 1 }
+      - title: Cache hits don't wake it
+        body: The next burst is served from the result cache while suspended. The first miss resumes the warehouse.
+        check: { metric: eventMatch:resuming warehouse, op: '>=', value: 1 }
+      - title: Cold local cache
+        body: The resumed cluster's SSD cache is empty, so its first queries read remote storage and run ~3× slower.
+        check: { metric: gauge:cacheWarmPct, target: wh, op: '<', value: 50 }
+      - title: A write invalidates results
+        body: A load job starts writing to the table. Every cached result is invalidated and the writes keep the warehouse awake.
+        action: { event: { kind: traffic, source: load, action: set, params: { rps: 0.3 } } }
+        check: { metric: eventMatch:cached results invalidated, op: '>=', value: 1 }
+  - id: small-files
+    title: Lakehouse small files and OPTIMIZE
+    minutes: 4
+    template: analytics-lakehouse
+    steps:
+      - title: Every micro-batch is a commit
+        body: Auto Loader appends 8 small Parquet files every 2s and commits a new Delta table version.
+        check: { metric: gauge:version, target: lake, op: '>=', value: 10 }
+      - title: Autoscaling workers
+        body: The batch job fills every core; the backlog makes Databricks request workers, which take ~8s to boot (3–5 min for real).
+        check: { metric: eventMatch:requesting, op: '>=', value: 1 }
+      - title: Small-files explosion
+        body: A streaming job with a 1s trigger dumps 20,000 tiny files. Each query now opens ~1,000 files instead of ~6.
+        action: { event: { kind: small-files, target: lake, params: { files: 20000 } } }
+        check: { metric: gauge:filesPerQuery, target: lake, op: '>=', value: 800 }
+      - title: Reads slow down
+        body: Every file costs a GET plus a Parquet footer read (~20ms), whatever its size.
+        watch: S3 request rate jumps.
+        check: { metric: gauge:queryMs, target: lake, op: '>=', value: 2000 }
+      - title: OPTIMIZE compacts
+        body: The scheduled OPTIMIZE rewrites the small files into ~1GB files in one commit; queries open ~5 files again.
+        check: { metric: gauge:filesPerQuery, target: lake, op: '<=', value: 50 }
+  - id: spot-restart
+    title: Spot loss and cluster restart
+    minutes: 3
+    template: analytics-lakehouse
+    steps:
+      - title: Workers on spot VMs
+        body: Workers are cheap spot instances; the cloud can take them back at any time.
+        check: { metric: gauge:workers, target: lake, op: '>=', value: 2 }
+      - title: Spot instance reclaimed
+        body: Two workers vanish. Their running tasks are retried on the survivors; queries get slower, not wrong.
+        action: { event: { kind: spot-loss, target: lake, params: { workers: 2 } } }
+        check: { metric: eventMatch:tasks retried, op: '>=', value: 1 }
+      - title: Replacement joins
+        body: The cluster manager requests replacements; they join after the worker start-up delay.
+        check: { metric: eventMatch:replacement worker, op: '>=', value: 1 }
+      - title: Whole cluster terminated
+        body: The cluster dies. Running queries fail; the streaming query's progress is safe in its checkpoint.
+        action: { event: { kind: restart, target: lake, params: { downSec: 3 } } }
+        check: { metric: eventMatch:restarted from checkpoint, op: '>=', value: 1 }
+      - title: Cold start, then resume
+        body: A new cluster boots, and ingest continues from the checkpoint. Delta's atomic commits mean no duplicates.
+        check: { metric: eventMatch:cluster running with, op: '>=', value: 1 }

@@ -1,0 +1,113 @@
+{
+  "schemaVersion": 1,
+  "id": "tech-nginx-sendfile",
+  "name": "nginx: sendfile zero-copy",
+  "description": "Both serve 200 KB static files at 20k req/s. Left: sendfile on — the kernel DMAs page cache to the NIC. Right: sendfile off — every byte is copied through the worker.",
+  "nodes": [
+    {
+      "id": "users-a",
+      "type": "web-client",
+      "name": "Users sendfile on",
+      "pos": {
+        "x": 110,
+        "y": 40
+      }
+    },
+    {
+      "id": "nginx-sf",
+      "type": "nginx-server",
+      "name": "sendfile on",
+      "pos": {
+        "x": 110,
+        "y": 160
+      },
+      "skin": "nginx-internals",
+      "config": {
+        "workers": 4,
+        "sendfile": true,
+        "fileKb": 200
+      }
+    },
+    {
+      "id": "users-b",
+      "type": "web-client",
+      "name": "Users sendfile off",
+      "pos": {
+        "x": 280,
+        "y": 40
+      }
+    },
+    {
+      "id": "nginx-copy",
+      "type": "nginx-server",
+      "name": "sendfile off",
+      "pos": {
+        "x": 280,
+        "y": 160
+      },
+      "skin": "nginx-internals",
+      "config": {
+        "workers": 4,
+        "sendfile": false,
+        "fileKb": 200
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "users-a-nginx-sf",
+      "from": "users-a",
+      "to": "nginx-sf",
+      "config": {
+        "timeoutMs": 3000
+      }
+    },
+    {
+      "id": "users-b-nginx-copy",
+      "from": "users-b",
+      "to": "nginx-copy",
+      "config": {
+        "timeoutMs": 3000
+      }
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 300,
+    "sources": [
+      {
+        "id": "s-a",
+        "node": "users-a",
+        "shape": {
+          "kind": "constant",
+          "rps": 20000
+        },
+        "readRatio": 1
+      },
+      {
+        "id": "s-b",
+        "node": "users-b",
+        "shape": {
+          "kind": "constant",
+          "rps": 20000
+        },
+        "readRatio": 1
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "img.pixhost.net",
+    "read": {
+      "path": "/photos/{code}.jpg",
+      "body": ""
+    },
+    "write": {
+      "method": "PUT",
+      "path": "/photos/{code}.jpg",
+      "reqBody": "{\"size_bytes\": 204800}",
+      "status": 201,
+      "body": "{\"url\": \"https://img.pixhost.net/photos/{code}.jpg\"}"
+    }
+  }
+}

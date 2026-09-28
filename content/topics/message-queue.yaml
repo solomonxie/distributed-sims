@@ -1,0 +1,119 @@
+id: message-queue
+title: Message queue
+group: topics
+icon: inbox
+order: 9
+summary: Decouple producers from consumers, and deal with redelivery, ordering, poison messages and lag.
+info: A queue (SQS, RabbitMQ) hands each message to one consumer and deletes it on ack. A stream (Kafka, Kinesis) keeps an ordered log that many consumer groups read at their own offsets. Both deliver at-least-once, so consumers must be idempotent, and order is only guaranteed per key or partition.
+problems: [send-email, distributed-mq]
+lessons:
+  - id: queue-vs-stream
+    title: Queue vs stream
+    minutes: 4
+    template: lesson-mq-queue-vs-stream
+    steps:
+      - title: One queue, one log
+        body: Each order goes to SQS and to a Kafka topic. SQS gives each message to one mailer, and Kafka's Billing and Analytics groups each read every event.
+        watch: Analytics and Billing both process the full stream.
+        check: { metric: 'gauge:processed', target: analytics, op: '>=', value: 100 }
+      - title: Groups read independently
+        body: Kill Analytics for 10s. Its offset stops moving, but Billing keeps going.
+        action: { event: { kind: kill, target: analytics, durationSec: 10 } }
+        watch: The lag:analytics gauge on the topic grows, and Billing is unaffected.
+        check: { metric: 'gauge:lag:analytics', target: kafka, op: '>=', value: 100 }
+      - title: Replay
+        body: Rewind the topic 20s. Both groups re-read old events, which SQS can't do because acked messages are gone.
+        action: { event: { kind: replay, target: kafka, params: { sec: 20 } } }
+        watch: Billing is idempotent and skips events it has seen (deduped). Analytics counts them twice.
+        check: { metric: 'gauge:deduped', target: billing, op: '>=', value: 50 }
+
+  - id: at-least-once
+    title: At-least-once & duplicates
+    minutes: 4
+    template: lesson-mq-redelivery
+    steps:
+      - title: Ack after work
+        body: Each worker takes batches of 10 and acks only when the whole batch is done. An unacked batch reappears after the 3s visibility timeout.
+        check: { metric: time, op: '>=', value: 5 }
+      - title: Crash before the ack
+        body: Kill the left worker for 5s. It has already applied part of its batches, but never acked them.
+        action: { event: { kind: kill, target: w-plain, durationSec: 5 } }
+        watch: The batches come back, and orders applied twice count as duplicate anomalies.
+        check: { metric: 'anomaly:duplicate', op: '>=', value: 1 }
+      - title: Idempotent consumer
+        body: Kill the right worker for 5s. It records each message id with its side effect and skips ids it has already seen.
+        action: { event: { kind: kill, target: w-idem, durationSec: 5 } }
+        watch: The deduped gauge rises instead of the duplicate count.
+        check: { metric: 'gauge:deduped', target: w-idem, op: '>=', value: 1 }
+
+  - id: ordering
+    title: Ordering
+    minutes: 4
+    template: lesson-mq-ordering
+    steps:
+      - title: Same updates, two partitioners
+        body: Every account update carries a sequence number. The left topic partitions by account key, the right one round-robins.
+        check: { metric: time, op: '>=', value: 5 }
+      - title: Out of order on the right
+        body: Round-robin spreads one account over 4 partitions, which two consumers read in parallel. Update #7 can land before #6.
+        watch: Out-of-order anomalies climb, all of them from the right topic.
+        check: { metric: 'anomaly:out-of-order', op: '>=', value: 5 }
+      - title: One slow consumer makes it worse
+        body: Slow Consumer 4 5× for 15s. Its partitions fall behind, and the other consumer races ahead on the same keys.
+        action: { event: { kind: slow, target: c4, params: { x: 5 }, durationSec: 15 } }
+        watch: The out-of-order count speeds up. Keying by account keeps the left side in order.
+        check: { metric: 'anomaly:out-of-order', op: '>=', value: 100 }
+
+  - id: dlq-poison
+    title: DLQ & poison message
+    minutes: 4
+    template: mq-queue-dlq
+    steps:
+      - title: Orders flow through SQS
+        body: Workers receive orders from SQS. A message that isn't acked within 5s is delivered again.
+        check: { metric: time, op: '>=', value: 5 }
+      - title: Poison arrives
+        body: At 10s, 2% of new messages become poison and fail on every receive. After 3 receives SQS moves each one to the DLQ.
+        watch: DLQ n appears on the queue badge.
+        check: { metric: 'gauge:dlq', target: q, op: '>=', value: 1 }
+      - title: The rest keep flowing
+        body: Poison messages sit in the DLQ for someone to inspect, and don't block the queue. Without a DLQ they would be retried forever.
+        watch: The DLQ node's depth holds the parked messages.
+        check: { metric: 'gauge:depth', target: dlq, op: '>=', value: 1 }
+
+  - id: consumer-lag
+    title: Consumer lag & autoscaling
+    minutes: 4
+    template: lesson-mq-autoscale
+    steps:
+      - title: Keeping up
+        body: One consumer (4 slots) drains 100 orders/s with room to spare.
+        check: { metric: time, op: '>=', value: 5 }
+      - title: Burst 5× for 20s
+        body: Tap ⚡ Break → Burst ×5. Orders arrive faster than one consumer can take them.
+        action: { event: { kind: traffic, action: burst, params: { x: 5 }, durationSec: 20 } }
+        watch: Queue depth climbs, and so does the age of the oldest message.
+        check: { metric: 'gauge:depth', target: q, op: '>=', value: 500 }
+      - title: Scale out
+        body: Utilisation stays above 60%, so the autoscaler adds consumers, each ready 5s later.
+        watch: The consumer badge counts up ×2, ×3…
+        check: { metric: 'gauge:instances', target: consumers, op: '>=', value: 3 }
+      - title: Lag drains
+        body: With more consumers the backlog shrinks back to zero, and after a 30s cooldown the fleet scales back in.
+        check: { metric: 'gauge:depth', target: q, op: '<=', value: 10 }
+
+  - id: fan-out
+    title: Fan-out
+    minutes: 3
+    template: mq-fanout
+    steps:
+      - title: One event, three subscribers
+        body: Each order is published once to SNS, which delivers a copy to Email, Analytics and Search.
+        check: { metric: time, op: '>=', value: 5 }
+      - title: One subscriber slows down
+        body: At 20s Analytics slows 4× for 15s. Its copies back up at the topic.
+        watch: The topic's backlog badge grows. Email and Search stay current.
+        check: { metric: 'gauge:backlog', target: t, op: '>=', value: 100 }
+      - title: It catches up
+        body: When Analytics recovers, it works through its backlog. The publisher never waited, because delivery is async.
+        check: { metric: 'gauge:backlog', target: t, op: '<=', value: 10 }

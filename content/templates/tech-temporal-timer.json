@@ -1,0 +1,154 @@
+{
+  "schemaVersion": 1,
+  "id": "tech-temporal-timer",
+  "name": "Temporal: durable timers",
+  "description": "Each workflow charges, then sleeps 20s, then ships. Timers live in history, not in the worker, so they fire even with every worker and the history service down.",
+  "nodes": [
+    {
+      "id": "app",
+      "type": "web-client",
+      "name": "Checkout app",
+      "pos": {
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "id": "frontend",
+      "type": "temporal-frontend",
+      "name": "Frontend",
+      "pos": {
+        "x": 0,
+        "y": 120
+      }
+    },
+    {
+      "id": "history",
+      "type": "temporal-history",
+      "name": "History",
+      "pos": {
+        "x": -100,
+        "y": 240
+      }
+    },
+    {
+      "id": "matching",
+      "type": "temporal-matching",
+      "name": "Matching",
+      "pos": {
+        "x": 100,
+        "y": 240
+      }
+    },
+    {
+      "id": "db",
+      "type": "temporal-persistence",
+      "skin": "temporal-cassandra",
+      "name": "Persistence",
+      "pos": {
+        "x": -100,
+        "y": 360
+      }
+    },
+    {
+      "id": "worker-1",
+      "type": "temporal-worker",
+      "name": "Worker 1",
+      "pos": {
+        "x": 40,
+        "y": 360
+      },
+      "config": {
+        "timerSec": 20,
+        "activities": 2,
+        "actP50Ms": 500,
+        "actP99Ms": 1500
+      }
+    },
+    {
+      "id": "worker-2",
+      "type": "temporal-worker",
+      "name": "Worker 2",
+      "pos": {
+        "x": 150,
+        "y": 360
+      },
+      "config": {
+        "timerSec": 20,
+        "activities": 2,
+        "actP50Ms": 500,
+        "actP99Ms": 1500
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-app",
+      "from": "app",
+      "to": "frontend"
+    },
+    {
+      "id": "e-fh",
+      "from": "frontend",
+      "to": "history"
+    },
+    {
+      "id": "e-fm",
+      "from": "frontend",
+      "to": "matching"
+    },
+    {
+      "id": "e-hdb",
+      "from": "history",
+      "to": "db"
+    },
+    {
+      "id": "e-hm",
+      "from": "history",
+      "to": "matching",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "e-w1",
+      "from": "worker-1",
+      "to": "frontend"
+    },
+    {
+      "id": "e-w2",
+      "from": "worker-2",
+      "to": "frontend"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 180,
+    "sources": [
+      {
+        "id": "starts",
+        "node": "app",
+        "shape": {
+          "kind": "constant",
+          "rps": 0.3
+        },
+        "readRatio": 1
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "api.giftly.com",
+    "read": {
+      "path": "/v1/gifts/{key}",
+      "body": "{\"workflow_id\": \"gift-{key}\", \"status\": \"SLEEPING\"}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/v1/gifts",
+      "reqBody": "{\"recipient_id\": {key}, \"deliver_in_s\": 20}",
+      "status": 202,
+      "body": "{\"workflow_id\": \"gift-{key}\"}"
+    }
+  }
+}

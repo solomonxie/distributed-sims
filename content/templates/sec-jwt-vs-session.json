@@ -1,0 +1,178 @@
+{
+  "schemaVersion": 1,
+  "id": "sec-jwt-vs-session",
+  "name": "Auth: session vs JWT",
+  "description": "Two gateways share one IdP. Top checks every request with the IdP (session); bottom verifies JWTs locally with cached keys. At 20s the IdP dies: sessions fail at once, JWTs keep working and only expire over one token TTL. At 60s the signing key rotates: JWT checks fail for new tokens until the JWKS cache refreshes.",
+  "nodes": [
+    {
+      "id": "webA",
+      "type": "web-client",
+      "name": "Users (session)",
+      "pos": {
+        "x": 55,
+        "y": 60
+      }
+    },
+    {
+      "id": "gwS",
+      "type": "auth-middleware",
+      "skin": "oauth2-proxy",
+      "name": "Session check",
+      "pos": {
+        "x": 195,
+        "y": 60
+      },
+      "config": {
+        "authMode": "session"
+      }
+    },
+    {
+      "id": "apiA",
+      "type": "service",
+      "name": "API",
+      "pos": {
+        "x": 335,
+        "y": 60
+      }
+    },
+    {
+      "id": "idp",
+      "type": "identity-provider",
+      "skin": "keycloak",
+      "name": "Keycloak",
+      "pos": {
+        "x": 195,
+        "y": 200
+      },
+      "config": {
+        "tokenTtlSec": 120,
+        "jwksTtlSec": 30
+      }
+    },
+    {
+      "id": "webB",
+      "type": "web-client",
+      "name": "Users (JWT)",
+      "pos": {
+        "x": 55,
+        "y": 340
+      }
+    },
+    {
+      "id": "gwJ",
+      "type": "auth-middleware",
+      "skin": "oauth2-proxy",
+      "name": "JWT check",
+      "pos": {
+        "x": 195,
+        "y": 340
+      },
+      "config": {
+        "authMode": "jwt"
+      }
+    },
+    {
+      "id": "apiB",
+      "type": "service",
+      "name": "API",
+      "pos": {
+        "x": 335,
+        "y": 340
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "webA-gwS",
+      "from": "webA",
+      "to": "gwS"
+    },
+    {
+      "id": "gwS-idp",
+      "from": "gwS",
+      "to": "idp",
+      "config": {
+        "timeoutMs": 500
+      }
+    },
+    {
+      "id": "gwS-apiA",
+      "from": "gwS",
+      "to": "apiA"
+    },
+    {
+      "id": "webB-gwJ",
+      "from": "webB",
+      "to": "gwJ"
+    },
+    {
+      "id": "gwJ-idp",
+      "from": "gwJ",
+      "to": "idp",
+      "config": {
+        "timeoutMs": 500
+      }
+    },
+    {
+      "id": "gwJ-apiB",
+      "from": "gwJ",
+      "to": "apiB"
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 110,
+    "sources": [
+      {
+        "id": "sA",
+        "node": "webA",
+        "shape": {
+          "kind": "constant",
+          "rps": 200
+        },
+        "expiredAuth": 0.01
+      },
+      {
+        "id": "sB",
+        "node": "webB",
+        "shape": {
+          "kind": "constant",
+          "rps": 200
+        },
+        "expiredAuth": 0.01
+      }
+    ],
+    "events": [
+      {
+        "atSec": 20,
+        "event": {
+          "kind": "kill",
+          "target": "idp",
+          "durationSec": 30
+        }
+      },
+      {
+        "atSec": 70,
+        "event": {
+          "kind": "key-rotation",
+          "target": "idp"
+        }
+      }
+    ]
+  },
+  "wire": {
+    "host": "api.acme.io",
+    "read": {
+      "method": "GET",
+      "path": "/api/me/orders?page={key}",
+      "body": "{\"user\": \"u_{code}\", \"orders\": 7}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/me/settings",
+      "reqBody": "{\"theme\": \"dark\"}",
+      "status": 200,
+      "body": "{\"ok\": true}"
+    }
+  }
+}

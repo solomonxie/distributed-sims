@@ -1,0 +1,147 @@
+{
+  "schemaVersion": 1,
+  "id": "lesson-obs-golden",
+  "name": "Golden signals",
+  "description": "Latency, traffic, errors, saturation for one API. Alerts watch p99, error rate and API utilisation. A traffic spike saturates the API first; then a slow database stretches latency.",
+  "nodes": [
+    {
+      "id": "web",
+      "type": "web-client",
+      "name": "Users",
+      "pos": {
+        "x": 195,
+        "y": 20
+      },
+      "skin": "react-spa"
+    },
+    {
+      "id": "lb",
+      "type": "load-balancer",
+      "name": "ALB",
+      "pos": {
+        "x": 195,
+        "y": 120
+      },
+      "skin": "aws-alb"
+    },
+    {
+      "id": "api",
+      "type": "service",
+      "name": "API",
+      "pos": {
+        "x": 195,
+        "y": 230
+      },
+      "skin": "go-service",
+      "config": {
+        "instances": 2,
+        "slots": 8,
+        "p50Ms": 10,
+        "p99Ms": 30,
+        "queueLimit": 500
+      }
+    },
+    {
+      "id": "db",
+      "type": "relational-db",
+      "name": "Postgres",
+      "pos": {
+        "x": 100,
+        "y": 360
+      },
+      "skin": "postgres"
+    },
+    {
+      "id": "prom",
+      "type": "metrics-collector",
+      "name": "Prometheus",
+      "pos": {
+        "x": 300,
+        "y": 360
+      },
+      "skin": "prometheus"
+    }
+  ],
+  "edges": [
+    {
+      "id": "web->lb",
+      "from": "web",
+      "to": "lb"
+    },
+    {
+      "id": "lb->api",
+      "from": "lb",
+      "to": "api"
+    },
+    {
+      "id": "api->db",
+      "from": "api",
+      "to": "db"
+    },
+    {
+      "id": "api->prom",
+      "from": "api",
+      "to": "prom",
+      "config": {
+        "mode": "async"
+      }
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 90,
+    "sources": [
+      {
+        "id": "s",
+        "node": "web",
+        "shape": {
+          "kind": "constant",
+          "rps": 800
+        },
+        "readRatio": 0.8
+      }
+    ],
+    "events": []
+  },
+  "alerts": [
+    {
+      "id": "lat",
+      "target": "system",
+      "metric": "p99",
+      "op": ">",
+      "threshold": 300,
+      "forSec": 3
+    },
+    {
+      "id": "err",
+      "target": "system",
+      "metric": "errRate",
+      "op": ">",
+      "threshold": 1,
+      "forSec": 3
+    },
+    {
+      "id": "sat",
+      "target": "api",
+      "metric": "util",
+      "op": ">",
+      "threshold": 85,
+      "forSec": 3
+    }
+  ],
+  "wire": {
+    "host": "shop.example",
+    "read": {
+      "path": "/api/products/{key}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/orders",
+      "reqBody": "{\"product_id\": {key}, \"qty\": 1}",
+      "status": 201,
+      "body": "{\"order_id\": {key}, \"status\": \"placed\"}"
+    },
+    "table": "products",
+    "valCol": "price_cents"
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "id": "data-cache-aside",
+  "name": "Cache-aside",
+  "description": "Redis in front of Postgres. From cold the hit ratio climbs and DB load falls. A cache flush sends every read back to the DB. Set 'On write' to none to see stale reads.",
+  "nodes": [
+    { "id": "web", "type": "web-client", "name": "Users", "pos": { "x": 195, "y": 60 } },
+    { "id": "api", "type": "service", "name": "API", "pos": { "x": 195, "y": 200 } },
+    { "id": "cache", "type": "cache", "skin": "redis", "name": "Redis", "pos": { "x": 195, "y": 340 }, "config": { "strategy": "cache-aside", "capacityKeys": 256, "ttlSec": 60 } },
+    { "id": "db", "type": "relational-db", "skin": "postgres", "name": "Postgres", "pos": { "x": 195, "y": 480 }, "config": { "replicas": 0, "p50Ms": 5, "p99Ms": 30 } }
+  ],
+  "edges": [
+    { "id": "e1", "from": "web", "to": "api" },
+    { "id": "e2", "from": "api", "to": "cache" },
+    { "id": "e3", "from": "cache", "to": "db" }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 60,
+    "sources": [{ "id": "s1", "node": "web", "shape": { "kind": "constant", "rps": 800 }, "readRatio": 0.95, "keys": { "kind": "zipf", "s": 1.1 } }],
+    "events": [{ "atSec": 30, "event": { "kind": "cache-flush", "target": "cache" } }]
+  },
+  "wire": {
+    "host": "api.shop.io",
+    "read": {
+      "method": "GET",
+      "path": "/api/products/{key}",
+      "body": "{\"id\": {key}, \"name\": \"Desk lamp\", \"price\": {value}}"
+    },
+    "write": {
+      "method": "PUT",
+      "path": "/api/products/{key}",
+      "reqBody": "{\"price\": {value}}",
+      "status": 200,
+      "body": "{\"id\": {key}, \"version\": 2}"
+    },
+    "table": "products",
+    "valCol": "price",
+    "cachePrefix": "product:"
+  }
+}

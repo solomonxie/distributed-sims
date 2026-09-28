@@ -1,0 +1,46 @@
+id: notifications
+title: Notification system
+icon: bell
+category: infra
+order: 19
+summary: Push, SMS and email for every product team; one slow provider must not stall the rest.
+requirements:
+  - Send push / SMS / email per user preference; priorities; dedupe; retries; delivery log
+  - 1B notifications/day · 3 channels via APNs/FCM, Twilio, SendGrid
+  - Accept p99 < 100ms · at-least-once, no duplicates to users · provider isolation
+estimates:
+  - ~12k/s average, 50k/s peak (campaigns) · provider quotas are the bottleneck
+designs:
+  - { id: v1, title: "Naive: API calls every provider inline", template: problem-notifications-v1 }
+  - { id: v2, title: "Reference: dedupe, SNS fan-out, queue + workers per channel", template: problem-notifications-v2 }
+challenges:
+  - id: apns-slow
+    title: "APNs slow, SMS unaffected"
+    template: problem-notifications-v2
+    scenario:
+      durationSec: 60
+      sources: [{ id: events, node: users, shape: { kind: constant, rps: 500 }, readRatio: 0 }]
+      events:
+        - { atSec: 15, event: { kind: slow, target: apns, params: { x: 20 }, durationSec: 45 } }
+    pass:
+      - { metric: p99, op: '<', value: 100 }
+      - { metric: availability, op: '>=', value: 99.5 }
+      - { metric: anomalies, op: '=', value: 0 }
+      - { metric: costMonth, op: '<=', value: 2500 }
+  - id: campaign
+    title: "Marketing blast: 10×"
+    template: problem-notifications-v2
+    scenario:
+      durationSec: 60
+      sources: [{ id: events, node: users, shape: { kind: constant, rps: 500 }, readRatio: 0 }]
+      events:
+        - { atSec: 15, event: { kind: traffic, action: burst, params: { x: 10 }, durationSec: 45 } }
+    pass:
+      - { metric: p99, op: '<', value: 100 }
+      - { metric: availability, op: '>=', value: 99.5 }
+      - { metric: anomalies, op: '=', value: 0 }
+keyIdeas:
+  - { label: Queue per channel (bulkheads), link: "lesson:microservices/bulkheads" }
+  - { label: Per-channel queues, link: "lesson:message-queue/fan-out" }
+  - { label: Idempotency keys, link: "lesson:distributed-transaction" }
+  - { label: Provider quotas, link: "lesson:rate-limit/load-shedding" }

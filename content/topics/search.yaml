@@ -1,0 +1,79 @@
+id: search
+title: Search
+group: topics
+icon: search
+order: 12
+summary: Full-text search with Elasticsearch, from the inverted index to the pipeline that feeds it.
+info: A search engine keeps an inverted index (term → documents) split into shards, each with replicas. Every query fans out to all shards and waits for the slowest. New documents only become searchable after a refresh, and the pipeline from your database into the index adds more delay.
+algos: [inverted-index, trie-topk]
+problems: [autocomplete, craigslist]
+lessons:
+  - id: inverted-index
+    title: Inverted index
+    minutes: 3
+    algo: inverted-index
+    steps:
+      - title: Build the index
+        body: Each document is split into terms, and every term points to the list of documents that contain it. That list is the posting list.
+        watch: Posting lists grow as documents are added.
+        check: { metric: manual }
+      - title: Query
+        body: A multi-word query fetches each term's posting list and intersects them. No document is ever scanned.
+        watch: Only documents in every list survive.
+        check: { metric: manual }
+
+  - id: shards-replicas
+    title: Shards & replicas
+    minutes: 4
+    template: lesson-search-shards
+    steps:
+      - title: Every query hits every shard
+        body: The right index has 40 shards, so one search becomes 40 shard queries. The response waits for the slowest one.
+        watch: fanout on ES · 40 shards reads 40.
+        check: { metric: gauge:fanout, target: es40, op: '>=', value: 40 }
+      - title: More shards, worse tail
+        body: With 40 draws from the latency distribution, one is almost always slow. The same hardware also does 8× the work per query.
+        watch: The right search UI's p99 is several times the left one.
+        check: { metric: p99, target: w40, op: '>=', value: 200 }
+      - title: Moving shards
+        body: Rebalance the left index, as when a node joins. Shard copies stream between nodes and every query slows down.
+        action: { event: { kind: rebalance, target: es5, durationSec: 15 } }
+        watch: Left p99 climbs until the move finishes.
+        check: { metric: p99, target: w5, op: '>=', value: 120 }
+
+  - id: refresh-interval
+    title: Refresh interval
+    minutes: 3
+    template: search-refresh
+    steps:
+      - title: Written but not searchable
+        body: Indexing succeeds at once, but a doc only becomes searchable at the next refresh. Here refresh runs every 5 s.
+        watch: Elasticsearch's label counts unsearchable docs, then drops to 0 on each refresh.
+        check: { metric: gauge:unsearchable, target: es, op: '>=', value: 1 }
+      - title: Search misses fresh docs
+        body: A search right after a write misses it. Each miss counts as a stale read.
+        watch: The stale-read counter climbs.
+        check: { metric: anomaly:stale-read, op: '>=', value: 1 }
+      - title: The trade-off
+        body: Set refreshMs to 0 to make writes visible at once, at the cost of a tiny segment per write. At 40 s a rebalance slows every shard.
+        watch: indexLagMs shows how stale the index gets between refreshes.
+        check: { metric: gauge:indexLagMs, target: es, op: '>=', value: 3000 }
+
+  - id: indexing-pipeline
+    title: Indexing pipeline
+    minutes: 5
+    template: lesson-search-cdc
+    steps:
+      - title: DB → CDC → Kafka → ES
+        body: Listings are written to Postgres; Debezium tails the change log and publishes to Kafka. An indexer writes Elasticsearch, which is the only store searches read.
+        watch: Debezium's relayLagMs is ~0.5 s, one poll interval.
+        check: { metric: gauge:relayLagMs, target: cdc, op: '>=', value: 300 }
+      - title: Every hop is staleness
+        body: Poll interval, Kafka, indexing and refresh all add up. A user who searches right after posting doesn't find the listing.
+        watch: Stale reads tick up.
+        check: { metric: anomaly:stale-read, op: '>=', value: 1 }
+      - title: The indexer falls behind
+        body: Slow the indexer 10× for 20 s. Writes still succeed; Kafka just holds the backlog.
+        action: { event: { kind: slow, target: idx, params: { x: 10 }, durationSec: 20 } }
+        watch: Kafka lag grows while users see no errors.
+        check: { metric: gauge:lag, target: k, op: '>=', value: 200 }

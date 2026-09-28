@@ -1,0 +1,284 @@
+{
+  "schemaVersion": 1,
+  "id": "tech-kafka-acks",
+  "name": "Kafka: acks 1 vs all",
+  "description": "Two producers on one topic: acks=1 (leader only) vs acks=all (whole ISR). Lagging followers, then a dead leader: only unreplicated acks=1 records vanish.",
+  "nodes": [
+    {
+      "id": "users-1",
+      "type": "web-client",
+      "name": "Users A",
+      "pos": {
+        "x": 110,
+        "y": 40
+      }
+    },
+    {
+      "id": "users-2",
+      "type": "web-client",
+      "name": "Users B",
+      "pos": {
+        "x": 280,
+        "y": 40
+      }
+    },
+    {
+      "id": "p1",
+      "type": "kafka-producer",
+      "name": "producer acks=1",
+      "pos": {
+        "x": 110,
+        "y": 150
+      },
+      "config": {
+        "acks": "1"
+      }
+    },
+    {
+      "id": "pall",
+      "type": "kafka-producer",
+      "name": "producer acks=all",
+      "pos": {
+        "x": 280,
+        "y": 150
+      },
+      "config": {
+        "acks": "all"
+      }
+    },
+    {
+      "id": "b1",
+      "type": "kafka-broker",
+      "name": "broker-1",
+      "pos": {
+        "x": 55,
+        "y": 280
+      }
+    },
+    {
+      "id": "b2",
+      "type": "kafka-broker",
+      "name": "broker-2",
+      "pos": {
+        "x": 195,
+        "y": 280
+      }
+    },
+    {
+      "id": "b3",
+      "type": "kafka-broker",
+      "name": "broker-3",
+      "pos": {
+        "x": 335,
+        "y": 280
+      }
+    },
+    {
+      "id": "ctrl",
+      "type": "kraft-controller",
+      "name": "controller",
+      "pos": {
+        "x": 195,
+        "y": 400
+      }
+    },
+    {
+      "id": "c1",
+      "type": "kafka-consumer",
+      "name": "consumer-1",
+      "pos": {
+        "x": 110,
+        "y": 520
+      },
+      "config": {
+        "group": "billing"
+      }
+    },
+    {
+      "id": "c2",
+      "type": "kafka-consumer",
+      "name": "consumer-2",
+      "pos": {
+        "x": 280,
+        "y": 520
+      },
+      "config": {
+        "group": "billing"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "users-1-p1",
+      "from": "users-1",
+      "to": "p1"
+    },
+    {
+      "id": "users-2-pall",
+      "from": "users-2",
+      "to": "pall"
+    },
+    {
+      "id": "p1-b1",
+      "from": "p1",
+      "to": "b1",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "pall-b1",
+      "from": "pall",
+      "to": "b1",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "p1-b2",
+      "from": "p1",
+      "to": "b2",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "pall-b2",
+      "from": "pall",
+      "to": "b2",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "p1-b3",
+      "from": "p1",
+      "to": "b3",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "pall-b3",
+      "from": "pall",
+      "to": "b3",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "ctrl-b1",
+      "from": "ctrl",
+      "to": "b1",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "ctrl-b2",
+      "from": "ctrl",
+      "to": "b2",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "ctrl-b3",
+      "from": "ctrl",
+      "to": "b3",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "b1-c1",
+      "from": "b1",
+      "to": "c1",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "b2-c1",
+      "from": "b2",
+      "to": "c1",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "b3-c1",
+      "from": "b3",
+      "to": "c1",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "b1-c2",
+      "from": "b1",
+      "to": "c2",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "b2-c2",
+      "from": "b2",
+      "to": "c2",
+      "config": {
+        "mode": "async"
+      }
+    },
+    {
+      "id": "b3-c2",
+      "from": "b3",
+      "to": "c2",
+      "config": {
+        "mode": "async"
+      }
+    }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 300,
+    "sources": [
+      {
+        "id": "s1",
+        "node": "users-1",
+        "shape": {
+          "kind": "constant",
+          "rps": 1000
+        },
+        "readRatio": 0
+      },
+      {
+        "id": "s2",
+        "node": "users-2",
+        "shape": {
+          "kind": "constant",
+          "rps": 1000
+        },
+        "readRatio": 0
+      }
+    ],
+    "events": []
+  },
+  "wire": {
+    "host": "pay.example.com",
+    "read": {
+      "method": "GET",
+      "path": "/api/payments/{key}",
+      "status": 200,
+      "body": "{\"id\": {key}, \"amount_cents\": {value}}"
+    },
+    "write": {
+      "method": "POST",
+      "path": "/api/payments",
+      "reqBody": "{\"card_id\": {key}, \"amount_cents\": {value}}",
+      "status": 202,
+      "body": "{\"id\": {key}, \"status\": \"accepted\"}"
+    },
+    "topic": "payments"
+  }
+}

@@ -1,0 +1,254 @@
+id: system-paradigms
+title: System paradigms
+group: topics
+icon: layers
+order: 16
+summary: The big architecture shapes, from layered monoliths to cells, and what each one trades.
+info: Every paradigm moves a boundary. Layers and hexagons organise code inside one process; gateways, BFFs, meshes and load balancers shape traffic between services; events, CQRS and event sourcing decouple writes from reads; tenancy and cells bound the blast radius. Each lesson shows the win and the price in one run.
+algos: [consistent-hashing]
+problems: [facebook-feed, notifications]
+lessons:
+  - id: layered
+    title: Layered
+    minutes: 3
+    template: paradigm-layered
+    steps:
+      - title: Calls go down, one layer at a time
+        body: Presentation → application → domain → infrastructure → Postgres. Each layer only knows the one below it.
+        watch: Every web request travels all four hops.
+        check: { metric: rps, target: db, op: '>=', value: 60 }
+      - title: Spot the violation
+        body: The invoice job lives in infrastructure but calls the web controllers upward. The ⚠ on that edge is the layering rule firing.
+        watch: Tap the ⚠ on Invoice job → Web controllers.
+        check: { metric: time, op: '>=', value: 10 }
+
+  - id: microservices
+    title: Microservices
+    minutes: 2
+    template: obs-tracing
+    link: topic:microservices
+    steps:
+      - title: Many small services
+        body: Gateway, orders and payments are separate deployables that call each other over the network. Each hop adds latency and a way to fail.
+        check: { metric: rps, target: pay, op: '>=', value: 100 }
+      - title: One bad deploy
+        body: At 10 s Payments fails 10% of calls, and every caller above it feels it. The Microservices topic covers cascades, breakers, retries and bulkheads in depth.
+        check: { metric: errRate, target: pay, op: '>=', value: 5 }
+
+  - id: api-gateway
+    title: API gateway
+    minutes: 3
+    template: lesson-paradigm-gateway
+    steps:
+      - title: One front door
+        body: Kong routes each call to Users, Orders or Catalog and sends expired tokens to Auth0. Clients know one hostname.
+        watch: Traffic splits across the three services.
+        check: { metric: rps, target: orders, op: '>=', value: 50 }
+      - title: Single instance
+        body: This gateway runs as one instance. The SPOF badge warns that everything depends on it.
+        check: { metric: badge:SPOF, target: gw, op: '>=', value: 1 }
+      - title: Kill the gateway
+        body: Kill Kong for 10 s. All three services are healthy and unreachable.
+        action: { event: { kind: kill, target: gw, durationSec: 10 } }
+        watch: Availability drops to 0; run at least 2 gateway instances.
+        check: { metric: availability, op: '<=', value: 5 }
+
+  - id: load-balancer
+    title: Load balancer
+    minutes: 4
+    template: lesson-paradigm-lb
+    steps:
+      - title: One slow backend
+        body: Both pools have one backend 20× slower than its siblings. Round-robin gives it a third of the traffic regardless.
+        watch: API 3 (slow) on the left gets ~120 rps.
+        check: { metric: rps, target: s1, op: '>=', value: 100 }
+      - title: Power of two choices
+        body: P2C picks two backends at random and sends to the one with fewer requests in flight. The slow box always has more, so it gets starved.
+        watch: The right slow backend gets only a trickle.
+        check: { metric: rps, target: s2, op: '<=', value: 50 }
+      - title: A backend dies
+        body: Kill API 2 on the left. Health checks mark it unhealthy after 2 failed probes and traffic moves to the rest.
+        action: { event: { kind: kill, target: b1, durationSec: 20 } }
+        check: { metric: 'eventMatch:marked unhealthy', op: '>=', value: 1 }
+
+  - id: bff
+    title: Backend for frontend
+    minutes: 3
+    template: lesson-paradigm-bff
+    steps:
+      - title: One backend per client
+        body: The mobile BFF fetches profile and feed. The web BFF also pulls recommendations for its bigger screen.
+        check: { metric: rps, target: recs, op: '>=', value: 100 }
+      - title: Recommendations slow down
+        body: Slow Recommendations 20× for 20 s. Only the web BFF calls it.
+        action: { event: { kind: slow, target: recs, params: { x: 20 }, durationSec: 20 } }
+        watch: Web p99 shoots up.
+        check: { metric: p99, target: web, op: '>=', value: 400 }
+      - title: Mobile is isolated
+        body: The mobile BFF never waits on recommendations, so phones stay fast. Each client team tunes its own BFF.
+        check: { metric: p99, target: mob, op: '<=', value: 150 }
+
+  - id: service-mesh
+    title: Service mesh
+    minutes: 4
+    template: lesson-paradigm-mesh
+    steps:
+      - title: A sidecar on every call
+        body: Checkout reaches Payments through an Envoy sidecar that adds mTLS, retries and outlier detection. Each hop costs a fraction of a ms.
+        check: { metric: badge:mTLS, target: sc, op: '>=', value: 1 }
+      - title: One instance goes bad
+        body: Payments 2 starts failing half its calls. After 5 consecutive errors the sidecar ejects it for 15 s.
+        action: { event: { kind: bad-deploy, target: p2, params: { errPct: 50 }, durationSec: 30 } }
+        watch: The sidecar logs the ejection.
+        check: { metric: 'eventMatch:ejected', op: '>=', value: 1 }
+      - title: Users never noticed
+        body: Failed calls were retried on another instance and the bad one was taken out. No application code changed.
+        check: { metric: availability, target: web, op: '>=', value: 99 }
+
+  - id: event-driven
+    title: Event-driven
+    minutes: 4
+    template: lesson-paradigm-events
+    steps:
+      - title: Publish, don't call
+        body: Orders saves the order and publishes OrderPlaced. Email, billing and analytics each subscribe; Orders doesn't know they exist.
+        check: { metric: rps, target: billing, op: '>=', value: 100 }
+      - title: A subscriber dies
+        body: Kill Billing for 15 s. Its events wait in the topic.
+        action: { event: { kind: kill, target: billing, durationSec: 15 } }
+        watch: The topic backlog grows.
+        check: { metric: gauge:backlog, target: bus, op: '>=', value: 500 }
+      - title: Checkout never noticed
+        body: Orders only publishes, so users see no errors. The price is that no single trace shows the whole flow, and events can arrive out of order.
+        watch: The out-of-order counter ticks as retries reorder events.
+        check: { metric: availability, target: web, op: '>=', value: 99 }
+      - title: Catch up
+        body: When Billing restarts it drains the backlog. Eventually consistent, not broken.
+        check: { metric: gauge:backlog, target: bus, op: '<=', value: 300 }
+
+  - id: cqrs
+    title: CQRS
+    minutes: 4
+    template: lesson-paradigm-cqrs
+    steps:
+      - title: Two models
+        body: Writes go to the write service and Postgres. A projector turns each change into a denormalised read store that queries hit.
+        watch: 80% of traffic is reads, all served by the query side.
+        check: { metric: rps, target: q, op: '>=', value: 150 }
+      - title: Stop the projector
+        body: Kill the projector for 10 s. Commands still succeed and queries still answer, from an older view.
+        action: { event: { kind: kill, target: proj, durationSec: 10 } }
+        watch: Kafka lag on Changes is the projection lag.
+        check: { metric: gauge:lag, target: k, op: '>=', value: 300 }
+      - title: Independent sides
+        body: Neither side failed; the read side was just behind. That gap is what CQRS costs.
+        check: { metric: availability, target: web, op: '>=', value: 99 }
+      - title: Projection catches up
+        body: The projector restarts and replays the backlog. The read store converges.
+        check: { metric: gauge:lag, target: k, op: '<=', value: 20 }
+
+  - id: event-sourcing
+    title: Event sourcing
+    minutes: 5
+    template: lesson-paradigm-es
+    steps:
+      - title: The log is the truth
+        body: Every deposit and withdrawal is an event in the log. Both balance views are projections that can be rebuilt from it.
+        check: { metric: time, op: '>=', value: 10 }
+      - title: Rebuild from offset 0
+        body: Replay the log from the start, as after a bug fix in the projection. The naive projector applies every event a second time.
+        action: { event: { kind: replay, target: log } }
+        watch: The duplicate counter climbs as balances get double-counted.
+        check: { metric: anomaly:duplicate, op: '>=', value: 100 }
+      - title: Idempotent projection
+        body: The right projector remembers which events it applied and skips them. Replays are safe.
+        watch: deduped on the idempotent projector jumps.
+        check: { metric: gauge:deduped, target: projB, op: '>=', value: 1000 }
+      - title: Replay from a snapshot
+        body: Replay only the last 5 s, as if starting from a recent snapshot. Far fewer events to reprocess.
+        action: { event: { kind: replay, target: log, params: { sec: 5 } } }
+        check: { metric: 'eventMatch:5s ago', op: '>=', value: 1 }
+
+  - id: ddd
+    title: DDD
+    minutes: 4
+    template: paradigm-ddd
+    steps:
+      - title: Bounded contexts
+        body: Orders, Billing and Shipping each own their data and react to OrderPlaced. Shipping talks to the carrier through an anti-corruption layer.
+        check: { metric: rps, target: ship, op: '>=', value: 50 }
+      - title: The shared-database smell
+        body: Billing also writes straight into the Orders database. The ⚠ on that edge flags a shared DB across contexts.
+        watch: Orders DB serves both contexts, ~2× the Orders traffic.
+        check: { metric: rps, target: odb, op: '>=', value: 150 }
+      - title: Coupling bites
+        body: At 40 s the Orders DB slows down. Billing slows with it, though it should only depend on events.
+        watch: Billing p99 rises with the Orders DB.
+        check: { metric: p99, target: bill, op: '>=', value: 100 }
+
+  - id: multi-tenant
+    title: Multi-tenant
+    minutes: 4
+    template: paradigm-multi-tenant
+    steps:
+      - title: Pool and silo
+        body: Small tenants share one pooled API and DB; BigCo has its own silo. Pooling is cheap per tenant.
+        check: { metric: gauge:tenants, target: api, op: '>=', value: 4 }
+      - title: Noisy neighbour
+        body: At 20 s one pooled tenant bursts 10×. Everyone in the pool queues behind it.
+        watch: Pooled users' p99 explodes; topTenantPct on the pool API passes 70%.
+        check: { metric: p99, target: web, op: '>=', value: 500 }
+      - title: The silo is untouched
+        body: BigCo shares nothing with the pool. Set a per-tenant quota on the pool API to shed the noisy tenant instead.
+        check: { metric: p99, target: web2, op: '<=', value: 150 }
+
+  - id: serverless
+    title: Serverless
+    minutes: 4
+    template: compute-serverless
+    steps:
+      - title: Cold starts
+        body: Spiky traffic hits a Lambda that keeps instances warm for 20 s. Each spike needs new instances, each paying a cold start.
+        check: { metric: gauge:coldStarts, target: fn, op: '>=', value: 1 }
+      - title: Concurrency limit
+        body: The function is capped at 60 concurrent instances. Spikes above that are throttled with 429s.
+        check: { metric: gauge:throttled, target: fn, op: '>=', value: 1 }
+      - title: Connection storm
+        body: Every instance opens its own DB connection. 60 instances exceed Postgres's 40-connection limit.
+        watch: The log reports connections over the limit and the DB refuses them.
+        check: { metric: 'eventMatch:connections >', op: '>=', value: 1 }
+
+  - id: cell-based
+    title: Cell-based
+    minutes: 4
+    template: paradigm-cell-based
+    steps:
+      - title: Copies of the whole stack
+        body: Each cell is a full API + DB. The router pins every tenant to one cell by hash.
+        check: { metric: rps, target: api-a, op: '>=', value: 50 }
+      - title: A cell fails
+        body: At 20 s cell A goes down. Only the tenants pinned to it fail.
+        watch: blastRadiusPct on the router reads 33%.
+        check: { metric: gauge:blastRadiusPct, target: router, op: '>=', value: 30 }
+      - title: Bounded blast radius
+        body: About a third of users see errors, not all of them. Router failover would trade that for spill-over load.
+        check: { metric: errRate, target: web, op: '>=', value: 10 }
+      - title: Cell back
+        body: At 40 s cell A recovers and its tenants return.
+        check: { metric: availability, target: web, op: '>=', value: 99 }
+
+  - id: hexagonal
+    title: Hexagonal
+    minutes: 3
+    template: lesson-paradigm-hex
+    steps:
+      - title: Ports and adapters
+        body: The domain core only knows ports. REST and a batch CLI drive it; a Postgres adapter implements its repository port.
+        check: { metric: rps, target: core, op: '>=', value: 200 }
+      - title: Lose a driving adapter
+        body: Kill the REST adapter for 10 s. Web users fail.
+        action: { event: { kind: kill, target: rest, durationSec: 10 } }
+        check: { metric: errRate, target: web, op: '>=', value: 50 }
+      - title: The core doesn't care
+        body: The batch job still runs through its own adapter into the same core. Swapping Postgres for a queue would likewise only replace the adapter.
+        check: { metric: availability, target: bot, op: '>=', value: 99 }
