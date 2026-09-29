@@ -27,7 +27,7 @@ function Background({ style }: BottomSheetBackgroundProps) {
   return (
     <View style={[style, styles.bg, { borderColor: c.hairlineStrong }]} pointerEvents="none">
       <BlurView style={StyleSheet.absoluteFill} blurType={dark ? 'dark' : 'light'} blurAmount={30} reducedTransparencyFallbackColor={c.surface1} />
-      <View style={[StyleSheet.absoluteFill, { backgroundColor: dark ? 'rgba(18,23,34,0.82)' : 'rgba(255,255,255,0.85)' }]} />
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: dark ? 'rgba(23,24,27,0.84)' : 'rgba(255,255,255,0.85)' }]} />
     </View>
   );
 }

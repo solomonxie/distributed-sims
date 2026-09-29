@@ -1,5 +1,7 @@
 // Tokens from docs/design/mobile-app/uiux/visual.md — nothing else hard-codes colour or spacing.
-export const palette = {
+
+/** Colours the animations are drawn with (algorithm frames, the system canvas). Kept as-is while the app chrome moved to `palette`. */
+export const canvasPalette = {
   dark: {
     canvas: '#0A0D14',
     gridDot: '#1C2230',
@@ -54,7 +56,63 @@ export const palette = {
   },
 };
 
-export type Colors = typeof palette.dark;
+/** App chrome: calm neutral surfaces, one soft accent, muted status colours. */
+export const palette: typeof canvasPalette = {
+  dark: {
+    canvas: '#0F1012',
+    gridDot: '#232428',
+    surface1: '#17181B',
+    surface2: '#1F2023',
+    glass: 'rgba(23,24,27,0.78)',
+    glassSolid: '#1A1B1E',
+    hairline: 'rgba(255,255,255,0.07)',
+    hairlineStrong: 'rgba(255,255,255,0.12)',
+    text: '#ECECEE',
+    text2: '#9B9CA2',
+    text3: '#64656B',
+    accent: '#A3AEF5',
+    accentPressed: '#8793E6',
+    onAccent: '#111217',
+    ok: '#86C3A3',
+    warn: '#DDB679',
+    fail: '#E39494',
+    down: '#64656B',
+    partition: '#B7A8E6',
+    read: '#96B4E0',
+    write: '#DFAA85',
+    protocol: '#B7A8E6',
+    error: '#E39494',
+    scrim: 'rgba(0,0,0,0.55)',
+  },
+  light: {
+    canvas: '#F6F6F4',
+    gridDot: '#E2E2DF',
+    surface1: '#FFFFFF',
+    surface2: '#F0F0EE',
+    glass: 'rgba(255,255,255,0.8)',
+    glassSolid: '#FFFFFF',
+    hairline: 'rgba(0,0,0,0.06)',
+    hairlineStrong: 'rgba(0,0,0,0.1)',
+    text: '#1C1C1E',
+    text2: '#6B6B70',
+    text3: '#A1A1A6',
+    accent: '#4F5BD5',
+    accentPressed: '#3E49BD',
+    onAccent: '#FFFFFF',
+    ok: '#3F8F6B',
+    warn: '#B7791F',
+    fail: '#C24141',
+    down: '#A1A1A6',
+    partition: '#6E5AC4',
+    read: '#3F6FB5',
+    write: '#B8662F',
+    protocol: '#6E5AC4',
+    error: '#C24141',
+    scrim: 'rgba(0,0,0,0.25)',
+  },
+};
+
+export type Colors = typeof canvasPalette.dark;
 
 export const space = { xs: 4, s: 8, m: 12, l: 16, xl: 24, xxl: 32 } as const;
 export const radius = { node: 14, card: 16, sheet: 28, pill: 999, chip: 10 } as const;
