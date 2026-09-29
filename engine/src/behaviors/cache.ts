@@ -1,4 +1,4 @@
-// Cache: read-through in front of its out-edge store; write strategies, eviction, TTL, stampede.
+// Cache: read-through in front of its out-edge store, or a plain store for cache-aside callers (no out-edge); write strategies, eviction, TTL, stampede.
 import { register } from './registry';
 import type { NodeLogic, Req, SimNode } from '../node';
 import { pickWeighted } from '../node';
@@ -89,10 +89,7 @@ function cache(n: SimNode): NodeLogic {
   function miss(req: Req, k: number) {
     misses += req.msg.weight;
     const e = dbEdge('read');
-    if (!e) {
-      set(k, undefined, 0);
-      return req.reply({ ok: true });
-    }
+    if (!e) return req.reply({ ok: true, miss: true });
     if (coalescing) {
       const waiting = inflight.get(k);
       if (waiting) return void waiting.push(req);
@@ -126,7 +123,9 @@ function cache(n: SimNode): NodeLogic {
     }
     const e = dbEdge('write');
     if (!e) {
-      set(k, value, 0);
+      // cache-aside caller: DEL, or SET (a missing value caches "not found" too)
+      if (req.msg.data?.del) entries.delete(k);
+      else set(k, req.msg.value, req.msg.version ?? 0);
       return req.reply({ ok: true });
     }
     n.call(e, n.world.child(req.msg, n.id, e.to), (r: Reply) => {

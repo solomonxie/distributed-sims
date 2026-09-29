@@ -2,17 +2,17 @@
   "schemaVersion": 1,
   "id": "lesson-caching-aside",
   "name": "Lesson: cache-aside",
-  "description": "API reads Redis first and falls back to Postgres on a miss, then fills the cache. Starts cold.",
+  "description": "The API asks Redis first; on a miss it reads Postgres itself and stores the row in Redis. Redis never talks to Postgres. Starts cold.",
   "nodes": [
     { "id": "web", "type": "web-client", "name": "Users", "pos": { "x": 195, "y": 60 } },
     { "id": "api", "type": "service", "name": "API", "pos": { "x": 195, "y": 180 } },
-    { "id": "cache", "type": "cache", "skin": "redis", "name": "Redis", "pos": { "x": 195, "y": 300 }, "config": { "strategy": "cache-aside", "capacityKeys": 512, "ttlSec": 300 } },
-    { "id": "db", "type": "relational-db", "skin": "postgres", "name": "Postgres", "pos": { "x": 195, "y": 420 }, "config": { "replicas": 0, "p50Ms": 5, "p99Ms": 30 } }
+    { "id": "cache", "type": "cache", "skin": "redis", "name": "Redis", "pos": { "x": 40, "y": 330 }, "config": { "strategy": "cache-aside", "capacityKeys": 512, "ttlSec": 300 } },
+    { "id": "db", "type": "relational-db", "skin": "postgres", "name": "Postgres", "pos": { "x": 350, "y": 330 }, "config": { "replicas": 0, "p50Ms": 5, "p99Ms": 30 } }
   ],
   "edges": [
     { "id": "e1", "from": "web", "to": "api" },
     { "id": "e2", "from": "api", "to": "cache" },
-    { "id": "e3", "from": "cache", "to": "db" }
+    { "id": "e3", "from": "api", "to": "db" }
   ],
   "containers": [],
   "scenario": {

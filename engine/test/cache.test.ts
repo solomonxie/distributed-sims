@@ -63,3 +63,24 @@ test('LRU evicts under capacity; cache-flush empties it', () => {
   r.fire({ kind: 'cache-flush', target: 'cache' });
   expect(r.snapshot().nodes.cache.badges[1].text).toBe('LRU 0/64');
 });
+
+test('cache-aside: the service takes the miss, reads the store and fills the cache; the cache never calls the store', () => {
+  const d = doc(
+    [node('c', 'web-client'), node('api', 'service'), node('cache', 'cache', { capacityKeys: 512, ttlSec: 300 }), node('db', 'relational-db', { replicas: 0, slots: 200, queueLimit: 100000 })],
+    [edge('c', 'api', { timeoutMs: 5000 }), edge('api', 'cache', { timeoutMs: 5000 }), edge('api', 'db', { timeoutMs: 5000 })],
+    { sources: [{ id: 's', node: 'c', shape: { kind: 'constant', rps: 300 }, readRatio: 0.9, keys: { kind: 'zipf', s: 0.9 } }] },
+  );
+  const r = createRun(d, { catalog: testCatalog, seed: 7 });
+  r.step(1500);
+  const earlyDb = r.series('db')[0].rps;
+  r.step(15_000);
+  expect(r.snapshot().nodes.cache.gauges.hitRatio).toBeGreaterThan(70);
+  expect(r.snapshot().nodes.db.rps).toBeLessThan(earlyDb);
+  // a traced read that missed: api → cache (miss) → api → db → api → cache (SET), never cache → db
+  const tr = r.traces().find(t => t.end !== undefined && t.spans.some(s => s.node === 'db'));
+  expect(tr).toBeDefined();
+  const fl = r.world.traceFlights.get(tr!.id) ?? [];
+  expect(fl.some(f => f.from === 'cache' && f.to === 'db')).toBe(false);
+  expect(fl.some(f => f.from === 'api' && f.to === 'db')).toBe(true);
+  expect(fl.some(f => f.from === 'api' && f.to === 'cache' && f.msg?.op === 'write')).toBe(true);
+});

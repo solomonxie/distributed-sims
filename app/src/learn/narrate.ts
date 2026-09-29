@@ -162,6 +162,10 @@ export function story(doc: SystemDoc, hops: JourneyHop[], i: number, snap: Snaps
   if (!h.reply) {
     const t = typeOf(doc, h.to);
     const desc = catalog.types.find(x => x.type === t)?.description ?? '';
+    if (kindOf(t) === 'cache' && h.msg?.op === 'write') {
+      const del = !!h.msg.data?.del;
+      return { phase: 'request', at: h.to, title: `${del ? 'Clearing' : 'Storing in'} ${name(h.to)}`, body: del ? 'The database changed, so the cached copy is dropped. The next read misses and refills it.' : 'Keeping a copy of what the database returned, so the next read is a hit.', wire: w.req[0], chips: chipsFor(snap, h.to) };
+    }
     return { phase: 'request', at: h.to, title: `${VERB[kindOf(t)]} ${name(h.to)}`, body: desc ? `${desc}.`.replace(/\.\.$/, '.') : '', wire: w.req[0], chips: chipsFor(snap, h.to) };
   }
   const t = typeOf(doc, h.from);
@@ -186,9 +190,15 @@ export function story(doc: SystemDoc, hops: JourneyHop[], i: number, snap: Snaps
   }
   const detail =
     k === 'cache'
-      ? h.calls
-        ? 'Cache miss: it asked the database first, then kept a copy for next time.'
-        : 'Cache hit: answered from memory, no database trip.'
+      ? h.msg?.op === 'write'
+        ? h.msg.data?.del
+          ? 'Dropped the cached copy.'
+          : 'Stored. The next read for this key is a hit.'
+        : h.res?.miss
+          ? 'Cache miss: not in memory. Next, the service asks the database itself.'
+          : h.calls
+            ? 'Cache miss: it asked the database first, then kept a copy for next time.'
+            : 'Cache hit: answered from memory, no database trip.'
       : k === 'cdn'
         ? h.calls
           ? 'Not cached at the edge, so it went all the way to the servers.'

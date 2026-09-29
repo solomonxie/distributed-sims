@@ -237,6 +237,8 @@ export interface Reply {
   value?: number;
   version?: number;
   stale?: boolean;
+  /** cache read: the key was not there (cache-aside; the caller fetches it) */
+  miss?: boolean;
 }
 
 export type ErrKind = 'timeout' | '5xx' | '503' | '429' | 'refused' | 'auth' | 'conflict' | 'unavailable';
