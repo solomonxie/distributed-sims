@@ -6,6 +6,7 @@ order: 1
 summary: A replicated, partitioned log — how a record gets from producer to consumer, and every place it can be lost or read twice.
 info: A topic is split into partitions; each partition is a log with one leader broker and followers that copy it. The in-sync replicas (ISR) decide when a record is committed (the high watermark). A KRaft controller quorum elects leaders; consumer groups split partitions between members and commit offsets.
 problems: [distributed-mq]
+algos: [kafka-storage, kafka-replication, kafka-eos, kafka-groups, stk-kafka-ops, stk-kafka-sizing]
 lessons:
   - id: anatomy
     title: Anatomy of a Kafka cluster
@@ -225,3 +226,274 @@ lessons:
       - title: Writes stall everywhere
         body: acks=all waits on a dead replica in every ISR. Metadata is frozen until the quorum returns.
         check: { metric: availability, op: '<', value: 50 }
+
+  - id: log-segments
+    title: "Inside: log segments and the sparse index"
+    minutes: 3
+    algo: kafka-storage
+    steps:
+      - title: A directory of segments
+        body: Each partition is a folder of .log files named after their first offset. Only the newest, active segment takes appends.
+        input: segments
+        check: { metric: manual }
+      - title: Sparse index
+        body: The .index holds one entry per ~4 KiB of log, so it stays small enough to mmap. A lookup is a binary search plus a short scan.
+        watch: Tap the index entry for its format.
+        check: { metric: manual }
+      - title: Retention drops whole files
+        body: Time and size retention delete closed segments, never single records. The .timeindex serves offsetsForTimes the same way.
+        check: { metric: manual }
+
+  - id: zero-copy
+    title: "Inside: page cache and zero-copy"
+    minutes: 3
+    algo: kafka-storage
+    steps:
+      - title: Write to RAM, not disk
+        body: Brokers write into the OS page cache and leave flushing to the kernel. Replication, not fsync, makes a record durable.
+        input: zerocopy
+        check: { metric: manual }
+      - title: sendfile
+        body: Fetches call transferTo, so the kernel sends cached pages straight to the socket. Bytes never enter the JVM heap.
+        check: { metric: manual }
+      - title: Laggards hurt everyone
+        body: A consumer reading old data pulls cold segments from disk and can evict pages the tail readers need.
+        check: { metric: manual }
+
+  - id: compaction
+    title: "Inside: log compaction"
+    minutes: 3
+    algo: kafka-storage
+    steps:
+      - title: Latest value per key
+        body: cleanup.policy=compact keeps at least the last record for every key. New writes collect in a dirty section.
+        input: compaction
+        check: { metric: manual }
+      - title: The cleaner
+        body: When dirty bytes pass min.cleanable.dirty.ratio, the cleaner maps keys to their latest offset and recopies segments without the older records.
+        check: { metric: manual }
+      - title: Gaps and tombstones
+        body: Offsets never change, so the log gets gaps. A null value deletes a key and is itself removed after delete.retention.ms.
+        check: { metric: manual }
+
+  - id: high-watermark
+    title: "Inside: the high watermark"
+    minutes: 3
+    algo: kafka-replication
+    steps:
+      - title: Log end offsets
+        body: Every replica has a log end offset (LEO). Followers report theirs in each Fetch request.
+        input: hw
+        check: { metric: manual }
+      - title: Minimum across the ISR
+        body: The high watermark is the smallest LEO in the ISR. Only records below it are committed and readable.
+        check: { metric: manual }
+      - title: Shrinking the ISR unblocks it
+        body: A follower that stops fetching is dropped after replica.lag.time.max.ms, and the HW moves on without it.
+        check: { metric: manual }
+
+  - id: leader-epoch
+    title: "Inside: leader epochs and truncation"
+    minutes: 3
+    algo: kafka-replication
+    steps:
+      - title: An uncommitted tail
+        body: The old leader wrote a record no follower copied. After failover the new leader writes a different record at the same offset.
+        input: epoch
+        check: { metric: manual }
+      - title: Ask where the epoch ended
+        body: The returning replica sends OffsetsForLeaderEpoch and truncates exactly where its history diverged.
+        watch: Offset 4 ends up as y on both brokers.
+        check: { metric: manual }
+
+  - id: kraft-quorum
+    title: "Inside: the KRaft metadata log"
+    minutes: 3
+    algo: kafka-replication
+    steps:
+      - title: Metadata is a log
+        body: Controllers run Raft on __cluster_metadata. Every topic, partition and broker change is a record committed by a majority.
+        input: kraft
+        check: { metric: manual }
+      - title: Brokers are observers
+        body: Brokers replicate the same log and apply only new records to their metadata cache.
+        check: { metric: manual }
+      - title: Instant failover
+        body: A standby controller already holds the whole log, so it takes over in a new Raft epoch without reloading state.
+        check: { metric: manual }
+
+  - id: idempotence
+    title: "Inside: the idempotent producer"
+    minutes: 3
+    algo: kafka-eos
+    steps:
+      - title: PID and sequence numbers
+        body: Each batch carries a producer ID and a per-partition sequence number.
+        input: idempotent
+        check: { metric: manual }
+      - title: Retries are deduplicated
+        body: A retried batch the leader already has is acknowledged without a second append.
+        check: { metric: manual }
+      - title: No reordering
+        body: A sequence gap is rejected, so up to 5 in-flight requests keep their order.
+        check: { metric: manual }
+
+  - id: transactions
+    title: "Inside: transactions and read_committed"
+    minutes: 5
+    algo: kafka-eos
+    steps:
+      - title: Coordinator and fencing
+        body: initTransactions bumps the epoch for a transactional.id, fencing any zombie instance. The coordinator logs every partition the transaction touches.
+        input: txn
+        check: { metric: manual }
+      - title: Output and offsets together
+        body: sendOffsetsToTransaction puts consumed offsets in the same transaction, so read-process-write is atomic.
+        check: { metric: manual }
+      - title: Commit markers
+        body: PrepareCommit is the commit point. The coordinator then writes a COMMIT marker into each partition.
+        check: { metric: manual }
+      - title: Last stable offset
+        body: read_committed consumers stop at the first offset of the oldest open transaction and drop aborted records.
+        input: lso
+        check: { metric: manual }
+      - title: Hung transactions
+        body: An open transaction pins the LSO until it commits or transaction.timeout.ms aborts it.
+        check: { metric: manual }
+
+  - id: group-protocol
+    title: "Inside: the consumer group protocol"
+    minutes: 5
+    algo: kafka-groups
+    steps:
+      - title: JoinGroup and SyncGroup
+        body: The coordinator bumps the generation and picks a group leader, which computes the assignment on the client.
+        input: join
+        check: { metric: manual }
+      - title: Generations fence zombies
+        body: A commit from an old generation is rejected with ILLEGAL_GENERATION.
+        check: { metric: manual }
+      - title: Eager vs cooperative
+        body: Eager rebalances revoke everything first. Cooperative-sticky moves only the partitions that change owner.
+        input: cooperative
+        check: { metric: manual }
+      - title: Static membership
+        body: With group.instance.id a restart within session.timeout.ms gets its old partitions back without a rebalance.
+        input: static
+        check: { metric: manual }
+
+  - id: ops-bootstrap
+    title: "Ops: bootstrap a KRaft cluster"
+    minutes: 4
+    algo: stk-kafka-ops
+    steps:
+      - title: "One config, three nodes"
+        body: "Every node is broker and controller, with its own node.id and the same static controller.quorum.voters list."
+        watch: "Tap server.properties to see the exact lines from kafka-flow."
+        input: format
+        check: { metric: manual }
+      - title: "Format once"
+        body: "kafka-storage.sh format stamps log.dirs with a shared cluster ID. Nodes with different IDs refuse to talk."
+        check: { metric: manual }
+      - title: "The quorum elects itself"
+        body: "Controllers vote over port 9093; the winner owns all metadata and the others fetch its metadata log."
+        check: { metric: manual }
+
+  - id: ops-topic
+    title: "Ops: create a replicated topic"
+    minutes: 3
+    algo: stk-kafka-ops
+    steps:
+      - title: "Any broker, one controller"
+        body: "CreateTopics can go to any broker; it is forwarded to the active controller, the only metadata writer."
+        input: topic
+        check: { metric: manual }
+      - title: "Read --describe"
+        body: "Leader, Replicas and Isr per partition. Leaders are spread so each broker leads one partition."
+        watch: "Isr shrinks when a follower dies or lags."
+        check: { metric: manual }
+
+  - id: ops-record-path
+    title: "Ops: one record, every request"
+    minutes: 4
+    algo: stk-kafka-ops
+    steps:
+      - title: "Metadata first"
+        body: "A producer asks any bootstrap broker where the leader of its partition lives, then talks to that leader directly."
+        input: produce
+        check: { metric: manual }
+      - title: "acks=all waits for followers"
+        body: "The leader appends, followers fetch the record, and only when the ISR has it does the producer get its ack."
+        watch: "Two follower Fetch round trips happen before the ack."
+        check: { metric: manual }
+      - title: "Read and commit"
+        body: "The consumer reads below the high watermark and commits its next offset to the group coordinator."
+        check: { metric: manual }
+
+  - id: ops-kill-leader
+    title: "Ops: kill the partition leader"
+    minutes: 4
+    algo: stk-kafka-ops
+    steps:
+      - title: "The experiment"
+        body: "kill -9 the broker leading P1, then describe the topic again."
+        input: failover
+        check: { metric: manual }
+      - title: "New leader from the ISR"
+        body: "The controller fences the dead broker and promotes an in-sync follower, bumping the leader epoch."
+        check: { metric: manual }
+      - title: "Clients recover"
+        body: "The producer’s request times out, it refreshes metadata and retries on the new leader. No acked record is lost."
+        check: { metric: manual }
+
+  - id: sizing-rf
+    title: "Sizing: replication factor"
+    minutes: 3
+    algo: stk-kafka-sizing
+    steps:
+      - title: "RF 1 vs RF 3"
+        body: "The single-node helloworld runs RF 1: learning only. The 3-node cluster runs RF 3."
+        input: rf
+        check: { metric: manual }
+      - title: "The usual setting"
+        body: "RF 3, min.insync.replicas=2 and acks=all survive one broker without losing acked data or blocking writes."
+        check: { metric: manual }
+
+  - id: sizing-partitions
+    title: "Sizing: partition count"
+    minutes: 3
+    algo: stk-kafka-sizing
+    steps:
+      - title: "Unit of parallelism"
+        body: "One consumer per partition per group; extra consumers idle."
+        input: partitions
+        check: { metric: manual }
+      - title: "Choose up front"
+        body: "Adding partitions later remaps keys and breaks per-key ordering."
+        check: { metric: manual }
+
+  - id: sizing-memory
+    title: "Sizing: heap vs page cache"
+    minutes: 3
+    algo: stk-kafka-sizing
+    steps:
+      - title: "Small heap on purpose"
+        body: "On a 2 GB t2.small, KAFKA_HEAP_OPTS pins the heap to 512 MB and leaves the rest to the page cache."
+        input: memory
+        check: { metric: manual }
+      - title: "Tail reads are memory reads"
+        body: "Consumers that keep up read from cache; a replay from the beginning hits disk and evicts hot pages."
+        check: { metric: manual }
+
+  - id: sizing-tiered
+    title: "Hot and cold tiers"
+    minutes: 3
+    algo: stk-kafka-sizing
+    steps:
+      - title: "Local disk is the hot tier"
+        body: "Recent segments stay local; closed segments are copied to object storage."
+        input: tiered
+        check: { metric: manual }
+      - title: "Cheap retention"
+        body: "Long retention costs object storage, not broker disk, and replacement brokers copy far less."
+        check: { metric: manual }

@@ -1,0 +1,57 @@
+id: stack-databricks
+title: Databricks & Delta Lake
+group: under-the-hood
+icon: waves
+order: 20
+summary: Spark as a managed service — Databricks Connect, Unity Catalog tables, Delta's transaction log, MERGE, time travel and Jobs.
+info: "Databricks Connect sends DataFrame plans from your laptop to a running cluster over Spark Connect, and only results come back. Tables live at catalog.schema.table in Unity Catalog and are stored as Delta: Parquet files plus an ordered log of JSON commits, which gives atomic MERGE, snapshot reads and time travel until VACUUM."
+algos: [stk-databricks, stk-delta-log]
+lessons:
+  - id: connect
+    title: Databricks Connect
+    minutes: 3
+    algo: stk-databricks
+    steps:
+      - title: Plans out, results back
+        body: The laptop builds the plan, the cluster runs it, only the result returns. No RDD API from the client.
+        input: connect
+        check: { metric: manual }
+  - id: unity-catalog
+    title: Unity Catalog tables
+    minutes: 3
+    algo: stk-databricks
+    steps:
+      - title: Names, permissions, storage
+        body: saveAsTable asks Unity Catalog for a location and credentials, writes Parquet, then commits version 0.
+        input: table
+        check: { metric: manual }
+  - id: delta-log
+    title: The Delta log
+    minutes: 4
+    algo: stk-delta-log
+    steps:
+      - title: Files plus commits
+        body: Each commit adds or removes files; replaying the log gives the table.
+        input: log
+        check: { metric: manual }
+  - id: merge
+    title: MERGE, history and time travel
+    minutes: 4
+    algo: stk-databricks
+    steps:
+      - title: Atomic upsert
+        body: MERGE rewrites the affected files and commits them in one atomic log entry.
+        input: merge
+        check: { metric: manual }
+      - title: Time travel
+        body: VERSION AS OF reads an older snapshot until VACUUM deletes its files.
+        check: { metric: manual }
+  - id: jobs
+    title: Jobs
+    minutes: 3
+    algo: stk-databricks
+    steps:
+      - title: Ship code to the cluster
+        body: Upload a notebook and submit a one-time run; it keeps running without your laptop.
+        input: job
+        check: { metric: manual }

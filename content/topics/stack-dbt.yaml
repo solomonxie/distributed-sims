@@ -1,0 +1,58 @@
+id: stack-dbt
+title: dbt
+group: under-the-hood
+icon: table
+order: 19
+summary: SQL transformations as a DAG of models — ref(), materializations, incremental builds, tests and macros, run inside the warehouse.
+info: "A dbt model is one SELECT statement. dbt compiles Jinja (ref, macros, config) into SQL, orders models by their ref() edges, and runs them in the warehouse as views, tables or incremental merges. It moves no data itself. Schema tests compile to queries that return the failing rows."
+algos: [stk-dbt, stk-dbt-incremental]
+lessons:
+  - id: project
+    title: Project and profile
+    minutes: 3
+    algo: stk-dbt
+    steps:
+      - title: What vs where
+        body: dbt_project.yml defines models and defaults; profiles.yml holds the connection, here a local DuckDB file.
+        input: project
+        check: { metric: manual }
+  - id: ref
+    title: ref() and the model DAG
+    minutes: 3
+    algo: stk-dbt
+    steps:
+      - title: Never hardcode a table
+        body: ref() resolves to the right relation per target and adds a DAG edge.
+        input: ref
+        check: { metric: manual }
+      - title: Selectors
+        body: dbt run --select +model builds a model and everything upstream.
+        check: { metric: manual }
+  - id: materializations
+    title: Materializations
+    minutes: 3
+    algo: stk-dbt
+    steps:
+      - title: View, table, incremental
+        body: Trade build cost against read cost and data size.
+        input: materialize
+        check: { metric: manual }
+  - id: incremental
+    title: Incremental models, two runs
+    minutes: 4
+    algo: stk-dbt-incremental
+    steps:
+      - title: Every query dbt sends
+        body: "Run 1 creates the table with 3 rows; run 2 sees is_incremental() and merges 0 new rows."
+        input: runs
+        watch: The where clause only appears on run 2.
+        check: { metric: manual }
+  - id: tests-macros
+    title: Tests and macros
+    minutes: 3
+    algo: stk-dbt
+    steps:
+      - title: Tests are queries
+        body: not_null and unique compile to SELECTs that return failures; dbt build stops downstream models on failure.
+        input: tests
+        check: { metric: manual }

@@ -5,7 +5,7 @@ icon: memory-stick
 order: 6
 summary: Why one thread serving RAM beats a big database for simple operations — and the handful of ways that one thread gets stuck.
 info: Redis keeps the whole dataset in memory and runs every command on a single event-loop thread; epoll tells it which of thousands of sockets are readable. No locks, no context switches, tiny O(1) operations. The flip side — one slow command, a fork() for snapshots, or an fsync on the main thread stalls every client at once.
-algos: []
+algos: [redis-lua]
 problems: [tinyurl]
 lessons:
   - id: anatomy
@@ -149,3 +149,58 @@ lessons:
       - title: Acked writes are gone
         body: Everything the replica had not received is lost, although clients were told OK. WAIT or a CP store is the fix.
         check: { metric: anomaly:lost-write, op: '>=', value: 1 }
+
+  - id: lua-atomic
+    title: "Lua scripts: atomic check-and-set"
+    minutes: 3
+    algo: redis-lua
+    steps:
+      - title: One command
+        body: EVAL runs the whole script on the single thread, so nothing interleaves between GET and DEL.
+        input: atomic
+        check: { metric: manual }
+      - title: KEYS and ARGV
+        body: Keys go in KEYS, values in ARGV. Scripts should be deterministic and touch only declared keys.
+        check: { metric: manual }
+
+  - id: lua-cache
+    title: "EVALSHA, NOSCRIPT and functions"
+    minutes: 2
+    algo: redis-lua
+    steps:
+      - title: Send the hash
+        body: SCRIPT LOAD once, then EVALSHA with 40 bytes instead of the script body.
+        input: evalsha
+        check: { metric: manual }
+      - title: Cache is volatile
+        body: After a restart EVALSHA returns NOSCRIPT. Redis 7 FUNCTION LOAD persists and replicates scripts.
+        check: { metric: manual }
+
+  - id: lua-cluster
+    title: "Lua in Cluster: hash tags"
+    minutes: 2
+    algo: redis-lua
+    steps:
+      - title: Same slot
+        body: A script runs on one node, so all its keys must share a hash tag like {user:7}.
+        input: cluster
+        check: { metric: manual }
+      - title: CROSSSLOT
+        body: Keys in different slots are rejected before the script runs.
+        check: { metric: manual }
+
+  - id: lua-slow
+    title: "Break it: a long Lua script blocks everyone"
+    minutes: 3
+    template: tech-redis-keys
+    steps:
+      - title: Healthy
+        body: 20k ops/s at sub-millisecond p99.
+        check: { metric: rps, target: redis, op: '>=', value: 15000 }
+      - title: Run a heavy script
+        body: A script loops over 10M members of a set. Atomic means nothing else runs until it returns.
+        action: { event: { kind: slow-command, target: redis, params: { command: "EVAL", everySec: 5, why: "EVAL loops over 10M members — every client waits" }, durationSec: 30 } }
+        check: { metric: p99, target: redis, op: '>=', value: 500 }
+      - title: Keep scripts short
+        body: Every client waited. Past lua-time-limit only SCRIPT KILL or SHUTDOWN NOSAVE can stop it; batch big work across calls instead.
+        check: { metric: gauge:loopBlockedMs, target: redis, op: '>=', value: 500 }

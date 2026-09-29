@@ -1,0 +1,67 @@
+id: stack-dagster
+title: Dagster
+group: under-the-hood
+icon: layers
+order: 18
+summary: Orchestration around data assets instead of tasks — dependencies from function signatures, resources, IO managers and partitions.
+info: "Dagster models the data each step produces (software-defined assets). An asset's parameters name its upstream assets, so the graph and lineage come from plain Python. Resources inject external clients, IO managers decide where outputs live, partitions split an asset into slices, and the daemon evaluates schedules and sensors that only return run requests."
+algos: [stk-dagster, stk-dagster-runtime]
+lessons:
+  - id: assets
+    title: Assets and dependencies
+    minutes: 3
+    algo: stk-dagster
+    steps:
+      - title: A function that returns data
+        body: "@asset functions produce persistent data; materialize runs them in-process."
+        input: assets
+        check: { metric: manual }
+      - title: Signatures are edges
+        body: doubled(raw_numbers) depends on raw_numbers because of the parameter name.
+        check: { metric: manual }
+  - id: ops-jobs
+    title: Ops and jobs
+    minutes: 3
+    algo: stk-dagster
+    steps:
+      - title: The lower-level API
+        body: Ops wired into a job, for steps that are side effects rather than datasets.
+        input: jobs
+        check: { metric: manual }
+  - id: resources
+    title: Resources
+    minutes: 3
+    algo: stk-dagster
+    steps:
+      - title: Inject, don't hardcode
+        body: A ConfigurableResource bound by name in Definitions; tests bind a fake.
+        input: resources
+        check: { metric: manual }
+  - id: io-managers
+    title: IO managers
+    minutes: 4
+    algo: stk-dagster-runtime
+    steps:
+      - title: Who stores outputs
+        body: Dagster calls handle_output after an asset and load_input before its downstream; assets never touch storage.
+        input: io
+        watch: Every read and write goes through the IO manager lane.
+        check: { metric: manual }
+  - id: partitions
+    title: Partitioned assets
+    minutes: 3
+    algo: stk-dagster
+    steps:
+      - title: One definition, many slices
+        body: StaticPartitionsDefinition(us, eu, apac); materialize one slice by partition_key.
+        input: partitions
+        check: { metric: manual }
+  - id: schedules-sensors
+    title: Schedules and sensors
+    minutes: 3
+    algo: stk-dagster-runtime
+    steps:
+      - title: They only ask
+        body: The daemon ticks schedules and sensors; they return RunRequest or SkipReason, and run_key dedupes.
+        input: sensors
+        check: { metric: manual }

@@ -6,6 +6,7 @@ order: 7
 summary: Why a few event-loop workers outrun a process per connection — and what stalls a loop.
 info: nginx runs one master and one worker per core. Each worker is a single-threaded event loop over non-blocking sockets, so 10,000 connections cost memory, not threads. Static files go out with sendfile (zero-copy); proxied requests reuse keep-alive upstream connections. Anything that blocks inside a worker blocks every connection it owns.
 problems: [tinyurl]
+algos: [nginx-lua]
 lessons:
   - id: anatomy
     title: Anatomy of nginx
@@ -154,3 +155,58 @@ lessons:
         body: Stopping and starting the process drops every open connection and refuses new ones until it's back.
         action: { event: { kind: restart, target: nginx, params: { downSec: 5 } } }
         check: { metric: availability, op: '<', value: 90 }
+
+  - id: lua-phases
+    title: "Lua in nginx: request phases"
+    minutes: 3
+    algo: nginx-lua
+    steps:
+      - title: Hooks
+        body: OpenResty embeds LuaJIT in each worker. rewrite, access, content and log blocks run Lua at each phase.
+        input: phases
+        check: { metric: manual }
+      - title: Edge logic
+        body: Auth, routing and small APIs run in nginx itself, with no extra hop.
+        check: { metric: manual }
+
+  - id: lua-cosocket
+    title: "Cosockets: I/O without blocking"
+    minutes: 3
+    algo: nginx-lua
+    steps:
+      - title: Yield on I/O
+        body: ngx.socket calls park the request’s coroutine and let the worker serve others.
+        input: cosocket
+        check: { metric: manual }
+      - title: Pooling
+        body: setkeepalive returns connections to a per-worker pool.
+        check: { metric: manual }
+
+  - id: lua-shdict
+    title: "Shared dict: rate limit across workers"
+    minutes: 2
+    algo: nginx-lua
+    steps:
+      - title: One counter for all workers
+        body: lua_shared_dict lives in shared memory, so every worker sees the same counts.
+        input: shdict
+        check: { metric: manual }
+      - title: Not a Lua table
+        body: Each worker has its own Lua VM; plain tables only count one worker’s traffic.
+        check: { metric: manual }
+
+  - id: lua-blocking
+    title: "Break it: blocking Lua in a worker"
+    minutes: 3
+    template: tech-nginx-blocking
+    steps:
+      - title: Healthy
+        body: Four workers split the connections evenly.
+        check: { metric: availability, op: '>=', value: 99.9 }
+      - title: Use a blocking library
+        body: Worker 1’s Lua now calls LuaSocket (or os.execute) per request instead of ngx.socket. The whole worker waits.
+        action: { event: { kind: blocking-call, target: nginx, params: { ms: 200 } } }
+        check: { metric: badge:worker 1 blocked, target: nginx, op: '>=', value: 1 }
+      - title: Its connections stall
+        body: Everyone on worker 1 suffers. Only ngx.* and lua-resty-* APIs are safe inside a worker.
+        check: { metric: errRate, target: users, op: '>=', value: 10 }

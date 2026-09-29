@@ -1,0 +1,111 @@
+id: tdd
+title: "Test-driven development"
+group: topics
+icon: flask-conical
+order: 17
+summary: "Red, green, refactor: test first, inject time, pick the right double, and test contracts, properties and retries."
+info: "TDD writes a failing test before the code that makes it pass, then cleans up with the tests as a safety net. In distributed systems the hard parts are time, networks and other teams’ services. Fake clocks, fake networks, contract tests and property-based tests make those deterministic and fast."
+algos: [tdd-cycle, tdd-limiter, tdd-dist]
+lessons:
+  - id: red-green
+    title: "Red, then green"
+    minutes: 3
+    algo: tdd-cycle
+    steps:
+      - title: "Test first"
+        body: "Write the behaviour you want as a test. Run it and watch it fail for the right reason."
+        input: red
+        check: { metric: manual }
+      - title: "Least code"
+        body: "Make it pass with the simplest code, even hard-coded answers."
+        input: green
+        check: { metric: manual }
+      - title: "Triangulate"
+        body: "A new example the fake answer can’t satisfy forces the general rule."
+        check: { metric: manual }
+
+  - id: refactor
+    title: "Refactor on green"
+    minutes: 2
+    algo: tdd-cycle
+    steps:
+      - title: "Remove duplication"
+        body: "Replace the special cases with the rule they share. Tests stay unchanged."
+        input: refactor
+        check: { metric: manual }
+      - title: "Small steps"
+        body: "Rerun the suite after each change. If it goes red, undo rather than debug."
+        check: { metric: manual }
+
+  - id: limiter
+    title: "TDD a token bucket"
+    minutes: 4
+    algo: tdd-limiter
+    steps:
+      - title: "Inject the clock"
+        body: "Time is a dependency. A fake clock moves only when the test says so."
+        input: clock
+        check: { metric: manual }
+      - title: "Spend"
+        body: "Burst requests pass, the next one is rejected. The result is exact, every run."
+        check: { metric: manual }
+      - title: "Refill and cap"
+        body: "advance() jumps time instantly. Each new test adds one rule: refill, then cap at burst."
+        input: refill
+        check: { metric: manual }
+
+  - id: doubles
+    title: "Stub, spy, mock, fake"
+    minutes: 3
+    algo: tdd-limiter
+    steps:
+      - title: "Stub and spy"
+        body: "A stub feeds canned answers. A spy records calls for later assertions."
+        input: doubles
+        check: { metric: manual }
+      - title: "Mock and fake"
+        body: "A mock verifies expected calls. A fake is real, cheap logic; prefer it and check state."
+        check: { metric: manual }
+
+  - id: pyramid
+    title: "Test pyramid & contracts"
+    minutes: 4
+    algo: tdd-dist
+    steps:
+      - title: "Wide base"
+        body: "Many fast unit tests, fewer integration tests, very few slow and flaky end-to-end tests."
+        input: pyramid
+        check: { metric: manual }
+      - title: "Consumer-driven contracts"
+        body: "The consumer records what it needs. The provider’s CI replays it against the real service."
+        input: contract
+        check: { metric: manual }
+      - title: "Deploy independently"
+        body: "A verified pact replaces a shared end-to-end environment for API compatibility."
+        check: { metric: manual }
+
+  - id: property
+    title: "Property-based testing"
+    minutes: 3
+    algo: tdd-dist
+    steps:
+      - title: "Properties"
+        body: "State a rule for all inputs. Generators try hundreds of random cases."
+        input: property
+        check: { metric: manual }
+      - title: "Shrinking"
+        body: "A failing input is simplified until only the essence remains: one backward clock step."
+        check: { metric: manual }
+
+  - id: retries
+    title: "Retries, timeouts & idempotency"
+    minutes: 3
+    algo: tdd-dist
+    steps:
+      - title: "Lost reply"
+        body: "A fake network drops the reply. The fake clock fires the timeout instantly."
+        input: retries
+        check: { metric: manual }
+      - title: "Charge once"
+        body: "The retry carries the same idempotency key, so the ledger shows one charge."
+        check: { metric: manual }
