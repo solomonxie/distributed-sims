@@ -9,8 +9,10 @@ import { rules as engineRules, type ChaosEvent, type Flight, type SystemDoc, typ
 import { catalog, topics, type ChaosDef } from '@dsims/content';
 import type { RootStackParamList } from '../navigation/types';
 import { useTheme, space, spring } from '../theme';
+import { DotCallout } from '../canvas/DotCallout';
 import { SystemCanvas, fmtMs } from '../canvas/SystemCanvas';
 import { computeLayout, hitTest, nodeIcon } from '../canvas/layout';
+import { useProgress } from '../state/progress';
 import { useDoc, flushSave } from '../state/doc';
 import { useLibrary, forkDoc, saveSystem } from '../state/library';
 import { useSettings } from '../state/settings';
@@ -66,6 +68,12 @@ export function EditorScreen() {
   const run = useRun();
   const mode: 'build' | 'run' = run.active ? 'run' : 'build';
   const [sheet, setSheet] = useState<SheetKind>(null);
+  /** sheets a detail sheet was opened from; Back restores the last one */
+  const [sheetBack, setSheetBack] = useState<NonNullable<SheetKind>[]>([]);
+  const openSub = (next: NonNullable<SheetKind>) => {
+    setSheetBack(b => (sheet ? [...b, sheet] : b));
+    setSheet(next);
+  };
   const [targeting, setTargeting] = useState<Targeting>(null);
   const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null);
   const [titleMenu, setTitleMenu] = useState(false);
@@ -73,9 +81,11 @@ export function EditorScreen() {
   const [groupKind, setGroupKind] = useState<string | null>(null);
   const sheetRef = useRef<any>(null);
   const labels = useSettings(st => st.labels);
-  const [sender, setSender] = useState<string | undefined>();
+  const sender = run.sender;
+  const setSender = (v: string | undefined | ((s: string | undefined) => string | undefined)) => useRun.setState({ sender: typeof v === 'function' ? v(useRun.getState().sender) : v });
   const [sendMenu, setSendMenu] = useState(false);
-  const [sendOp, setSendOp] = useState<'read' | 'write'>('read');
+  const sendOp = run.sendOp;
+  const setSendOp = (v: 'read' | 'write') => useRun.setState({ sendOp: v });
   const [reduceMotion, setReduceMotion] = useState(false);
   const [screenReader, setScreenReader] = useState(false);
   useEffect(() => {
@@ -226,6 +236,12 @@ export function EditorScreen() {
     }
     if (!doc.scenario?.sources.length && doc.nodes.some(n => isClient(n.type))) toast({ text: 'Added 100 rps from every client', tone: 'info', icon: 'activity' });
     const g = route.params.guide;
+    if (g?.kind === 'lesson' && g.topicId && g.lessonId) {
+      const key = `${g.topicId}/${g.lessonId}`;
+      useProgress.getState().visit({ kind: 'lesson', topic: g.topicId, lesson: g.lessonId });
+      useProgress.getState().played({ kind: 'lesson', topic: g.topicId, lesson: g.lessonId });
+      useProgress.getState().completeLesson(key);
+    }
     const lessonSpeed = g?.kind === 'lesson' ? ((topics.find(t => t.id === g.topicId)?.lessons.find(l => l.id === g.lessonId) as any)?.speed ?? 1) : g ? 1 : undefined;
     controller.start(doc, layout, { autoplay: true, owner: myDocId, speed: lessonSpeed, pace: g?.kind === 'challenge' ? CHALLENGE_PACE : undefined, auto: false });
     setSender(s0 => s0 && doc.nodes.some(n => n.id === s0) ? s0 : defaultSender(doc));
@@ -237,6 +253,19 @@ export function EditorScreen() {
     setSheet(null);
     setTargeting(null);
   };
+
+  // elapsed time at each component the followed request has reached; updates as soon as a hop lands
+  const stamps = useMemo(() => {
+    const lead = run.lead;
+    if (!lead || !lead.hops.length) return undefined;
+    const m: Record<string, number> = { [lead.hops[0].from]: 0 };
+    lead.hops.forEach((h, k) => {
+      if (k < lead.i && h.at !== undefined && !h.async) m[h.to] = h.at;
+    });
+    const cur = lead.hops[lead.i];
+    if (cur?.done && cur.at !== undefined) m[cur.to] = cur.at;
+    return m;
+  }, [run.lead]);
 
   // ---------- canvas interactions ----------
   const onTap = (x: number, y: number) => {
@@ -393,6 +422,7 @@ export function EditorScreen() {
         simTime={simTime}
         anchors={anchorsSV}
         targets={targets}
+        stamps={stamps}
         heat={reduceMotion}
         labels={labels}
         onTap={onTap}
@@ -407,6 +437,7 @@ export function EditorScreen() {
         }}
         onDragStart={() => haptic('select')}
       />
+      {run.active && <DotCallout doc={doc} layout={layout} camera={camera} />}
 
       {isEmpty && !run.active && (
         <Animated.View entering={FadeIn} exiting={FadeOut} style={[styles.empty, { top: H * 0.3 }]} pointerEvents="box-none">
@@ -451,7 +482,7 @@ export function EditorScreen() {
               onPress={() => {
                 haptic('select');
                 if (!run.stepping) controller.setStepping(true);
-                else controller.nextStep(sender ?? undefined, sendOp);
+                else controller.nextStep(sender ?? undefined, sendOp, run.sendCount);
               }}
             />
             <View style={[styles.zone, { justifyContent: 'flex-end' }]}>
@@ -558,7 +589,8 @@ export function EditorScreen() {
       )}
 
       {/* guide overlay (lessons / challenges) */}
-      {route.params.guide && <GuideLayer guide={route.params.guide} top={insets.top + (mode === 'run' ? 54 : 8)} />}
+      {/* lessons run without the tip bar; challenges keep their guide */}
+      {route.params.guide && route.params.guide.kind !== 'lesson' && <GuideLayer guide={route.params.guide} top={insets.top + (mode === 'run' ? 54 : 8)} />}
 
       {ghost && (
         <Animated.View pointerEvents="none" style={[styles.ghost, { backgroundColor: c.surface1, borderColor: c.accent }, ghostStyle]}>
@@ -593,8 +625,10 @@ export function EditorScreen() {
           key={sheetKey(sheet)}
           sheet={sheet}
           sheetRef={sheetRef}
+          onBack={sheetBack.length ? () => { setSheet(sheetBack[sheetBack.length - 1]); setSheetBack(b => b.slice(0, -1)); } : undefined}
           onClose={() => {
             setSheet(null);
+            setSheetBack([]);
             if (sheet.k === 'node' || sheet.k === 'edge' || sheet.k === 'container') useDoc.getState().select(null);
           }}
           palette={{
@@ -637,7 +671,8 @@ export function EditorScreen() {
               const params = Object.fromEntries((def.params ?? []).map(pp => [pp.key, Number(pp.default)]));
               const src = doc!.scenario?.sources.find(sx => sx.node === node)?.id;
               setSheet(null);
-              fireOrSchedule(buildChaosEvent(def, params, def.defaultDurationSec ?? undefined, node, undefined, src), def, false);
+              // manual faults last until healed
+              fireOrSchedule(buildChaosEvent(def, params, undefined, node, undefined, src), def, false);
               return;
             }
             setSheet({ k: 'chaos-params', def, node });
@@ -668,8 +703,8 @@ export function EditorScreen() {
               setSheet({ k: 'edge', id: w.edgeId });
             } else if (w.nodeId) openNode(w.nodeId);
           }}
-          onOpenTrace={id => setSheet({ k: 'trace', id })}
-          onOpenHop={hop => { controller.hold(); setSheet({ k: 'hop', hop }); }}
+          onOpenTrace={id => openSub({ k: 'trace', id })}
+          onOpenHop={hop => { controller.hold(); openSub({ k: 'hop', hop }); }}
           onDrill={id => drillInto(id)}
           onHost={id => setSheet({ k: 'host', id })}
           onOpenChaos={node => setSheet({ k: 'chaos', node })}
@@ -857,6 +892,7 @@ function SheetHost(p: {
   sheet: NonNullable<SheetKind>;
   sheetRef: React.MutableRefObject<any>;
   onClose: () => void;
+  onBack?: () => void;
   palette: React.ComponentProps<typeof PaletteContent>;
   groupKind: string | null;
   onPickChaos: (d: ChaosDef, node?: string) => void;
@@ -877,7 +913,7 @@ function SheetHost(p: {
   const { c } = useTheme();
   const running = useRun(s => s.active);
   const { sheet } = p;
-  const common = { ref: p.sheetRef, onClose: p.onClose };
+  const common = { ref: p.sheetRef, onClose: p.onClose, onBack: p.onBack };
   switch (sheet.k) {
     case 'palette':
       return (
@@ -890,7 +926,7 @@ function SheetHost(p: {
       const composite = !!catalog.skins.find(sk => sk.name === n?.skin)?.internals;
       return (
         <Sheet {...common} snapPoints={['40%', '62%', '92%']} index={running ? 1 : 1}>
-          <NodeInspector id={sheet.id} onEditEdge={eid => p.onEditEdge(eid)} onHost={() => p.onHost(sheet.id)} onOpenMetrics={p.openMetrics} onFireChaos={() => p.onOpenChaos(sheet.id)} onConnect={() => p.onConnectFrom(sheet.id)} onDrill={composite ? () => p.onDrill(sheet.id) : undefined} />
+          <NodeInspector id={sheet.id} onEditEdge={eid => p.onEditEdge(eid)} onHost={() => p.onHost(sheet.id)} onOpenMetrics={p.openMetrics} onFireChaos={() => p.onOpenChaos(sheet.id)} onConnect={() => p.onConnectFrom(sheet.id)} onDrill={composite ? () => p.onDrill(sheet.id) : undefined} onOpenHop={p.onOpenHop} />
         </Sheet>
       );
     }
@@ -1128,7 +1164,7 @@ function NextButton({ run, onPress }: { run: ReturnType<typeof useRun.getState>;
   const { c } = useTheme();
   const lead = run.lead;
   const label = run.ended ? 'Run ended' : !run.stepping ? 'Stop here' : lead ? 'Next step' : run.pending ? 'Preparing…' : 'Send & step';
-  const sub = run.ended || !run.stepping ? undefined : lead ? `${Math.min(lead.i + 1, lead.hops.length)} of ${lead.hops.length}${run.midway ? ' · halfway' : ''}` : 'hop by hop';
+  const sub = run.ended || !run.stepping ? undefined : lead ? `${Math.min(lead.i + 1, lead.hops.length)} of ${lead.hops.length}${run.midway ? ' · halfway' : ''}` : run.sendCount > 1 ? `fires ${run.sendCount} ${run.sendKey}-key ${run.sendOp}s` : `fires an ${run.sendKey}-key ${run.sendOp}`.replace('an cached', 'a cached');
   const icon = run.ended ? 'flag' : !run.stepping ? 'pause' : 'step-forward';
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={label} disabled={run.ended} onPress={onPress} style={({ pressed }) => [styles.next, { backgroundColor: c.accent }, run.ended && { opacity: 0.4 }, pressed && { transform: [{ scale: 0.97 }] }]}>

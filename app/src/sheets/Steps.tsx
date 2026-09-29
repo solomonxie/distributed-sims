@@ -6,6 +6,7 @@ import { useTheme } from '../theme';
 import { Icon } from '../ui/Icon';
 import { Card, Mono, Text } from '../ui/primitives';
 import { stepLabel } from '../learn/narrate';
+import { fmtMs } from '../canvas/SystemCanvas';
 
 /** The followed request's whole life, one numbered step per row; tap a step for its details. */
 export function Steps({ onOpen }: { onOpen: (h: JourneyHop) => void }) {
@@ -15,7 +16,7 @@ export function Steps({ onOpen }: { onOpen: (h: JourneyHop) => void }) {
   if (!doc || !lead) return <Text color={c.text2}>No request is being followed. Tap Send.</Text>;
   return (
     <Card>
-      {lead.hops.map((h, k) => {
+      {lead.hops.slice(0, lead.i + 1).map((h, k) => {
         const now = k === lead.i;
         const past = k < lead.i;
         const tone = h.tcp ? c.warn : h.proto ? c.protocol : h.reply ? (h.ok ? c.ok : c.fail) : h.wait ? c.text2 : c.read;
@@ -29,10 +30,23 @@ export function Steps({ onOpen }: { onOpen: (h: JourneyHop) => void }) {
             <Text numberOfLines={2} style={{ flex: 1, fontWeight: now ? '700' : '400' }} color={past || now ? c.text : c.text2}>
               {stepLabel(doc, h)}
             </Text>
+            {h.at !== undefined && (
+              <Mono style={{ fontSize: 11 }} color={c.text3}>
+                t+{fmtMs(h.at)}
+              </Mono>
+            )}
             {now ? <Icon name="map-pin" size={14} color={c.accent} /> : <Icon name="chevron-right" size={14} color={c.text3} />}
           </Pressable>
         );
       })}
+      {lead.i < lead.hops.length - 1 && (
+        <View style={[styles.row, { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.hairlineStrong }]}>
+          <View style={[styles.num, { borderColor: c.hairlineStrong }]} />
+          <Text color={c.text3} style={{ flex: 1 }}>
+            {lead.hops.length - 1 - lead.i} more step{lead.hops.length - 2 - lead.i ? 's' : ''} to come
+          </Text>
+        </View>
+      )}
     </Card>
   );
 }

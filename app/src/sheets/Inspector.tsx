@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, StyleSheet, View } from 'react-native';
 import type { AlertRule, EdgeConfig, Knob, SystemDoc } from '@dsims/engine';
 import { rules as engineRules } from '@dsims/engine';
@@ -6,15 +6,20 @@ import { catalog, type ContainerDef } from '@dsims/content';
 import { useTheme, space } from '../theme';
 import { Icon } from '../ui/Icon';
 import { Button, Card, Mono, Row, SectionHeader, Segmented, Text, Toggle } from '../ui/primitives';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { RootStackParamList } from '../navigation/types';
 import { useDoc } from '../state/doc';
-import { useRun, controller, SEND_BURSTS } from '../state/run';
+import { useRun, controller, type JourneyHop } from '../state/run';
+import { stepLabel } from '../learn/narrate';
+import { learnLinks } from '../learn/learnLinks';
 import { fmtMs, fmtRps } from '../canvas/SystemCanvas';
-import { nodeIcon, nodeSubtitle } from '../canvas/layout';
+import { nodeIcon } from '../canvas/layout';
 
-type Tab = 'config' | 'run' | 'alerts';
 
-export function NodeInspector({ id, onOpenMetrics, onFireChaos, onConnect, onDrill, onHost, onEditEdge }: { id: string; onOpenMetrics: () => void; onFireChaos: () => void; onConnect: () => void; onDrill?: () => void; onHost?: () => void; onEditEdge?: (id: string) => void }) {
+export function NodeInspector({ id, onOpenMetrics, onFireChaos, onConnect, onDrill, onHost, onEditEdge, onOpenHop }: { id: string; onOpenMetrics: () => void; onFireChaos: () => void; onConnect: () => void; onDrill?: () => void; onHost?: () => void; onEditEdge?: (id: string) => void; onOpenHop?: (h: JourneyHop) => void }) {
   const { c } = useTheme();
+  const nav = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const doc = useDoc(s => s.doc)!;
   const readOnly = useDoc(s => s.readOnly);
   const running = useRun(s => s.active);
@@ -26,12 +31,11 @@ export function NodeInspector({ id, onOpenMetrics, onFireChaos, onConnect, onDri
   const knobs = type?.knobs ?? [];
   const cfg = { ...Object.fromEntries(knobs.map(k => [k.key, k.default])), ...(skin?.defaults ?? {}), ...(node.config ?? {}) };
   const cost = (Number(cfg.costMonth) || type?.costPerInstanceMonth || 0) * Math.max(1, Number(cfg.instances) || 1);
-  // the few settings that matter most: non-advanced, in catalog order, max 3
-  const key = knobs.filter(k => !k.advanced).slice(0, 3);
-  const rest = knobs.filter(k => !key.includes(k));
   const skins = catalog.skins.filter(s => s.type === node.type);
   const set = (k: string, v: unknown) => useDoc.getState().setNodeConfig(id, k, v);
   const isClient = !!type?.client;
+  const links = learnLinks(node.type);
+  const outs = doc.edges.filter(e => e.from === id);
 
   return (
     <View>
@@ -50,64 +54,66 @@ export function NodeInspector({ id, onOpenMetrics, onFireChaos, onConnect, onDri
       </View>
 
       {running && isClient && <ClientSend id={id} />}
-      {running && <NodeRunTab id={id} onOpenMetrics={onOpenMetrics} onFireChaos={onFireChaos} />}
+      {running && !isClient && <StatusLine id={id} onFireChaos={onFireChaos} />}
 
-      {key.length > 0 && (
+      {!isClient && <NodeSteps id={id} doc={doc} onOpen={onOpenHop} />}
+
+      {links.length > 0 && (
         <>
-          <SectionHeader title="SETTINGS" right={cost > 0 ? `≈ $${Math.round(cost).toLocaleString()}/mo` : undefined} />
+          <SectionHeader title="HOW IT WORKS" />
           <Card>
-            {key.map((k, i) => (
-              <KnobRow key={k.key} k={{ ...k, help: undefined }} value={cfg[k.key]} last={i === key.length - 1} onChange={v => set(k.key, v)} />
+            {links.map((l, i) => (
+              <Row key={l.title} left={<Icon name={l.icon} size={18} color={c.accent} />} title={l.title} subtitle={l.subtitle} chevron last={i === links.length - 1} onPress={() => l.open(nav)} />
             ))}
           </Card>
         </>
       )}
 
-      {(() => {
-        const outs = doc.edges.filter(e => e.from === id);
-        if (!outs.length && readOnly) return null;
-        return (
-          <>
-            <SectionHeader title="SENDS REQUESTS TO" />
-            <Card>
-              {outs.map((e, i) => {
-                const to = doc.nodes.find(n => n.id === e.to);
-                return (
-                  <Row
-                    key={e.id}
-                    left={<Icon name={nodeIcon(to?.type ?? '', to?.skin)} size={18} />}
-                    title={to?.name ?? e.to}
-                    subtitle={edgeSummary(e.config)}
-                    chevron={!!onEditEdge}
-                    last={i === outs.length - 1 && (readOnly || running)}
-                    onPress={onEditEdge ? () => onEditEdge(e.id) : undefined}
-                  />
-                );
-              })}
-              {!readOnly && !running && <Row title="Connect to…" left={<Icon name="plus" size={18} color={c.accent} />} titleStyle={{ color: c.accent }} last onPress={onConnect} />}
-            </Card>
-          </>
-        );
-      })()}
+      {(outs.length > 0 || !readOnly) && (
+        <>
+          <SectionHeader title="TALKS TO" />
+          <Card>
+            {outs.map((e, i) => {
+              const to = doc.nodes.find(n => n.id === e.to);
+              return (
+                <Row
+                  key={e.id}
+                  left={<Icon name={nodeIcon(to?.type ?? '', to?.skin)} size={18} />}
+                  title={to?.name ?? e.to}
+                  subtitle={edgeSummary(e.config)}
+                  chevron={!!onEditEdge}
+                  last={i === outs.length - 1 && (readOnly || running)}
+                  onPress={onEditEdge ? () => onEditEdge(e.id) : undefined}
+                />
+              );
+            })}
+            {!readOnly && !running && <Row title="Connect to…" left={<Icon name="plus" size={18} color={c.accent} />} titleStyle={{ color: c.accent }} last onPress={onConnect} />}
+          </Card>
+        </>
+      )}
 
       <Pressable onPress={() => setMore(!more)} style={styles.moreRow} accessibilityRole="button">
-        <Text color={c.accent}>{more ? 'Fewer settings' : 'More settings'}</Text>
+        <Text color={c.accent}>{more ? 'Less' : 'Settings, alerts & more'}</Text>
         <Icon name={more ? 'chevron-up' : 'chevron-down'} size={16} color={c.accent} />
       </Pressable>
 
       {more && (
         <>
-          {(skins.length > 1 || rest.length > 0) && (
-            <Card>
-              {skins.length > 1 && <EnumRow label="Technology" value={node.skin ?? ''} options={skins.map(s => s.name)} labels={Object.fromEntries(skins.map(s => [s.name, s.label]))} onChange={v => useDoc.getState().setSkin(id, v)} last={!rest.length} />}
-              {rest.map((k, i) => (
-                <KnobRow key={k.key} k={k} value={cfg[k.key]} last={i === rest.length - 1} onChange={v => set(k.key, v)} />
-              ))}
-            </Card>
+          {(skins.length > 1 || knobs.length > 0) && (
+            <>
+              <SectionHeader title="SETTINGS" right={cost > 0 ? `≈ $${Math.round(cost).toLocaleString()}/mo` : undefined} />
+              <Card>
+                {skins.length > 1 && <EnumRow label="Technology" value={node.skin ?? ''} options={skins.map(s => s.name)} labels={Object.fromEntries(skins.map(s => [s.name, s.label]))} onChange={v => useDoc.getState().setSkin(id, v)} last={!knobs.length} />}
+                {knobs.map((k, i) => (
+                  <KnobRow key={k.key} k={k} value={cfg[k.key]} last={i === knobs.length - 1} onChange={v => set(k.key, v)} />
+                ))}
+              </Card>
+            </>
           )}
           <SectionHeader title="ALERTS" />
           <AlertsTab target={id} doc={doc} />
           <View style={styles.actions}>
+            {running && <Button small title="Charts" icon="line-chart" onPress={onOpenMetrics} />}
             {onDrill && <Button small title="Look inside" icon="maximize-2" onPress={onDrill} />}
             {onHost && !isClient && <Button small title="Host CPU & memory" icon="cpu" onPress={onHost} />}
             {!readOnly && !running && <Button small title="Duplicate" icon="copy" onPress={() => useDoc.getState().duplicate(id)} />}
@@ -116,6 +122,83 @@ export function NodeInspector({ id, onOpenMetrics, onFireChaos, onConnect, onDri
         </>
       )}
     </View>
+  );
+}
+
+/** One line of live health, and the one action that matters while running. */
+function StatusLine({ id, onFireChaos }: { id: string; onFireChaos: () => void }) {
+  const { c } = useTheme();
+  const snap = useRun(s => s.snapshot?.nodes[id]);
+  const faults = useRun(s => s.snapshot?.chaos)?.filter(a => a.target === id || a.target2 === id) ?? [];
+  if (!snap) return null;
+  const bad = !snap.up || snap.errRate > 0.01 || snap.p99 > 500;
+  const text = !snap.up ? 'Down — callers are timing out' : `p99 ${fmtMs(snap.p99)} · ${fmtRps(snap.rps)} · ${(snap.errRate * 100).toFixed(1)} % errors · ${Math.round(snap.util * 100)} % busy`;
+  return (
+    <View style={[styles.status, { borderColor: bad ? c.fail : faults.length ? c.warn : c.hairline }]}>
+      <View style={{ flex: 1 }}>
+        <Mono style={{ fontSize: 12.5 }} color={bad ? c.fail : c.text2}>
+          {text}
+        </Mono>
+        {faults.length > 0 && (
+          <Text v="callout" color={c.warn} style={{ marginTop: 2 }}>
+            ⚡ {faults.map(a => `${a.label}${a.remainingSec !== undefined ? ` · ${Math.ceil(a.remainingSec)}s left` : ''}`).join(' · ')}
+          </Text>
+        )}
+        {snap.badges.length > 0 && (
+          <Text v="callout" color={c.protocol} style={{ marginTop: 2 }}>
+            {snap.badges.map(b => b.text).join(' · ')}
+          </Text>
+        )}
+      </View>
+      {faults.length > 0 ? <Button small kind="primary" title="Heal" icon="heart-pulse" onPress={() => faults.forEach(a => controller.heal(a.id))} /> : <Button small title="Break it…" icon="zap" onPress={onFireChaos} />}
+    </View>
+  );
+}
+
+/** The followed request's steps that happen at this component, in order. */
+function NodeSteps({ id, doc, onOpen }: { id: string; doc: SystemDoc; onOpen?: (h: JourneyHop) => void }) {
+  const { c } = useTheme();
+  const lead = useRun(s => s.lead);
+  const running = useRun(s => s.active);
+  const mine = (lead?.hops ?? []).map((h, k) => ({ h, k })).filter(({ h }) => h.to === id || (h.wait && h.from === id));
+  // the journey is known in advance; only show what has happened so far
+  const steps = mine.filter(({ k }) => lead && k <= lead.i);
+  const ahead = mine.length - steps.length;
+  return (
+    <>
+      <SectionHeader title="IN THIS REQUEST" />
+      <Card>
+        {steps.length === 0 ? (
+          !(lead && ahead > 0) && <Row title={lead ? 'This request does not pass through here' : running ? 'Tap Send to follow a request through it' : 'Run the system, then Send a request'} last />
+        ) : (
+          steps.map(({ h, k }, i) => {
+            const now = lead!.i === k;
+            const past = k < lead!.i;
+            const tone = h.tcp ? c.warn : h.proto ? c.protocol : h.reply ? (h.ok ? c.ok : c.fail) : h.wait ? c.text2 : c.read;
+            return (
+              <Pressable key={k} disabled={!onOpen} onPress={() => onOpen?.(h)} style={({ pressed }) => [styles.step, (i < steps.length - 1 || ahead > 0) && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.hairlineStrong }, now && { backgroundColor: c.surface2 }, pressed && { opacity: 0.6 }]}>
+                <View style={[styles.stepNum, { borderColor: tone, backgroundColor: past ? tone : 'transparent' }]}>
+                  <Mono style={{ fontSize: 11 }} color={past ? c.canvas : tone}>
+                    {k + 1}
+                  </Mono>
+                </View>
+                <Text numberOfLines={2} style={{ flex: 1, fontWeight: now ? '700' : '400' }} color={past || now ? c.text : c.text2}>
+                  {stepLabel(doc, h)}
+                </Text>
+                {h.at !== undefined && (
+                  <Mono style={{ fontSize: 11 }} color={c.text3}>
+                    t+{fmtMs(h.at)}
+                  </Mono>
+                )}
+                {now ? <Icon name="map-pin" size={14} color={c.accent} /> : onOpen ? <Icon name="chevron-right" size={14} color={c.text3} /> : null}
+              </Pressable>
+            );
+          })
+        )}
+        {steps.length > 0 && ahead > 0 && <Row title={`${ahead} more step${ahead === 1 ? '' : 's'} here, later in this request`} last />}
+        {steps.length === 0 && ahead > 0 && lead && <Row title="Comes through here later in this request" last />}
+      </Card>
+    </>
   );
 }
 
@@ -133,66 +216,27 @@ function edgeSummary(cfg?: EdgeConfig): string {
 const lowerFirst = (t: string) => (t ? t.charAt(0).toLowerCase() + t.slice(1) : t);
 
 /** Fire one request or a burst from this client. */
+/** Only a choice: what Next step fires from this client. Nothing is sent from here. */
 function ClientSend({ id }: { id: string }) {
-  const [op, setOp] = useState<'read' | 'write'>('read');
-  const ended = useRun(s => s.ended);
+  const { c } = useTheme();
+  const key = useRun(s => s.sendKey);
+  const op = useRun(s => s.sendOp);
+  useEffect(() => {
+    useRun.setState({ sender: id });
+  }, [id]);
   return (
     <>
-      <SectionHeader title="SEND REQUESTS" />
+      <SectionHeader title="NEXT REQUEST FROM HERE" />
       <Card padded>
-        <Segmented options={['read', 'write'] as const} labels={{ read: 'Read (GET)', write: 'Write (POST)' }} value={op} onChange={setOp} />
+        <Segmented options={['read', 'write'] as const} labels={{ read: 'Read', write: 'Write' }} value={op} onChange={v => useRun.setState({ sendOp: v })} />
         <View style={styles.burst}>
-          {[1, ...SEND_BURSTS].map(n => (
-            <Button key={n} small kind={n === 1 ? 'primary' : undefined} title={n === 1 ? 'Send' : `×${n}`} icon={n === 1 ? 'send' : undefined} disabled={ended} style={{ flex: 1 }} onPress={() => controller.burst(id, op, n)} />
-          ))}
+          <Segmented options={['cached', 'uncached'] as const} labels={{ cached: 'Cached key', uncached: 'Uncached key' }} value={key} onChange={v => useRun.setState({ sendKey: v })} style={{ flex: 1 }} />
         </View>
+        <Text v="callout" color={c.text2} style={{ marginTop: 8 }}>
+          {op === 'write' ? (key === 'cached' ? 'Writes the key, then clears its cached copy.' : 'Writes a key the cache has never seen.') : key === 'cached' ? 'A key already in the cache: the fast path.' : 'A key nobody has asked for yet: a cache miss, then it gets cached.'} Press Next step to fire it.
+        </Text>
       </Card>
     </>
-  );
-}
-
-function NodeRunTab({ id, onOpenMetrics, onFireChaos }: { id: string; onOpenMetrics: () => void; onFireChaos: () => void }) {
-  const { c } = useTheme();
-  const snap = useRun(s => s.snapshot?.nodes[id]);
-  const series = controller.run?.series(id) ?? [];
-  const last = series.slice(-14);
-  if (!snap) return <Text color={c.text2} style={{ marginTop: space.l }}>Collecting…</Text>;
-  const rows: [string, number[], string, string?][] = [
-    ['p99', last.map(p => p.p99), fmtMs(snap.p99), snap.p99 > 500 ? c.fail : undefined],
-    ['rps', last.map(p => p.rps), fmtRps(snap.rps)],
-    ['err', last.map(p => p.errRate), `${(snap.errRate * 100).toFixed(1)} %`, snap.errRate > 0.01 ? c.fail : undefined],
-    ['util', last.map(p => p.util), `${Math.round(snap.util * 100)} %`, snap.util > 0.85 ? c.warn : undefined],
-  ];
-  return (
-    <View style={{ marginTop: space.m }}>
-      <Card padded>
-        {rows.map(([label, vals, v, col]) => (
-          <View key={label} style={styles.metricRow}>
-            <Mono color={c.text2} style={{ width: 48 }}>
-              {label}
-            </Mono>
-            <Bars vals={vals} color={col ?? c.accent} />
-            <Mono style={{ width: 86, textAlign: 'right' }} color={col ?? c.text}>
-              {v}
-            </Mono>
-          </View>
-        ))}
-        {!snap.up && (
-          <Text v="callout" color={c.fail} style={{ marginTop: 8 }}>
-            Down — callers are timing out.
-          </Text>
-        )}
-        {snap.badges.length > 0 && (
-          <Text v="callout" color={c.protocol} style={{ marginTop: 8 }}>
-            {snap.badges.map(b => b.text).join(' · ')}
-          </Text>
-        )}
-      </Card>
-      <View style={styles.actions}>
-        <Button small title="Charts" icon="line-chart" onPress={onOpenMetrics} />
-        <Button small title="Break it…" icon="zap" onPress={onFireChaos} />
-      </View>
-    </View>
   );
 }
 
@@ -478,6 +522,9 @@ export function fmtNum(v: number): string {
 }
 
 const styles = StyleSheet.create({
+  status: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: space.m, padding: 10, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth },
+  step: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, paddingVertical: 10 },
+  stepNum: { width: 24, height: 24, borderRadius: 12, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
   head: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 4 },
   iconTile: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   burst: { flexDirection: 'row', gap: 8, marginTop: 12 },
