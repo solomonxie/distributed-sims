@@ -138,7 +138,7 @@ Tap a node. Detents: peek · medium · large. Tabs: CONFIG · RUN · ALERTS.
  util ▇▇▇███   100 %                 │ replica lag > 5s        ○─  │
  queue          412                  ╰──────────────────────────────╯
  Role  primary · lag r1 2.1s         + Add alert…
- ( Open metrics › )  ( Fire chaos… )
+ ( Open metrics › )  ( Break it… )
 ```
 
 Node long-press → context menu:
@@ -150,7 +150,7 @@ Node long-press → context menu:
              │ Duplicate        │
              │ Move to group…   │
              │ Send one request │ ← Run only
-             │ Fire chaos…    ▸ │
+             │ Break it…      ▸ │
              ├──────────────────┤
              │ Delete         ! │
              └──────────────────┘

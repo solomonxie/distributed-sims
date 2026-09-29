@@ -6,6 +6,9 @@ import type { Layout } from '../canvas/layout';
 import { useSettings } from './settings';
 import { haptic } from '../lib/haptics';
 
+
+/** Burst sizes offered wherever a client can send. */
+export const SEND_BURSTS = [5, 20, 100];
 export const simTime = makeMutable(0);
 export const flightsSV = makeMutable<number[]>([]);
 export const anchorsSV = makeMutable<number[]>([]);
@@ -17,11 +20,11 @@ export const ANIM_SPEEDS = [0.1, 0.25, 0.5, 1, 2, 4, 10];
 const SIM_PACE = 0.15;
 /** challenges score a whole run, so their clock runs faster */
 export const CHALLENGE_PACE = 0.5;
-/** requests you fired that may travel at once */
-const JOURNEYS = 4;
 /** protocol dots (heartbeats, votes, replication) drawn at once */
 const MAX_PROTO = 24;
-const PROTO_TYPES = /consensus|paxos|gossip|zk-server|kraft|lock-service|txn-coordinator|crdt/;
+/** protocol messages travel slower than requests so each round reads */
+const PROTO_SLOW = 0.6;
+const PROTO_TYPES = /consensus|paxos|gossip|zk-server|kraft|lock-service|crdt/;
 
 /** One hop of a featured request's journey. */
 export interface JourneyHop {
@@ -48,6 +51,12 @@ export interface JourneyHop {
   ghost?: boolean;
   /** wait beats: the component it is waiting on, when it's waiting for an answer that never comes */
   peer?: string;
+  /** a protocol message the component sent while handling this request (2PC prepare, commit) */
+  proto?: string;
+  /** a TCP handshake segment opening the connection before the call */
+  tcp?: 'SYN' | 'SYN-ACK' | 'ACK';
+  /** set off by the request after the user already had the answer */
+  async?: boolean;
 }
 
 interface Journey {
@@ -56,16 +65,9 @@ interface Journey {
   traceId: number;
   /** cumulative end time (ms from start) of each hop — constant pt/s means longer hops take longer */
   ends: number[];
+  /** fired by the user (not picked by a lesson) */
+  user: boolean;
 }
-
-/** The view at one hop boundary of the followed request, for stepping back. */
-interface Checkpoint {
-  simT: number;
-  speed: number;
-  journeys: { hops: JourneyHop[]; traceId: number; ends: number[]; startOff: number }[];
-  shown: number[];
-}
-const HISTORY = 60;
 
 interface RunState {
   active: boolean;
@@ -84,6 +86,8 @@ interface RunState {
   followTrace?: number;
   /** a step back is available */
   canBack: boolean;
+  /** the followed request stops at every step until Next; off = it plays through */
+  stepping: boolean;
   /** the request being narrated: its hops and which one is on screen */
   lead?: { hops: JourneyHop[]; i: number; traceId: number; total?: number; ok?: boolean };
   /** requests fired but still being resolved */
@@ -92,6 +96,8 @@ interface RunState {
   auto: boolean;
   /** configured background rate, to tell when a burst is on */
   baseRps: number;
+  /** the followed dot is stopped halfway along its hop */
+  midway: boolean;
 }
 
 export const useRun = create<RunState>(() => ({
@@ -108,13 +114,20 @@ export const useRun = create<RunState>(() => ({
   eventCount: 0,
   seed: 1,
   canBack: false,
+  stepping: true,
   pending: 0,
   auto: false,
   baseRps: 0,
+  midway: false,
 }));
 
 const OP: Record<string, number> = { read: 0, write: 1, proto: 2, reply: 3 };
 const FRAME_BUDGET_MS = 7;
+/** wall ms a parked dot sits inside its hop */
+const HOP_EPS = 1;
+/** a finished request's async tail is over once nothing it caused moved for this long (sim ms) */
+const ASYNC_QUIET_MS = 1500;
+const ASYNC_MAX_MS = 8000;
 
 class Controller {
   run: Run | null = null;
@@ -158,19 +171,21 @@ class Controller {
       followTrace: undefined,
       canBack: false,
       lead: undefined,
+      midway: false,
       pending: 0,
       auto: !!opts?.auto,
       baseRps: (ensureScenario(doc).scenario?.sources ?? []).reduce((a, x) => a + (x.shape.kind === 'constant' ? x.shape.rps : x.shape.kind === 'ramp' ? x.shape.to : x.shape.kind === 'diurnal' ? x.shape.peak : x.shape.base), 0),
     });
     this.pending = [];
+    this.ready = [];
     this.lastEnd = 0;
-    this.history = [];
     this.primaryKey = '';
-    this.stepUntil = 0;
     this.journeys = [];
+    this.jFrozen = false;
+    this.advanceSpawn = false;
+    this.opened = new Set();
     this.shown = new Set();
     this.protoStart = new WeakMap();
-    this.pausedAt = 0;
     this.last = performance.now();
     this.loop();
   }
@@ -195,14 +210,15 @@ class Controller {
 
   private loop = () => {
     this.raf = requestAnimationFrame(this.loop);
-    const now = this.stepUntil ? Math.min(performance.now(), this.stepUntil) : performance.now();
-    const dt = Math.min(100, now - this.last);
+    const now = performance.now();
+    const wallDt = now - this.last;
+    const dt = Math.min(100, wallDt);
     this.last = now;
     const run = this.run;
     if (!run) return;
     const st = useRun.getState();
+    if (!st.rewinding) this.resolvePending(run);
     if (st.playing && !st.ended && !st.rewinding) {
-      this.resolvePending(run);
       const target = run.now + dt * this.simRate();
       const t0 = performance.now();
       let reached = false;
@@ -219,11 +235,10 @@ class Controller {
       const overloaded = !reached;
       if (overloaded !== st.overloaded) useRun.setState({ overloaded });
     }
-    if (st.playing) this.packFlights(now);
-    if (st.playing && this.stepUntil && now >= this.stepUntil) {
-      this.stepUntil = 0;
-      this.pause(now);
-    }
+    // the followed request has its own clock: frozen between steps, the sim keeps running
+    const moving = !this.jFrozen && (st.playing || st.stepping);
+    if (!moving) for (const j of this.journeys) j.start += wallDt;
+    if (!st.rewinding) this.packFlights(now, !st.ended, st.playing ? 0 : wallDt);
     if (now - this.lastSnap > 250 || !st.playing) {
       if (now - this.lastSnap > 250) this.publish();
     }
@@ -234,11 +249,12 @@ class Controller {
 
   /** Dots for this frame, all at DOT_PT_PER_SEC × speed on one wall clock:
    *  featured requests replayed hop by hop, plus live protocol messages. */
-  private packFlights(now: number, spawn = true) {
+  private packFlights(now: number, spawn = true, pausedDt = 0) {
     const run = this.run!;
     const speed = useRun.getState().speed;
     const out = this.packJourneys(run, speed, now, spawn);
-    if (this.showProto) this.packProto(run, speed, now, out);
+    // stepping = focus on one request: background heartbeats, fetch loops and votes stay hidden
+    if (this.showProto && !useRun.getState().stepping) this.packProto(run, speed, now, out, pausedDt);
     flightsSV.value = out;
     simTime.value = now;
     this.visible = out.length / 6;
@@ -248,21 +264,23 @@ class Controller {
   /** heartbeats / votes are drawn only where they are the point (consensus, coordination) */
   private showProto = false;
 
-  /** wall-clock [t0, t1] of a protocol dot; t0 fixed when first seen */
-  private protoSpan(f: Flight, run: Run, speed: number, now: number) {
-    let t0 = this.protoStart.get(f);
-    if (t0 === undefined) {
-      t0 = now - Math.max(0, run.now - f.t0) / this.simRate();
-      this.protoStart.set(f, t0);
-    }
-    return [t0, t0 + this.travelMs(f.from, f.to, speed)] as const;
+  private protoMs(f: Flight, speed: number) {
+    return this.travelMs(f.from, f.to, speed * PROTO_SLOW);
   }
 
-  private packProto(run: Run, speed: number, now: number, out: number[]) {
+  /** One protocol dot per connection at a time, each drawn whole from the moment it starts. */
+  private packProto(run: Run, speed: number, now: number, out: number[], pausedDt: number) {
     const fl = run.world.flights;
     const horizon = run.now - 8000 * this.simRate();
+    const busy = new Set<string>();
+    const idle: Flight[] = [];
     let n = 0;
-    for (let i = fl.length - 1; i >= 0 && n < MAX_PROTO; i--) {
+    const draw = (f: Flight, t0: number) => {
+      out.push(this.nodeIndex.get(f.from)!, this.nodeIndex.get(f.to)!, t0, t0 + this.protoMs(f, speed), f.err ? 4 : 2, f.dropped ? 2 : 0);
+      busy.add(`${f.from}>${f.to}`);
+      n++;
+    };
+    for (let i = fl.length - 1; i >= 0; i--) {
       const f = fl[i];
       if (f.op !== 'proto') continue;
       if (f.t0 < horizon) break;
@@ -270,10 +288,18 @@ class Controller {
       const a = this.nodeIndex.get(f.from);
       const b = this.nodeIndex.get(f.to);
       if (a === undefined || b === undefined || a === b) continue;
-      const [t0, t1] = this.protoSpan(f, run, speed, now);
-      if (t1 < now) continue;
-      out.push(a, b, t0, t1, f.err ? 4 : 2, f.dropped ? 2 : 0);
-      n++;
+      let t0 = this.protoStart.get(f);
+      if (t0 !== undefined && pausedDt) this.protoStart.set(f, (t0 += pausedDt));
+      if (t0 === undefined) idle.push(f);
+      else if (t0 + this.protoMs(f, speed) >= now && n < MAX_PROTO) draw(f, t0);
+    }
+    if (pausedDt) return;
+    const fresh = run.now - 2000 * this.simRate();
+    for (let i = idle.length - 1; i >= 0 && n < MAX_PROTO; i--) {
+      const f = idle[i];
+      if (f.t0 < fresh || busy.has(`${f.from}>${f.to}`)) continue;
+      this.protoStart.set(f, now);
+      draw(f, now);
     }
   }
 
@@ -301,15 +327,14 @@ class Controller {
     this.journeys = this.journeys.filter(j => now < j.start + j.ends[j.ends.length - 1]);
     if (this.journeys.length < before) this.lastEnd = now;
     const gap = 700 / Math.max(0.05, speed);
-    // lessons: one featured request at a time, picking itself
+    // one request on screen at a time; yours take over from one a lesson picked
+    if (spawn && this.ready.length && (!this.journeys.length || !this.journeys[0].user)) {
+      this.journeys = [];
+      this.feature(this.ready.shift()!, run, speed, now, true);
+    }
     if (spawn && useRun.getState().auto && !this.journeys.length && now - this.lastEnd > gap) {
       const next = pickTrace(run, this.shown);
-      if (next) this.feature(next, run, speed, now);
-    }
-    // fired by the user: start as soon as resolved, staggered
-    if (spawn && this.ready.length && this.journeys.length < JOURNEYS) {
-      const lastStart = this.journeys.reduce((m, j) => Math.max(m, j.start), 0);
-      if (now - lastStart > gap) this.feature(this.ready.shift()!, run, speed, now);
+      if (next) this.feature(next, run, speed, now, false);
     }
     const out: number[] = [];
     for (let ji = 0; ji < this.journeys.length; ji++) {
@@ -326,7 +351,25 @@ class Controller {
     const lead = this.journeys[0];
     const leadAt = lead && this.hopAt(lead, now);
     const key = leadAt ? `${lead.traceId}:${leadAt.i}` : '';
-    if (spawn && key && key !== this.primaryKey) this.checkpoint(now);
+    if (key && leadAt && key !== this.primaryKey) {
+      if (this.advanceSpawn) this.advanceSpawn = false;
+      else if (useRun.getState().stepping) {
+        // park just inside the hop: exactly on the boundary, float error can read as the previous hop
+        lead.start = now - (leadAt.i ? lead.ends[leadAt.i - 1] : 0) - HOP_EPS;
+        this.jFrozen = true;
+      }
+    }
+    // stepping: a travelling dot also stops halfway, so it can be tapped; the next Next carries it to the target
+    if (leadAt && key && !this.jFrozen && useRun.getState().stepping && this.midKey !== key) {
+      const h = lead.hops[leadAt.i];
+      const mid = (leadAt.t0 + leadAt.t1) / 2;
+      if (!h.wait && !h.done && h.from !== h.to && now >= mid) {
+        lead.start += now - mid;
+        this.jFrozen = true;
+        this.midKey = key;
+        useRun.setState({ midway: true });
+      }
+    }
     if (key !== this.primaryKey) this.narrate(lead, leadAt?.i);
     this.primaryKey = key;
     return out;
@@ -344,19 +387,30 @@ class Controller {
     if (id === undefined) return;
     this.pending.push(id);
     useRun.setState({ pending: this.pending.length });
-    if (!useRun.getState().playing) this.play();
   }
 
-  /** Run the sim ahead until fired requests finish, so their journey can play. */
+  burst(client: string, op: 'read' | 'write', n: number) {
+    for (let k = 0; k < n; k++) this.send(client, op);
+  }
+
+  /** Run the sim ahead until fired requests finish — and their async follow-ups (replication,
+   *  consumers, commits) go quiet — so the whole journey can play. */
   private resolvePending(run: Run) {
     if (!this.pending.length) return;
     const t0 = performance.now();
+    const settled = (id: number) => {
+      const tr = run.trace(id);
+      if (!tr) return true;
+      if (tr.end === undefined) return false;
+      const fl = run.world.traceFlights.get(id) ?? [];
+      const last = fl.reduce((a, f) => Math.max(a, f.t1), tr.end);
+      return run.now - last >= ASYNC_QUIET_MS || run.now - tr.end >= ASYNC_MAX_MS;
+    };
     while (performance.now() - t0 < FRAME_BUDGET_MS * 2) {
-      const open = this.pending.filter(id => run.trace(id)?.end === undefined && run.trace(id));
-      if (!open.length) break;
+      if (this.pending.every(settled)) break;
       run.step(run.now + 50, 20000);
     }
-    const done = this.pending.filter(id => run.trace(id)?.end !== undefined || !run.trace(id));
+    const done = this.pending.filter(settled);
     if (!done.length) return;
     for (const id of done) {
       const tr = run.trace(id);
@@ -366,12 +420,14 @@ class Controller {
     useRun.setState({ pending: this.pending.length });
   }
 
-  private feature(tr: Trace, run: Run, speed: number, now: number) {
-    const hops = journeyOf(tr, run);
+  private feature(tr: Trace, run: Run, speed: number, now: number, user: boolean) {
+    const hops = journeyOf(tr, run, this.opened);
     if (!hops.length) return;
     let acc = 0;
     const ends = hops.map(h => (acc += this.beatMs(h, speed)));
-    this.journeys.push({ hops, start: now, traceId: tr.id, ends });
+    this.advanceSpawn = !useRun.getState().stepping || user || this.advanceSpawn;
+    this.jFrozen = false;
+    this.journeys.push({ hops, start: now, traceId: tr.id, ends, user });
     this.shown.add(tr.id);
     if (this.shown.size > 500) this.shown = new Set([...this.shown].slice(-200));
   }
@@ -391,71 +447,64 @@ class Controller {
       return;
     }
     const tr = this.run?.trace(j.traceId);
-    useRun.setState({ lead: { hops: j.hops, i, traceId: j.traceId, total: tr?.end !== undefined ? tr.end - tr.start : undefined, ok: tr?.ok } });
+    useRun.setState({ lead: { hops: j.hops, i, traceId: j.traceId, total: tr?.end !== undefined ? tr.end - tr.start : undefined, ok: tr?.ok }, canBack: i > 0 });
   }
 
-  // ---------- stepping: one hop of the followed request at a time ----------
-  private history: Checkpoint[] = [];
+  // ---------- stepping: one step of the followed request at a time ----------
   private primaryKey = '';
-  private stepUntil = 0;
+  /** hop whose halfway stop has already happened */
+  private midKey = '';
+  /** the followed request is held at the start of a step */
+  private jFrozen = false;
+  /** the next request to appear plays its first step instead of waiting */
+  private advanceSpawn = false;
+  /** connections already opened with a TCP handshake in this run */
+  private opened = new Set<string>();
 
-  private checkpoint(now: number) {
-    const run = this.run;
-    if (!run) return;
-    this.history.push({
-      simT: run.now,
-      speed: useRun.getState().speed,
-      journeys: this.journeys.map(j => ({ hops: j.hops, traceId: j.traceId, ends: [...j.ends], startOff: j.start - now })),
-      shown: [...this.shown],
-    });
-    if (this.history.length > HISTORY) this.history.shift();
-    if (!useRun.getState().canBack) useRun.setState({ canBack: true });
-  }
-
-  /** Play until the followed request reaches its next component, then pause. */
-  stepForward() {
+  /** Play the current step of the followed request, then hold at the next one. */
+  nextStep(sender?: string, op: 'read' | 'write' = 'read') {
     const st = useRun.getState();
     if (!this.run || st.ended || st.rewinding) return;
-    if (!st.playing) this.play();
-    const now = performance.now();
-    const lead = this.journeys[0];
-    const at = lead && this.hopAt(lead, now);
-    this.stepUntil = at && at.t1 > now + 30 ? at.t1 : now + (lead ? 30 : 1500 / Math.max(0.05, st.speed));
+    if (!this.journeys.length) {
+      // nothing on screen: the next step is a new request
+      if (!this.pending.length && !this.ready.length && sender) this.send(sender, op);
+      this.advanceSpawn = true;
+    }
+    this.jFrozen = false;
+    if (st.midway) useRun.setState({ midway: false });
   }
 
-  /** Back to the previous hop boundary: the engine replays to that moment. */
-  async stepBack() {
-    const run = this.run;
-    if (!run || useRun.getState().rewinding) return;
-    if (useRun.getState().playing) this.pause();
-    this.stepUntil = 0;
-    let cp = this.history.pop();
-    while (cp && cp.simT >= run.now - 1e-6 && this.history.length) cp = this.history.pop();
-    if (!cp || cp.simT > run.now) return;
-    useRun.setState({ rewinding: true });
-    await new Promise<void>(r => setTimeout(r, 16));
-    run.rewindTo(cp.simT);
-    const now = performance.now();
-    const k = cp.speed / useRun.getState().speed;
-    this.journeys = cp.journeys.map(j => ({ hops: j.hops, traceId: j.traceId, start: now + j.startOff * k, ends: j.ends.map(e => e * k) }));
-    this.ready = [];
-    this.shown = new Set(cp.shown);
-    this.protoStart = new WeakMap();
-    this.pausedAt = now;
-    this.last = now;
-    this.packFlights(now, false);
-    this.primaryKey = '';
+  /** a request is on screen or on its way */
+  get busy() {
+    return this.journeys.length > 0 || this.pending.length > 0 || this.ready.length > 0;
+  }
+
+  /** Back to the start of the current step, or the previous one when already there. */
+  prevStep() {
     const lead = this.journeys[0];
-    const at = lead && this.hopAt(lead, now);
-    if (at) this.primaryKey = `${lead.traceId}:${at.i}`;
-    this.history.push(cp);
-    useRun.setState({ rewinding: false, ended: false, canBack: this.history.length > 1 });
-    this.publish();
+    if (!lead) return;
+    const now = performance.now();
+    const at = this.hopAt(lead, now);
+    const i = at ? at.i : lead.hops.length - 1;
+    const atStart = !at || now - at.t0 < 60;
+    const target = Math.max(0, atStart ? i - 1 : i);
+    lead.start = now - (target ? lead.ends[target - 1] : 0) - HOP_EPS;
+    this.jFrozen = true;
+    this.primaryKey = `${lead.traceId}:${target}`;
+    this.midKey = '';
+    useRun.setState({ midway: false });
+    this.narrate(lead, target);
+    this.packFlights(now, false);
+  }
+
+  setStepping(stepping: boolean) {
+    useRun.setState({ stepping });
+    if (!stepping) this.jFrozen = false;
   }
 
   /** The featured-journey hop drawn nearest to (x, y), paced mode. */
   pickJourney(x: number, y: number, radius = 20): JourneyHop | undefined {
-    const now = this.pausedAt || performance.now();
+    const now = performance.now();
     const an = anchorsSV.value;
     let best: { h: JourneyHop; d: number } | undefined;
     for (const j of this.journeys) {
@@ -481,13 +530,13 @@ class Controller {
   pickDot(x: number, y: number, radius = 18): Flight | undefined {
     const run = this.run;
     if (!run) return undefined;
-    const now = this.pausedAt || performance.now();
+    const now = performance.now();
     const an = anchorsSV.value;
     let best: { f: Flight; d: number } | undefined;
     for (const f of run.world.flights) {
       const t0 = this.protoStart.get(f);
       if (t0 === undefined || t0 > now) continue;
-      const t1 = t0 + this.travelMs(f.from, f.to, useRun.getState().speed);
+      const t1 = t0 + this.protoMs(f, useRun.getState().speed);
       if (t1 < now) continue;
       const a = this.nodeIndex.get(f.from);
       const b = this.nodeIndex.get(f.to);
@@ -526,27 +575,19 @@ class Controller {
     });
   }
 
-  private pausedAt = 0;
   play() {
     const st = useRun.getState();
     if (st.ended && this.run) return;
-    this.stepUntil = 0;
-    if (this.pausedAt) {
-      const d = performance.now() - this.pausedAt;
-      for (const j of this.journeys) j.start += d;
-      for (const f of this.run?.world.flights ?? []) {
-        const t0 = this.protoStart.get(f);
-        if (t0 !== undefined) this.protoStart.set(f, t0 + d);
-      }
-      this.pausedAt = 0;
-    }
     useRun.setState({ playing: true });
   }
-  pause(at = performance.now()) {
-    this.pausedAt = at;
-    this.stepUntil = 0;
+  pause() {
     useRun.setState({ playing: false });
     this.publish();
+  }
+  /** Hold the followed request where it is (tapping it to read the details). */
+  hold() {
+    if (!useRun.getState().stepping) useRun.setState({ stepping: true });
+    this.jFrozen = true;
   }
   setSpeed(speed: number) {
     const old = useRun.getState().speed;
@@ -598,13 +639,13 @@ class Controller {
     this.run.rewindTo(Math.max(0, t));
     const now = performance.now();
     this.journeys = [];
-    this.history = [];
+    this.ready = [];
     this.primaryKey = '';
-    this.stepUntil = 0;
+    this.midKey = '';
+    this.jFrozen = false;
     this.protoStart = new WeakMap();
-    this.pausedAt = now;
     this.packFlights(now, false);
-    useRun.setState({ rewinding: false, playing: false, ended: false, canBack: false });
+    useRun.setState({ rewinding: false, playing: false, ended: false, canBack: false, midway: false });
     this.publish();
   }
   replay() {
@@ -644,7 +685,7 @@ type SpanX = Span & { ghost?: boolean; waitMs?: number };
 
 /** Turn a trace into beats: down each call, a pause where it waits inside, and back.
  *  Calls that never got an answer (component down, packet dropped) end in a red return. */
-export function journeyOf(tr: Trace, run: Run): JourneyHop[] {
+export function journeyOf(tr: Trace, run: Run, opened = new Set<string>()): JourneyHop[] {
   const w = run.world;
   const fl = w.traceFlights.get(tr.id) ?? [];
   const spans: SpanX[] = [...tr.spans];
@@ -658,10 +699,19 @@ export function journeyOf(tr: Trace, run: Run): JourneyHop[] {
   spans.sort((a, b) => a.start - b.start || b.end - a.end);
   const root: SpanX = spans.find(sp => sp.node === tr.origin) ?? { node: tr.origin, start: tr.start, end: tr.end ?? tr.start, ok: !!tr.ok };
   const kids = new Map<SpanX, SpanX[]>();
+  /** calls made by a component with no span of its own in this trace (a Kafka consumer, a worker): async, after the reply */
+  const orphans: SpanX[] = [];
   for (const sp of spans) {
     if (sp === root) continue;
     let parent: SpanX | undefined;
-    for (const p of spans) {
+    if (sp.from && sp.from !== root.node) {
+      for (const p of spans) if (p !== sp && !p.ghost && p.node === sp.from && p.start <= sp.start && (!parent || p.start >= parent.start)) parent = p;
+      if (!parent) {
+        orphans.push(sp);
+        continue;
+      }
+    }
+    if (!parent) for (const p of spans) {
       if (p === sp || p.ghost || p.start > sp.start || (p.end < sp.start && !sp.ghost)) continue;
       if (!(w.out.get(p.node) ?? []).some(e => e.to === sp.node)) continue;
       if (!parent || p.start >= parent.start) parent = p;
@@ -673,12 +723,35 @@ export function journeyOf(tr: Trace, run: Run): JourneyHop[] {
   const reqFlight = (from: string, sp: SpanX) => fl.find(f => f.op !== 'reply' && f.from === from && f.to === sp.node && same(f.t1, sp.start));
   const resFlight = (to: string, sp: SpanX) => fl.find(f => f.op === 'reply' && f.from === sp.node && f.to === to && same(f.t0, sp.end));
   const hops: JourneyHop[] = [];
+  const protos = fl.filter(f => f.op === 'proto' && f.from !== f.to).sort((a, b) => a.t0 - b.t0);
+  const used = new Set<Flight>();
+  /** protocol messages `node` exchanged while handling the request (2PC prepare / votes / commit) */
+  const protoHops = (node: string, from: number) => {
+    const mine = protos.filter(f => !used.has(f) && (f.from === node || f.to === node) && f.t0 >= from - 1e-6);
+    for (const f of mine) {
+      used.add(f);
+      const kind = f.msg?.kind ?? 'message';
+      hops.push({ from: f.from, to: f.to, reply: kind.endsWith('.reply'), ok: !f.err && !f.dropped, spanMs: f.t1 - f.t0, traceId: tr.id, msg: f.msg, pair: -1, calls: false, proto: kind });
+    }
+    return mine.length;
+  };
+  const handshake = (a: string, b: string) => {
+    const edge = [...w.edges.values()].find(e => e.from === a && e.to === b);
+    const link = `${a}>${b}`;
+    if (edge?.cfg.keepAlive !== false && opened.has(link)) return;
+    opened.add(link);
+    const seg = (from: string, to: string, tcp: JourneyHop['tcp']) => hops.push({ from, to, reply: false, ok: true, spanMs: 0, traceId: tr.id, pair: -1, calls: false, tcp });
+    seg(a, b, 'SYN');
+    seg(b, a, 'SYN-ACK');
+    seg(a, b, 'ACK');
+  };
   const walk = (p: SpanX, depth: number) => {
     if (depth > 12) return;
     for (const ch of (kids.get(p) ?? []).sort((a, b) => a.start - b.start)) {
       const sub = kids.get(ch) ?? [];
       const calls = sub.length > 0;
       const msg = reqFlight(p.node, ch)?.msg;
+      if (!ch.ghost) handshake(p.node, ch.node);
       const i = hops.length;
       hops.push({ from: p.node, to: ch.node, reply: false, ok: true, spanMs: ch.end - ch.start, traceId: tr.id, msg, pair: -1, calls, ghost: ch.ghost });
       if (ch.ghost) {
@@ -690,7 +763,7 @@ export function journeyOf(tr: Trace, run: Run): JourneyHop[] {
         continue;
       }
       const self = ch.end - ch.start - sub.filter(k => !k.ghost).reduce((a, k) => a + (k.end - k.start), 0) - sub.filter(k => k.ghost).reduce((a, k) => a + (k.waitMs ?? 0), 0);
-      if (self >= 5) hops.push({ from: ch.node, to: ch.node, reply: false, ok: true, spanMs: self, traceId: tr.id, msg, pair: -1, calls, wait: true });
+      if (!protoHops(ch.node, ch.start) && self >= 5) hops.push({ from: ch.node, to: ch.node, reply: false, ok: true, spanMs: self, traceId: tr.id, msg, pair: -1, calls, wait: true });
       walk(ch, depth + 1);
       const back = resFlight(p.node, ch);
       const res = back?.reply ?? { ok: ch.ok, err: ch.err as Reply['err'] };
@@ -701,7 +774,20 @@ export function journeyOf(tr: Trace, run: Run): JourneyHop[] {
   };
   walk(root, 0);
   if (!hops.length) return hops;
-  const out = hops.slice(0, 48);
+  const out = hops.slice(0, 64);
   out.push({ from: tr.origin, to: tr.origin, reply: true, ok: !!tr.ok, spanMs: (tr.end ?? tr.start) - tr.start, traceId: tr.id, pair: -1, calls: false, done: true });
+  // what the request set off that the user didn't wait for: calls by consumers / workers, replication, commits
+  for (const sp of orphans.sort((a, b) => a.start - b.start)) {
+    if (out.length >= 94) break;
+    const msg = reqFlight(sp.from!, sp)?.msg;
+    const back = resFlight(sp.from!, sp);
+    out.push({ from: sp.from!, to: sp.node, reply: false, ok: true, spanMs: sp.end - sp.start, traceId: tr.id, msg, pair: out.length + 1, calls: false, async: true });
+    out.push({ from: sp.node, to: sp.from!, reply: true, ok: sp.ok, err: sp.err, spanMs: sp.end - sp.start, traceId: tr.id, msg: back?.msg ?? msg, res: back?.reply ?? { ok: sp.ok, err: sp.err as Reply['err'] }, pair: out.length - 1, calls: false, async: true });
+  }
+  for (const f of protos) {
+    if (used.has(f) || out.length >= 96) continue;
+    const kind = f.msg?.kind ?? 'message';
+    out.push({ from: f.from, to: f.to, reply: kind.endsWith('.reply'), ok: !f.err && !f.dropped, spanMs: f.t1 - f.t0, traceId: tr.id, msg: f.msg, pair: -1, calls: false, proto: kind, async: true });
+  }
   return out;
 }

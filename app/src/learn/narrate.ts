@@ -47,9 +47,90 @@ export function loadChip(snap: Snapshot | null, baseRps: number): Story['chips']
   return r >= 1.6 ? [{ text: `traffic ×${r < 10 ? r.toFixed(1) : Math.round(r)}`, tone: 'warn' }] : [];
 }
 
+const TCP_TEXT: Record<NonNullable<JourneyHop['tcp']>, string> = {
+  SYN: 'Opens a TCP connection: “I want to talk, my first sequence number is x.”',
+  'SYN-ACK': 'The server agrees: “Got x, here is my sequence number y.”',
+  ACK: 'Both sides now know each other’s sequence numbers. The request can go; later calls reuse this connection.',
+};
+
+/** `txn.prepare` → PREPARE, `txn.prepare.reply` → YES / NO */
+export function protoLabel(kind: string, ok = true): string {
+  const base = kind.replace(/\.reply$/, '').replace(/^[a-z]+\./, '').toUpperCase();
+  if (!kind.endsWith('.reply')) return base;
+  return base === 'PREPARE' || base === 'PRECOMMIT' ? (ok ? 'Vote YES' : 'Vote NO') : ok ? `${base} ack` : `${base} failed`;
+}
+
+/** What a request/reply of a known protocol kind means, request side first. */
+const PROTO_TEXT: Record<string, [req: string, reply: string]> = {
+  'txn.precommit': ['3PC phase 2: everyone voted YES; {to} is told a commit is coming, so it can finish alone if the coordinator dies.', '{from} is ready to commit.'],
+  'saga.step': ['The saga orchestrator asks {to} to run its local transaction and commit it right away.', '{from} committed its step. If a later step fails, this one gets compensated.'],
+  'saga.compensate': ['A later step failed, so {to} runs the undo action for the step it already committed.', '{from} undid its step.'],
+  'kafka.Produce': ['The producer sends a batch of records to the partition leader {to}.', 'The leader acks: the records are in its log (and in the ISR, with acks=all).'],
+  'kafka.Fetch': ['{from} fetches from leader {to}: a follower copying the log, or a consumer reading records below the high watermark.', '{from} returns the records (and the high watermark).'],
+  'kafka.OffsetCommit': ['The consumer tells the group coordinator {to} how far it has processed.', 'Offset stored: after a restart the group resumes from here.'],
+  'kafka.AlterPartition': ['{from} asks the controller to change the in-sync replica set.', 'The controller accepted the new ISR.'],
+  'celery.publish': ['The task is published to the broker {to}.', 'The broker stored the task in the queue.'],
+  'celery.deliver': ['The broker hands the task to worker {to}.', 'Delivered.'],
+  'celery.ack': ['Worker {from} acks the task, so the broker deletes it.', 'Acked.'],
+  'celery.store-result': ['Worker {from} stores the task result in the backend {to}.', 'Result stored.'],
+  'cassandra.mutation': ['The coordinator sends the write to replica {to}.', 'Replica {from} wrote it to its commit log and memtable.'],
+  'cassandra.read': ['The coordinator asks replica {to} for the row.', 'Replica {from} returns its version; the newest timestamp wins.'],
+  'es.replicate': ['The primary shard forwards the write to replica {to}.', 'Replica {from} indexed it.'],
+  'raft.Forward': ['{from} is not the leader, so it forwards the request to {to}.', 'The leader handled it.'],
+  'raft.AppendEntries': ['The leader {from} replicates a log entry to follower {to}.', 'Follower {from} appended the entry.'],
+  'lock.acquire': ['{from} asks {to} for the lock.', 'Granted, with a fencing token.'],
+  'lock.release': ['{from} releases the lock.', 'Released.'],
+  'fenced.write': ['{from} writes, attaching its fencing token so stale lock holders are rejected.', 'The store checked the token and accepted the write.'],
+  'dynamo.gsi-put': ['The table asynchronously updates the global secondary index {to}.', 'Index updated.'],
+  req: ['{from} passes the request on to {to}.', '{from} answers.'],
+};
+
+function protoText(base: string, h: JourneyHop, name: (id: string) => string): string | undefined {
+  const t = PROTO_TEXT[base];
+  if (!t) return undefined;
+  return (h.reply ? t[1] : t[0]).replace(/\{from\}/g, name(h.from)).replace(/\{to\}/g, name(h.to));
+}
+
+function protoStory(h: JourneyHop, name: (id: string) => string): Story {
+  const base = (h.proto ?? '').replace(/\.reply$/, '');
+  const label = protoLabel(h.proto ?? '', h.ok);
+  const body =
+    base === 'txn.prepare'
+      ? h.reply
+        ? h.ok
+          ? `${name(h.from)} has locked the rows and written the change to its log. It promises it can commit.`
+          : `${name(h.from)} can’t do it (conflict or failure). One NO aborts the whole transaction.`
+        : `Phase 1: ${name(h.from)} asks ${name(h.to)} to get ready and hold its locks, without committing yet.`
+      : base === 'txn.commit'
+        ? h.reply
+          ? `${name(h.from)} committed and released its locks.`
+          : `Phase 2: every participant voted YES, so the decision is COMMIT. ${name(h.to)} must obey.`
+        : base === 'txn.abort'
+          ? h.reply
+            ? `${name(h.from)} rolled back and released its locks.`
+            : `Phase 2: someone voted NO or timed out, so everyone rolls back.`
+          : protoText(base, h, name) ?? `A protocol message between ${name(h.from)} and ${name(h.to)} while handling the request.`;
+  const after = h.async ? 'After the reply: ' : '';
+  return { phase: h.reply ? (h.ok ? 'response' : 'failed') : 'request', at: h.to, title: `${after}${label}: ${name(h.from)} → ${name(h.to)}`, body: h.async ? `${body} The user already has their answer; this happens in the background because of their request.` : body, wire: h.proto, chips: [] };
+}
+
+/** Short label for one step in the timeline list. */
+export function stepLabel(doc: SystemDoc, h: JourneyHop): string {
+  const name = nameIn(doc);
+  if (h.done) return h.ok ? 'Answer reaches the user' : 'User sees an error';
+  if (h.tcp) return `TCP ${h.tcp} · ${name(h.from)} → ${name(h.to)}`;
+  if (h.proto) return `${h.async ? '↳ ' : ''}${protoLabel(h.proto, h.ok)} · ${name(h.from)} → ${name(h.to)}`;
+  if (h.wait && h.peer) return `${name(h.to)} waits for ${name(h.peer)}`;
+  if (h.wait) return `Inside ${name(h.to)} · ${fmtMs(h.spanMs)}`;
+  const w = wireFor(doc, h);
+  return h.reply ? `${w.status} · ${name(h.from)} → ${name(h.to)}` : `${w.req[0] ?? 'Request'} · ${name(h.from)} → ${name(h.to)}`;
+}
+
 export function story(doc: SystemDoc, hops: JourneyHop[], i: number, snap: Snapshot | null, total?: number, ok?: boolean): Story {
   const h = hops[i];
   const name = nameIn(doc);
+  if (h.tcp) return { phase: 'request', at: h.to, title: `TCP ${h.tcp}: ${name(h.from)} → ${name(h.to)}`, body: TCP_TEXT[h.tcp], wire: h.tcp === 'SYN' ? 'SYN seq=x' : h.tcp === 'SYN-ACK' ? 'SYN, ACK seq=y ack=x+1' : 'ACK seq=x+1 ack=y+1', chips: [] };
+  if (h.proto) return protoStory(h, name);
   if (h.done) {
     const first = hops.find(x => x.reply && x.to === h.from && !x.wait);
     const w = first ? wireFor(doc, first) : undefined;

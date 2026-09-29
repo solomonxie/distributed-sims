@@ -14,8 +14,7 @@ import { computeLayout, hitTest, nodeIcon } from '../canvas/layout';
 import { useDoc, flushSave } from '../state/doc';
 import { useLibrary, forkDoc, saveSystem } from '../state/library';
 import { useSettings } from '../state/settings';
-import { RequestTip } from '../canvas/RequestTip';
-import { controller, useRun, flightsSV, simTime, anchorsSV, hasTrafficOrigin, CHALLENGE_PACE, journeyOf, type JourneyHop } from '../state/run';
+import { controller, SEND_BURSTS, useRun, flightsSV, simTime, anchorsSV, hasTrafficOrigin, CHALLENGE_PACE, journeyOf, type JourneyHop } from '../state/run';
 import { Sheet } from '../sheets/Sheet';
 import { PaletteContent, type PaletteItem } from '../sheets/PaletteSheet';
 import { NodeInspector, EdgeInspector, ContainerInspector } from '../sheets/Inspector';
@@ -23,6 +22,7 @@ import { TrafficContent, ChaosContent, ChaosParams, EventLogContent, TimelineCon
 import { TraceContent, SequenceContent } from '../sheets/TraceSheet';
 import { HostView } from '../sheets/HostView';
 import { DotDetails, HopDetails } from '../sheets/DotDetails';
+import { Steps } from '../sheets/Steps';
 import { Icon } from '../ui/Icon';
 import { Button, Glass, IconButton, Mono, Text, Chip } from '../ui/primitives';
 import { ToastHost, toast } from '../ui/Toast';
@@ -48,12 +48,12 @@ type SheetKind =
   | { k: 'host'; id: string }
   | { k: 'dot'; flight: Flight }
   | { k: 'hop'; hop: JourneyHop }
+  | { k: 'steps' }
   | null;
 
-type Targeting = { def: ChaosDef; params: Record<string, number>; dur?: number; first?: string; schedule?: boolean } | { connectFrom: string } | { sendOne: true } | { pickBreak: true } | null;
+type Targeting = { def: ChaosDef; params: Record<string, number>; dur?: number; first?: string; schedule?: boolean } | { connectFrom: string } | { sendOne: true } | null;
 
 const SPEEDS = [0.1, 0.25, 0.5, 1, 2, 4, 10];
-const QUICK_SPEEDS = [0.5, 1, 2, 4];
 
 export function EditorScreen() {
   const { c } = useTheme();
@@ -73,7 +73,6 @@ export function EditorScreen() {
   const [groupKind, setGroupKind] = useState<string | null>(null);
   const sheetRef = useRef<any>(null);
   const labels = useSettings(st => st.labels);
-  const requestTips = useSettings(st => st.requestTips);
   const [sender, setSender] = useState<string | undefined>();
   const [sendMenu, setSendMenu] = useState(false);
   const [sendOp, setSendOp] = useState<'read' | 'write'>('read');
@@ -245,12 +244,13 @@ export function EditorScreen() {
     setMenu(null);
     setTitleMenu(false);
     setSpeedMenu(false);
-    // tapping a dot (moving or paused) pauses and shows what it carries
+    // tapping a dot holds it and shows what it carries
     if (run.active && !targeting) {
       const h = controller.pickJourney(x, y, 30);
       const f = !h ? controller.pickDot(x, y, 26) : undefined;
       if (h || f) {
-        if (run.playing) controller.pause();
+        if (h) controller.hold();
+        else if (run.playing) controller.pause();
         haptic('select');
         setSheet(h ? { k: 'hop', hop: h } : { k: 'dot', flight: f! });
         return;
@@ -307,15 +307,6 @@ export function EditorScreen() {
         setSheet({ k: 'edge', id: `${t.connectFrom}->${hit.id}` });
       }
       setTargeting(null);
-      return;
-    }
-    if ('pickBreak' in t) {
-      const id = hit?.kind === 'container-header' ? hit.id : hit?.id;
-      if (id && hit?.kind !== 'edge') {
-        haptic('select');
-        setTargeting(null);
-        setSheet({ k: 'chaos', node: id });
-      }
       return;
     }
     if ('sendOne' in t) {
@@ -387,7 +378,7 @@ export function EditorScreen() {
   if (!doc || !layout || doc.id !== myDocId) return <View style={{ flex: 1, backgroundColor: c.canvas }} />;
   const isEmpty = doc.nodes.length === 0;
   const snap = run.snapshot;
-  const targets = targeting && 'pickBreak' in targeting ? new Set([...layout.nodes.map(n => n.id), ...layout.containers.map(ct => ct.id)]) : targeting && 'def' in targeting ? targetSet(targeting, layout) : targeting && ('connectFrom' in targeting || 'sendOne' in targeting) ? new Set(layout.nodes.filter(n => ('sendOne' in targeting ? /client|device|bot$/.test(n.type) : n.id !== (targeting as any).connectFrom)).map(n => n.id)) : null;
+  const targets = targeting && 'def' in targeting ? targetSet(targeting, layout) : targeting && ('connectFrom' in targeting || 'sendOne' in targeting) ? new Set(layout.nodes.filter(n => ('sendOne' in targeting ? /client|device|bot$/.test(n.type) : n.id !== (targeting as any).connectFrom)).map(n => n.id)) : null;
 
   return (
     <View style={{ flex: 1, backgroundColor: c.canvas }}>
@@ -445,54 +436,29 @@ export function EditorScreen() {
         </View>
       ) : (
         <View style={[styles.runDock, { bottom: insets.bottom + 10 }]} pointerEvents="box-none">
-          {/* playback: what the dots do */}
-          <Glass style={styles.transport}>
-            <BarBtn icon="step-back" label="Back" disabled={!run.canBack || run.rewinding} onPress={() => { haptic('select'); controller.stepBack(); }} />
-            <BarBtn
-              icon={run.ended ? 'rotate-ccw' : run.playing ? 'pause' : 'play'}
-              label={run.ended ? 'Replay' : run.playing ? 'Pause' : 'Play'}
-              big
-              onPress={() => { haptic('select'); if (run.ended) controller.replay(); else if (run.playing) controller.pause(); else controller.play(); }}
-            />
-            <BarBtn icon="step-forward" label="Next" disabled={run.ended} onPress={() => { haptic('select'); controller.stepForward(); }} />
-            <View style={[styles.sep, { backgroundColor: c.hairlineStrong }]} />
-            <BarBtn
-              text={`${run.speed}×`}
-              label="Speed"
-              tone={run.overloaded ? c.warn : undefined}
-              onPress={() => { haptic('select'); controller.setSpeed(QUICK_SPEEDS[(QUICK_SPEEDS.indexOf(run.speed) + 1) % QUICK_SPEEDS.length]); }}
-              onLongPress={() => setSpeedMenu(true)}
-            />
-          </Glass>
-          {/* actions: what the user does to the system */}
+          {/* focus: Next in the middle with a small Prev; back and ⋯ at the edges */}
           <View style={styles.actions}>
-            <Glass style={styles.roundSm}>
-              <IconButton name="chevron-left" onPress={() => nav.goBack()} label="Back" />
+            <View style={styles.zone}>
+              <Glass style={styles.roundXs}>
+                <IconButton name="chevron-left" size={20} onPress={() => nav.goBack()} label="Back" />
+              </Glass>
+            </View>
+            <Glass style={styles.roundXs}>
+              <IconButton name="step-back" size={18} disabled={!run.canBack || run.rewinding || !run.stepping} onPress={() => { haptic('select'); controller.prevStep(); }} label="Previous step" />
             </Glass>
-            <Glass style={styles.roundSm}>
-              <IconButton name="ellipsis" onPress={() => setTitleMenu(!titleMenu)} label="More" />
-            </Glass>
-            <View style={{ flex: 1 }} />
-            <Pressable accessibilityLabel="Break something" onPress={() => setTargeting({ pickBreak: true })} style={({ pressed }) => [styles.pill, { backgroundColor: c.fail }, pressed && { transform: [{ scale: 0.95 }] }]}>
-              <Icon name="zap" size={20} color="#fff" strokeWidth={2.4} />
-              <Text v="headline" color="#fff">Break</Text>
-            </Pressable>
-            <Pressable
-              accessibilityLabel="Send a request"
-              accessibilityHint="Long press for writes, several at once, or another client"
-              disabled={run.ended || !sender}
-              onPress={() => { haptic('medium'); sender && controller.send(sender, sendOp); }}
-              onLongPress={() => (haptic('select'), setSendMenu(true))}
-              style={({ pressed }) => [styles.pill, { backgroundColor: c.accent }, (run.ended || !sender) && { opacity: 0.4 }, pressed && { transform: [{ scale: 0.95 }] }]}
-            >
-              <Icon name={sendOp === 'write' ? 'pencil' : 'send'} size={20} color={c.onAccent} strokeWidth={2.6} />
-              <Text v="headline" color={c.onAccent}>Send</Text>
-              {run.pending > 0 && (
-                <View style={[styles.badge, { backgroundColor: c.surface2, borderColor: c.accent }]}>
-                  <Mono style={{ fontSize: 11 }}>{run.pending}</Mono>
-                </View>
-              )}
-            </Pressable>
+            <NextButton
+              run={run}
+              onPress={() => {
+                haptic('select');
+                if (!run.stepping) controller.setStepping(true);
+                else controller.nextStep(sender ?? undefined, sendOp);
+              }}
+            />
+            <View style={[styles.zone, { justifyContent: 'flex-end' }]}>
+              <Glass style={styles.roundXs}>
+                <IconButton name="ellipsis" size={20} onPress={() => setTitleMenu(!titleMenu)} label="More" />
+              </Glass>
+            </View>
           </View>
         </View>
       )}
@@ -504,32 +470,13 @@ export function EditorScreen() {
         </Animated.View>
       )}
 
-      {mode === 'run' && requestTips && layout && (
-        <RequestTip
-          doc={doc}
-          layout={layout}
-          camera={camera}
-          top={insets.top + 54 + (route.params.guide ? 56 : 0)}
-          bottom={insets.bottom + 136}
-          sender={sender}
-          onOpen={h => {
-            if (run.playing) controller.pause();
-            setSheet({ k: 'hop', hop: h });
-          }}
-          onClose={() => {
-            useSettings.getState().set({ requestTips: false });
-            toast({ text: 'Request tips hidden · ⋯ to show again', tone: 'info', icon: 'eye-off' });
-          }}
-        />
-      )}
-
       {sendMenu && (
         <Menu
           at={{ bottom: insets.bottom + 72, right: 12 }}
           items={[
             { label: 'Read request (GET)', icon: 'eye', on: () => { setSendOp('read'); sender && controller.send(sender, 'read'); } },
             { label: 'Write request (POST)', icon: 'pencil', on: () => { setSendOp('write'); sender && controller.send(sender, 'write'); } },
-            { label: 'Send 5 at once', icon: 'layers', on: () => { for (let k = 0; k < 5; k++) sender && controller.send(sender, sendOp); } },
+            ...SEND_BURSTS.map(n => ({ label: `Send ${n} at once`, icon: 'layers', on: () => sender && controller.burst(sender, sendOp, n) })),
             { label: 'Send from…', icon: 'mouse-pointer-click', on: () => setTargeting({ sendOne: true }) },
           ]}
           onClose={() => setSendMenu(false)}
@@ -540,10 +487,16 @@ export function EditorScreen() {
         <Menu
           at={mode === 'run' ? { bottom: insets.bottom + 72, left: 12 } : { bottom: insets.bottom + 72, right: 12 }}
           items={[
+            { label: 'Send a read request', icon: 'send', on: () => { setSendOp('read'); sender && controller.send(sender, 'read'); }, hidden: mode === 'build' || run.ended || !sender },
+            { label: 'Send a write request', icon: 'pencil', on: () => { setSendOp('write'); sender && controller.send(sender, 'write'); }, hidden: mode === 'build' || run.ended || !sender },
+            { label: 'Send several at once…', icon: 'layers', on: () => setSendMenu(true), hidden: mode === 'build' || run.ended || !sender },
+            { label: 'Replay from the start', icon: 'rotate-ccw', on: () => controller.replay(), hidden: mode === 'build' },
+            { label: run.stepping ? 'Play through (no stops)' : 'Stop at every step', icon: run.stepping ? 'play' : 'step-forward', on: () => controller.setStepping(!run.stepping), hidden: mode === 'build' || run.ended },
+            { label: `Speed ${run.speed}×…`, icon: 'gauge', on: () => setSpeedMenu(true), hidden: mode === 'build' },
+            { label: run.playing ? 'Pause simulation' : 'Resume simulation', icon: run.playing ? 'pause' : 'play', on: () => (run.playing ? controller.pause() : controller.play()), hidden: mode === 'build' || run.ended },
             { label: 'Stop simulation', icon: 'square', on: stopRun, hidden: mode === 'build', destructive: true },
             { label: 'Traffic', icon: 'activity', on: () => setSheet({ k: 'traffic' }) },
             { label: 'Send from…', icon: 'send', on: () => setTargeting({ sendOne: true }), hidden: mode === 'build' },
-            { label: 'Show request tips', icon: 'message-square-text', on: () => useSettings.getState().set({ requestTips: true }), hidden: mode === 'build' || requestTips },
             { label: 'Events', icon: 'scroll-text', on: () => setSheet({ k: 'log' }), hidden: mode === 'build' },
             { label: 'Metrics', icon: 'line-chart', on: () => nav.navigate('Metrics'), hidden: mode === 'build' },
             { label: 'Timeline', icon: 'history', on: () => setSheet({ k: 'timeline' }), hidden: mode === 'build' },
@@ -585,7 +538,6 @@ export function EditorScreen() {
             </>
           ) : (
             <>
-              {targeting && 'pickBreak' in targeting && <Button small kind="text" title="All faults" onPress={() => { setTargeting(null); setSheet({ k: 'chaos' }); }} />}
               <Button small kind="text" title="Cancel" onPress={() => setTargeting(null)} />
             </>
           )}
@@ -624,7 +576,7 @@ export function EditorScreen() {
             { label: 'Connect to…', icon: 'spline', on: () => setTargeting({ connectFrom: menu.id }), hidden: mode === 'run' || readOnly },
             { label: 'Duplicate', icon: 'copy', on: () => useDoc.getState().duplicate(menu.id), hidden: mode === 'run' || readOnly },
             { label: 'Send a request from here', icon: 'send', on: () => { setSender(menu.id); controller.send(menu.id, sendOp); }, hidden: mode === 'build' || !/client|device|bot$/.test(doc.nodes.find(n => n.id === menu.id)?.type ?? '') },
-            { label: 'Fire chaos…', icon: 'zap', on: () => setSheet({ k: 'chaos' }), hidden: mode === 'build' },
+            { label: 'Break it…', icon: 'zap', on: () => setSheet({ k: 'chaos', node: menu.id }), hidden: mode === 'build' },
             { label: 'Host (CPU, memory)', icon: 'cpu', on: () => setSheet({ k: 'host', id: menu.id }), hidden: /client|device|bot$/.test(doc.nodes.find(n => n.id === menu.id)?.type ?? '') },
             { label: 'Show protocol', icon: 'list-ordered', on: () => setSheet({ k: 'sequence', node: menu.id }), hidden: mode === 'build' },
             { label: 'Inspect', icon: 'sliders-horizontal', on: () => openNode(menu.id) },
@@ -717,9 +669,10 @@ export function EditorScreen() {
             } else if (w.nodeId) openNode(w.nodeId);
           }}
           onOpenTrace={id => setSheet({ k: 'trace', id })}
+          onOpenHop={hop => { controller.hold(); setSheet({ k: 'hop', hop }); }}
           onDrill={id => drillInto(id)}
           onHost={id => setSheet({ k: 'host', id })}
-          onOpenChaos={() => setSheet({ k: 'chaos' })}
+          onOpenChaos={node => setSheet({ k: 'chaos', node })}
           onEditEdge={eid => { useDoc.getState().select({ kind: 'edge', id: eid }); setSheet({ k: 'edge', id: eid }); }}
         />
       )}
@@ -748,7 +701,6 @@ function sheetKey(s: NonNullable<SheetKind>) {
 function bannerText(t: NonNullable<Targeting>): string {
   if ('connectFrom' in t) return 'Tap a component to connect to';
   if ('sendOne' in t) return 'Tap a client to send one request';
-  if ('pickBreak' in t) return 'Tap what to break, or a client for a burst';
   if (t.def.target === 'pair') return t.first ? 'Tap the other side' : `${t.def.label}: tap the first side`;
   if (t.def.target === 'container') return `${t.def.label}: tap a region, zone or cell`;
   if (t.def.target === 'edge') return `${t.def.label}: tap a connection or component`;
@@ -916,9 +868,10 @@ function SheetHost(p: {
   warnings: any[];
   onWarning: (w: any) => void;
   onOpenTrace: (id: number) => void;
+  onOpenHop: (h: JourneyHop) => void;
   onDrill: (id: string) => void;
   onHost: (id: string) => void;
-  onOpenChaos: () => void;
+  onOpenChaos: (node?: string) => void;
   onEditEdge: (id: string) => void;
 }) {
   const { c } = useTheme();
@@ -937,7 +890,7 @@ function SheetHost(p: {
       const composite = !!catalog.skins.find(sk => sk.name === n?.skin)?.internals;
       return (
         <Sheet {...common} snapPoints={['40%', '62%', '92%']} index={running ? 1 : 1}>
-          <NodeInspector id={sheet.id} onEditEdge={eid => p.onEditEdge(eid)} onHost={() => p.onHost(sheet.id)} onOpenMetrics={p.openMetrics} onFireChaos={() => p.onOpenChaos()} onConnect={() => p.onConnectFrom(sheet.id)} onDrill={composite ? () => p.onDrill(sheet.id) : undefined} />
+          <NodeInspector id={sheet.id} onEditEdge={eid => p.onEditEdge(eid)} onHost={() => p.onHost(sheet.id)} onOpenMetrics={p.openMetrics} onFireChaos={() => p.onOpenChaos(sheet.id)} onConnect={() => p.onConnectFrom(sheet.id)} onDrill={composite ? () => p.onDrill(sheet.id) : undefined} />
         </Sheet>
       );
     }
@@ -950,7 +903,7 @@ function SheetHost(p: {
     case 'container':
       return (
         <Sheet {...common} snapPoints={['40%', '80%']}>
-          <ContainerInspector id={sheet.id} />
+          <ContainerInspector id={sheet.id} onFireChaos={() => p.onOpenChaos(sheet.id)} />
         </Sheet>
       );
     case 'group':
@@ -999,6 +952,12 @@ function SheetHost(p: {
       return (
         <Sheet {...common} snapPoints={['60%', '92%']} title="Protocol">
           <SequenceContent node={sheet.node} />
+        </Sheet>
+      );
+    case 'steps':
+      return (
+        <Sheet {...common} snapPoints={['55%', '90%']} title="This request, step by step">
+          <Steps onOpen={p.onOpenHop} />
         </Sheet>
       );
     case 'hop':
@@ -1124,9 +1083,11 @@ const styles = StyleSheet.create({
   bar: { flex: 1, flexDirection: 'row', alignItems: 'center', height: 56, paddingHorizontal: 4 },
   runDock: { position: 'absolute', left: 12, right: 12, gap: 8, alignItems: 'center' },
   transport: { flexDirection: 'row', alignItems: 'center', height: 58, paddingHorizontal: 6, borderRadius: 29 },
-  barBtn: { width: 64, height: 54, alignItems: 'center', justifyContent: 'center', gap: 2 },
   actions: { flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'stretch' },
   roundSm: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
+  zone: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  roundXs: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  next: { width: 160, height: 58, borderRadius: 29, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 12 },
   pill: { flexDirection: 'row', alignItems: 'center', gap: 8, height: 52, paddingHorizontal: 20, borderRadius: 26, shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } },
   badge: { position: 'absolute', top: -4, right: -4, minWidth: 20, height: 20, borderRadius: 10, borderWidth: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
   round: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } },
@@ -1141,7 +1102,6 @@ const styles = StyleSheet.create({
   dockWrap: { position: 'absolute', left: 12, right: 12, gap: 8 },
   dock: { flexDirection: 'row', alignItems: 'center', height: 64, paddingHorizontal: 6 },
   dockBtn: { flex: 1, alignItems: 'center', justifyContent: 'center', height: 56 },
-  sep: { width: StyleSheet.hairlineWidth, height: 32, marginHorizontal: 4 },
   runBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 48, paddingHorizontal: 18, borderRadius: 18, marginLeft: 4 },
   strip: { flexDirection: 'row', alignItems: 'center', height: 44, paddingRight: 2 },
   track: { height: 4, borderRadius: 2, overflow: 'hidden' },
@@ -1163,14 +1123,27 @@ function defaultSender(doc: SystemDoc): string | undefined {
 }
 
 /** transport button: icon (or text) over a caption, so each control says what it does */
-function BarBtn({ icon, text, label, onPress, onLongPress, disabled, big, tone }: { icon?: string; text?: string; label: string; onPress: () => void; onLongPress?: () => void; disabled?: boolean; big?: boolean; tone?: string }) {
+/** The one primary control while running: advance the followed request by one hop. */
+function NextButton({ run, onPress }: { run: ReturnType<typeof useRun.getState>; onPress: () => void }) {
   const { c } = useTheme();
+  const lead = run.lead;
+  const label = run.ended ? 'Run ended' : !run.stepping ? 'Stop here' : lead ? 'Next step' : run.pending ? 'Preparing…' : 'Send & step';
+  const sub = run.ended || !run.stepping ? undefined : lead ? `${Math.min(lead.i + 1, lead.hops.length)} of ${lead.hops.length}${run.midway ? ' · halfway' : ''}` : 'hop by hop';
+  const icon = run.ended ? 'flag' : !run.stepping ? 'pause' : 'step-forward';
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={label} disabled={disabled} onPress={onPress} onLongPress={onLongPress} style={({ pressed }) => [styles.barBtn, pressed && { opacity: 0.6 }, disabled && { opacity: 0.35 }]}>
-      {icon ? <Icon name={icon} size={big ? 26 : 22} color={tone ?? c.text} /> : <Mono style={{ fontSize: 17, lineHeight: 22 }} color={tone ?? c.text}>{text}</Mono>}
-      <Text v="caption" style={{ fontSize: 11 }} color={c.text2}>
-        {label}
-      </Text>
+    <Pressable accessibilityRole="button" accessibilityLabel={label} disabled={run.ended} onPress={onPress} style={({ pressed }) => [styles.next, { backgroundColor: c.accent }, run.ended && { opacity: 0.4 }, pressed && { transform: [{ scale: 0.97 }] }]}>
+      <Icon name={icon} size={24} color={c.onAccent} strokeWidth={2.6} />
+      <View>
+        <Text v="headline" color={c.onAccent}>
+          {label}
+        </Text>
+        {sub && (
+          <Text v="callout" color={c.onAccent} style={{ opacity: 0.85, fontSize: 12 }}>
+            {sub}
+          </Text>
+        )}
+      </View>
     </Pressable>
   );
 }
+

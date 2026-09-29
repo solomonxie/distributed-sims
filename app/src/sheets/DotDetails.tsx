@@ -10,6 +10,8 @@ import { useDoc } from '../state/doc';
 import { controller } from '../state/run';
 import { fmtMs } from '../canvas/SystemCanvas';
 import { fmtNum } from './Inspector';
+import { Layers } from './Layers';
+import { story } from '../learn/narrate';
 
 /** What one dot on the canvas is carrying: a sample request, its response, or a protocol message. */
 export function DotDetails({ f, onTrace }: { f: Flight; onTrace: (id: number) => void }) {
@@ -84,6 +86,26 @@ export function HopDetails({ h, onTrace }: { h: JourneyHop; onTrace: (id: number
   const name = (id: string) => doc.nodes.find(n => n.id === id)?.name ?? id;
   const tr = controller.run?.trace(h.traceId);
   const total = tr?.end !== undefined ? tr.end - tr.start : undefined;
+  if (h.tcp || h.proto || h.wait || h.done) {
+    const st = story(doc, [h], 0, null, total, tr?.ok);
+    const tone = h.tcp ? c.warn : h.proto ? c.protocol : h.done ? (tr?.ok ? c.ok : c.fail) : c.text2;
+    return (
+      <View>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: c.surface2, alignItems: 'center', justifyContent: 'center' }}>
+            <Icon name={h.tcp ? 'handshake' : h.proto ? 'vote' : h.done ? 'flag' : 'hourglass'} size={20} color={tone} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text v="title">{st.title}</Text>
+            <Text v="callout" color={c.text2}>
+              {st.body}
+            </Text>
+          </View>
+        </View>
+        {(h.tcp || h.proto) && <Layers doc={doc} h={h} />}
+      </View>
+    );
+  }
   const callFrom = h.reply ? h.to : h.from;
   const callTo = h.reply ? h.from : h.to;
   const w = wireOf({ doc, from: callFrom, to: callTo, msg: h.msg, res: h.res, ok: h.res?.ok ?? h.ok, err: h.res?.err ?? h.err, spanMs: h.spanMs, calls: h.calls, traceId: h.traceId });
@@ -104,6 +126,7 @@ export function HopDetails({ h, onTrace }: { h: JourneyHop; onTrace: (id: number
       </View>
       <WireBlock label="REQUEST" dir=">" lines={w.req} head={c.read} here={!h.reply} />
       <WireBlock label={`RESPONSE · ${fmtMs(Math.max(0.001, h.spanMs))}`} dir="<" lines={w.res} head={w.ok ? c.ok : c.fail} here={h.reply} />
+      <Layers doc={doc} h={h} />
       {total !== undefined && tr && (
         <Text v="callout" color={c.text2} style={{ marginTop: space.m }}>
           Whole request: {fmtMs(total)} · {tr.ok ? 'succeeded' : 'failed'} for the user

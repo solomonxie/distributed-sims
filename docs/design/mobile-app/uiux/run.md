@@ -56,27 +56,34 @@ Background traffic runs unseen (it sets the conditions: bursts, overload). The c
  │ It is nearly full, so requests wait in   │
  │ line before they are handled.            │
  │ [97% busy] [traffic ×20]                 │
+ │ ❶❷❸❹(5)⑥⑦⑧⑨⑩⑪⑫                         │  ← every step; tap one for details
  ╰──────────────────────────────────────────╯
-          ╭──────────────────────────────╮
-          │  ⏮     ⏸     ⏭  │   1×    │  ← playback, captioned
-          │ Back  Pause  Next │ Speed   │
-          ╰──────────────────────────────╯
- ╭──╮ ╭──╮                ╭─────────╮ ╭─────────╮
- │‹ │ │⋯ │                │ ⚡ Break │ │ ➤ Send  │  ← actions, labelled
- ╰──╯ ╰──╯                ╰─────────╯ ╰─────────╯
+```
+ (‹)(⋯)   (⏮) ╭──────────────╮        (➤)
+               │ ⏭ Next step  │            ← Next centred and largest;
+               │    4 of 17   │              Prev small beside it
+               ╰──────────────╯
 ```
 
-- Two rows: playback (what the dots do) above, actions (what you do) below. Every control has a word, no bare icons.
-- Speed: tap cycles 0.5× → 1× → 2× → 4×; long-press lists all (0.1×–10×).
+- No play or replay button. Next's label follows the state: "Send & step" (nothing in flight: sends one request and plays its first hop) · "Next step · i of n" (+ "· halfway" while the dot waits mid-link) · "Stop here" (while playing through) · "Run ended" (disabled; ⋯ → Replay from the start).
+- ➤ (small, outlined) sends without stepping; long-press: read / write / 5, 20, 100 at once / send from another client.
+- ⋯ holds the rest: Replay from the start · Play through (no stops) / Stop at every step · Speed… · Pause / Resume simulation, then the usual items.
+- One request at a time, on its own clock: it holds at the start of every step until Next. A travelling dot (request, response, protocol message) also stops halfway along its link: tap it for its details, Next again carries it to the target (two Nexts per hop; waits inside a component and Done take one). The button caption adds "halfway" while it waits there. The simulation keeps running underneath (metrics, lesson checks) but nothing else is drawn while stepping: background protocol dots (heartbeats, fetch loops, votes) appear only in play-through.
+- Steps: TCP handshake (SYN → SYN-ACK → ACK) the first time a connection is used in the run (every call when the edge has keepAlive off) · each call · time inside a component · protocol messages it sent for this request (2PC PREPARE → votes → COMMIT → acks, saga steps / compensations, Kafka Produce → follower Fetch → ack) · each response · Done · then "After the reply" steps (↳): async work the request set off (replication, consumer fetch + offset commit, queue delivery + ack). The sim runs ahead until the request's messages go quiet (1.5 s sim, max 8 s) before playing.
+- ≣ in the tip → "This request, step by step": the numbered list, current step marked; tap → details. Tapping a dot also holds it and opens its details.
+- Details: curl-style request/response plus NETWORK LAYERS, nested: L2 Ethernet (MACs) ⊃ L3 IP (addresses, TTL) ⊃ L4 TCP (ports, flags, seq/ack) ⊃ L7 payload (HTTP line, SQL, RESP, or `PREPARE TRANSACTION 'id'`).
+- Speed: ⋯ → Speed… lists 0.1×–10×.
 
-- Send (➤) sends one request from the client (the one with traffic, else the first). Long-press: read (GET) / write (POST) / 5 at once / send from another client.
+- Send (➤) sends one request from the client (the one with traffic, else the first). Long-press: read (GET) / write (POST) / 5, 20 or 100 at once / send from another client.
+- Tap a client (users, devices, bots) → inspector SEND REQUESTS: Read/Write + ( ➤ Send ) ( ×5 ) ( ×20 ) ( ×100 ) from that client.
+- Break: no dock button. Tap a component or region → inspector "Break it…", or long-press it → "Break it…"; both open that target's faults. ⋯ has none.
 - The request's fate is resolved first (sim runs ahead), then it plays beat by beat: travel, wait inside (only when ≥ 5 ms), reply, and a final "Done: 301 in 41 ms".
 - No answer (component down, packet dropped): dot reaches the dead component, the caller waits ("Waiting for Link cache…" until its timeout), then a red return; every layer above fails in turn.
 - Tip phases: REQUEST (blue) · WAITING (amber) · RESPONSE (green) · FAILED (red) · DONE. Chips: down, ⚡ fault, % busy, queue, traffic ×N. Tap → full curl-style details. ✕ hides; ⋯ → Show request tips.
-- Up to 4 of your requests travel at once; the tip follows the oldest.
-- Same everywhere: lessons, challenges, sandbox. Nothing travels until you Send (protocol dots excepted).
+- Requests you send queue and play one after another; a request you send takes over from one a lesson picked.
+- Same everywhere: lessons, challenges, sandbox. Nothing travels until you Send or tap Next.
 - Every design has its own API (`wire` in the template): host, read/write route, table, cache key, topic.
-- Protocol dots (heartbeats, votes) only on consensus / coordination designs, max 24.
+- Protocol dots (heartbeats, votes, 2PC prepare/commit) only on consensus / coordination designs, max 24: one per connection at a time, 0.6× request speed, each drawn whole from its start; ones older than ~2 s are skipped.
 
 ## Stepping
 
