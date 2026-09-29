@@ -7,7 +7,7 @@ import { useTheme, space } from '../theme';
 import { Icon } from '../ui/Icon';
 import { Button, Card, Mono, Row, SectionHeader, Segmented, Text, Toggle } from '../ui/primitives';
 import { useDoc } from '../state/doc';
-import { useRun, controller } from '../state/run';
+import { useRun, controller, SEND_BURSTS } from '../state/run';
 import { fmtMs, fmtRps } from '../canvas/SystemCanvas';
 import { nodeIcon, nodeSubtitle } from '../canvas/layout';
 
@@ -49,6 +49,7 @@ export function NodeInspector({ id, onOpenMetrics, onFireChaos, onConnect, onDri
         </Pressable>
       </View>
 
+      {running && isClient && <ClientSend id={id} />}
       {running && <NodeRunTab id={id} onOpenMetrics={onOpenMetrics} onFireChaos={onFireChaos} />}
 
       {key.length > 0 && (
@@ -130,6 +131,25 @@ function edgeSummary(cfg?: EdgeConfig): string {
 }
 
 const lowerFirst = (t: string) => (t ? t.charAt(0).toLowerCase() + t.slice(1) : t);
+
+/** Fire one request or a burst from this client. */
+function ClientSend({ id }: { id: string }) {
+  const [op, setOp] = useState<'read' | 'write'>('read');
+  const ended = useRun(s => s.ended);
+  return (
+    <>
+      <SectionHeader title="SEND REQUESTS" />
+      <Card padded>
+        <Segmented options={['read', 'write'] as const} labels={{ read: 'Read (GET)', write: 'Write (POST)' }} value={op} onChange={setOp} />
+        <View style={styles.burst}>
+          {[1, ...SEND_BURSTS].map(n => (
+            <Button key={n} small kind={n === 1 ? 'primary' : undefined} title={n === 1 ? 'Send' : `×${n}`} icon={n === 1 ? 'send' : undefined} disabled={ended} style={{ flex: 1 }} onPress={() => controller.burst(id, op, n)} />
+          ))}
+        </View>
+      </Card>
+    </>
+  );
+}
 
 function NodeRunTab({ id, onOpenMetrics, onFireChaos }: { id: string; onOpenMetrics: () => void; onFireChaos: () => void }) {
   const { c } = useTheme();
@@ -364,9 +384,10 @@ export function EdgeInspector({ id }: { id: string }) {
 
 // ---------- container ----------
 
-export function ContainerInspector({ id }: { id: string }) {
+export function ContainerInspector({ id, onFireChaos }: { id: string; onFireChaos: () => void }) {
   const { c } = useTheme();
   const doc = useDoc(s => s.doc)!;
+  const running = useRun(s => s.active);
   const ct = doc.containers.find(x => x.id === id);
   const def = (catalog.containers as ContainerDef[]).find(x => x.kind === ct?.kind);
   if (!ct) return null;
@@ -413,6 +434,7 @@ export function ContainerInspector({ id }: { id: string }) {
         <Row title="Collapsed" subtitle="Shows as one node with aggregate health" last right={<Toggle value={!!ct.collapsed} onChange={() => useDoc.getState().toggleCollapse(id)} />} />
       </Card>
       <View style={styles.actions}>
+        {running && <Button small title="Break it…" icon="zap" onPress={onFireChaos} />}
         <View style={{ flex: 1 }} />
         <Button small kind="destructive" title="Ungroup" icon="ungroup" onPress={() => useDoc.getState().remove({ kind: 'container', id })} />
       </View>
@@ -458,6 +480,7 @@ export function fmtNum(v: number): string {
 const styles = StyleSheet.create({
   head: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 4 },
   iconTile: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  burst: { flexDirection: 'row', gap: 8, marginTop: 12 },
   actions: { flexDirection: 'row', gap: 8, marginTop: space.l, flexWrap: 'wrap' },
   moreRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 14, justifyContent: 'center' },
   metricRow: { flexDirection: 'row', alignItems: 'center', height: 30 },

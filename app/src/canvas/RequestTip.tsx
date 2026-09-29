@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
 import { useShallow } from 'zustand/react/shallow';
 import type { SharedValue } from 'react-native-reanimated';
@@ -12,7 +12,7 @@ import { story, loadChip, type Phase } from '../learn/narrate';
 import type { Layout } from './layout';
 
 /** Narrates the followed request, one beat at a time; docks on the half of the screen away from where it is. */
-export function RequestTip({ doc, layout, camera, top, bottom, sender, onOpen, onClose }: { doc: SystemDoc; layout: Layout; camera: { tx: SharedValue<number>; ty: SharedValue<number>; s: SharedValue<number> }; top: number; bottom: number; sender?: string; onOpen: (h: JourneyHop) => void; onClose: () => void }) {
+export function RequestTip({ doc, layout, camera, top, bottom, sender, onOpen, onSteps, onClose }: { doc: SystemDoc; layout: Layout; camera: { tx: SharedValue<number>; ty: SharedValue<number>; s: SharedValue<number> }; top: number; bottom: number; sender?: string; onOpen: (h: JourneyHop) => void; onSteps: () => void; onClose: () => void }) {
   const { c } = useTheme();
   const { height } = useWindowDimensions();
   const { lead, snap, auto, pending, baseRps } = useRun(useShallow(s => ({ lead: s.lead, snap: s.snapshot, auto: s.auto, pending: s.pending, baseRps: s.baseRps })));
@@ -33,7 +33,7 @@ export function RequestTip({ doc, layout, camera, top, bottom, sender, onOpen, o
           </View>
           {!pending && (
             <Text v="callout" color={c.text2} style={{ marginTop: 4 }}>
-              Follow it hop by hop. Then Break something or add a burst, and send another.
+              Then step through its life with Next and Prev. Tap any step for its details.
             </Text>
           )}
         </Glass>
@@ -58,6 +58,9 @@ export function RequestTip({ doc, layout, camera, top, bottom, sender, onOpen, o
               {LABEL[st.phase]}
             </Text>
             <Progress n={n} i={lead.i} color={tone} />
+            <Pressable hitSlop={12} onPress={onSteps} accessibilityLabel="All steps">
+              <Icon name="list-ordered" size={16} color={c.text2} />
+            </Pressable>
             <Pressable hitSlop={12} onPress={onClose} accessibilityLabel="Hide request tips">
               <Icon name="x" size={16} color={c.text3} />
             </Pressable>
@@ -79,6 +82,7 @@ export function RequestTip({ doc, layout, camera, top, bottom, sender, onOpen, o
             </View>
           )}
           <Chips chips={[...st.chips, ...load]} />
+          <StepPills hops={lead.hops} i={lead.i} onOpen={onOpen} />
         </Glass>
       </Pressable>
     </Animated.View>
@@ -99,6 +103,28 @@ function Progress({ n, i, color }: { n: number; i: number; color: string }) {
         {i + 1}/{n}
       </Mono>
     </View>
+  );
+}
+
+/** Every step of the request as a numbered pill: done, here, to come. Tap one for its details. */
+function StepPills({ hops, i, onOpen }: { hops: JourneyHop[]; i: number; onOpen: (h: JourneyHop) => void }) {
+  const { c } = useTheme();
+  const ref = React.useRef<React.ComponentRef<typeof ScrollView>>(null);
+  React.useEffect(() => ref.current?.scrollTo({ x: Math.max(0, i * 30 - 90), animated: true }), [i]);
+  return (
+    <ScrollView ref={ref} horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 10 }} contentContainerStyle={{ gap: 6 }}>
+      {hops.map((h, k) => {
+        const tone = h.tcp ? c.warn : h.proto ? c.protocol : h.reply || h.done ? (h.ok ? c.ok : c.fail) : h.wait ? c.text2 : c.read;
+        const here = k === i;
+        return (
+          <Pressable key={k} hitSlop={4} onPress={() => onOpen(h)} accessibilityLabel={`Step ${k + 1}`} style={[styles.pill, { borderColor: tone, backgroundColor: k < i ? tone : here ? c.surface2 : 'transparent', transform: [{ scale: here ? 1.15 : 1 }] }]}>
+            <Mono style={{ fontSize: 10.5, fontWeight: here ? '700' : '400' }} color={k < i ? c.canvas : tone}>
+              {k + 1}
+            </Mono>
+          </Pressable>
+        );
+      })}
+    </ScrollView>
   );
 }
 
@@ -128,4 +154,5 @@ const styles = StyleSheet.create({
   track: { flex: 1, height: 3, borderRadius: 2, overflow: 'hidden' },
   wire: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
   chip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
+  pill: { minWidth: 24, height: 24, borderRadius: 12, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
 });

@@ -17,7 +17,6 @@ import { AlgoLesson } from '../learn/AlgoLesson';
 import { useProgress } from '../state/progress';
 import { DetailSheet, detailAt } from '../ui/DetailSheet';
 
-const SPEEDS = [0.5, 1, 2, 4];
 
 export function AlgorithmPlayerScreen() {
   const { c } = useTheme();
@@ -30,8 +29,6 @@ export function AlgorithmPlayerScreen() {
   const [custom, setCustom] = useState<algo.GraphInput | null>(null);
   const [editing, setEditing] = useState(false);
   const [i, setI] = useState(0);
-  const [playing, setPlaying] = useState(false);
-  const [speed, setSpeed] = useState(1);
   const [detail, setDetail] = useState<algo.Detail | undefined>(undefined);
   const input = custom ?? demo?.inputs[presetIdx]?.data;
   const frames = useMemo(() => (demo ? algo.frames(demo, input) : []), [demo, input]);
@@ -57,21 +54,8 @@ export function AlgorithmPlayerScreen() {
 
   useEffect(() => {
     setI(0);
-    setPlaying(false);
     prevRef.current = undefined;
   }, [frames]);
-
-  useEffect(() => {
-    if (!playing) return;
-    if (i >= frames.length - 1) {
-      setPlaying(false);
-      haptic('success');
-      return;
-    }
-    const tmr = setTimeout(() => go(i + 1), 1300 / speed);
-    return () => clearTimeout(tmr);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playing, i, speed, frames.length]);
 
   useEffect(() => {
     const off = bus.on('player:steps', n => setI(Math.min(frames.length - 1, n)));
@@ -99,7 +83,6 @@ export function AlgorithmPlayerScreen() {
     const d = frames[i] && detailAt(frames[i].shapes, (sx / size) * 1000, (sy / size) * 1000);
     if (!d) return;
     haptic('light');
-    setPlaying(false);
     setDetail(d);
   };
   const stageTap = Gesture.Tap().onEnd(e => runOnJS(tapStage)(e.x, e.y));
@@ -184,25 +167,29 @@ export function AlgorithmPlayerScreen() {
       </ScrollView>
       {!editing && (
         <View style={[styles.bar, { backgroundColor: c.surface1, borderTopColor: c.hairline }]}>
-          <IconButton name="skip-back" onPress={() => go(0)} label="First step" />
-          <IconButton name="chevron-left" size={26} onPress={() => go(i - 1)} disabled={i === 0} label="Previous step" />
+          <IconButton name="chevron-left" size={22} onPress={() => go(i - 1)} disabled={i === 0} label="Previous step" style={styles.side} />
           <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Next step"
+            disabled={i >= frames.length - 1}
             onPress={() => {
               haptic('light');
-              if (i >= frames.length - 1) {
-                prevRef.current = undefined;
-                setI(0);
-                setPlaying(true);
-              } else setPlaying(!playing);
+              go(i + 1);
+              if (i + 1 >= frames.length - 1) haptic('success');
             }}
-            style={({ pressed }) => [styles.play, { backgroundColor: c.accent }, pressed && { transform: [{ scale: 0.95 }] }]}
+            style={({ pressed }) => [styles.next, { backgroundColor: c.accent }, i >= frames.length - 1 && { opacity: 0.4 }, pressed && { transform: [{ scale: 0.97 }] }]}
           >
-            <Icon name={playing ? 'pause' : i >= frames.length - 1 ? 'rotate-ccw' : 'play'} size={24} color={c.onAccent} strokeWidth={2.6} />
+            <Icon name="step-forward" size={22} color={c.onAccent} strokeWidth={2.4} />
+            <View>
+              <Text v="headline" color={c.onAccent}>
+                {i >= frames.length - 1 ? 'Done' : 'Next step'}
+              </Text>
+              <Text v="callout" color={c.onAccent} style={{ opacity: 0.8, fontSize: 12 }}>
+                {i + 1} of {frames.length}
+              </Text>
+            </View>
           </Pressable>
-          <IconButton name="chevron-right" size={26} onPress={() => go(i + 1)} disabled={i >= frames.length - 1} label="Next step" />
-          <Pressable onPress={() => setSpeed(SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length])} style={styles.speed}>
-            <Mono color={c.text2}>×{speed}</Mono>
-          </Pressable>
+          <IconButton name="rotate-ccw" size={18} color={c.text3} onPress={() => go(0)} disabled={i === 0} label="Back to the first step" style={styles.side} />
         </View>
       )}
       <DetailSheet detail={detail} onClose={() => setDetail(undefined)} />
@@ -292,6 +279,6 @@ const styles = StyleSheet.create({
   panelRows: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
   panelChip: { flexDirection: 'row', gap: 6, alignItems: 'center', paddingHorizontal: 10, height: 30, borderRadius: 8, borderWidth: 1 },
   bar: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingBottom: 30, paddingTop: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-evenly', borderTopWidth: StyleSheet.hairlineWidth },
-  play: { width: 60, height: 60, borderRadius: 30, alignItems: 'center', justifyContent: 'center' },
-  speed: { width: 50, height: 44, alignItems: 'center', justifyContent: 'center' },
+  next: { flex: 1, maxWidth: 260, height: 56, borderRadius: 28, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
+  side: { width: 48, alignItems: 'center' },
 });

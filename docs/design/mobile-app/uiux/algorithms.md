@@ -42,8 +42,10 @@ Home → Animations → group → player. Spec: `../algorithms.md`.
  ────────────────────────────────────────
  PRIORITY QUEUE   F:5  B:6  D:7
  ────────────────────────────────────────
-  ⏮    ‹    ▶    ›    ×1 ⌄
+    ‹     ╭─ ⏭ Next step · 3/14 ─╮    ↺
 ```
+
+- Stepping only: no play/autoplay. Next is the centred primary ("Done" on the last step), ‹ Prev small on the left, ↺ back to the first step small on the right.
 
 - `✎` = edit mode: tap empty = add node, drag node→node = edge, tap edge =
   weight stepper, long-press node = set source / target / delete.
