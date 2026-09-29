@@ -16,7 +16,7 @@ estimates:
   - ~2 KB metadata/email → 20 GB/day
 designs:
   - { id: v1, title: "Naive: API calls SendGrid inline", template: problem-send-email-v1 }
-  - { id: v2, title: "Reference: queue, late ack, idempotent workers", template: problem-send-email-v2 }
+  - { id: v2, title: "Reference: outbox, queue, late ack, idempotent workers", template: problem-send-email-v2 }
 challenges:
   - id: provider-outage
     title: "SendGrid outage: 0 lost, ≤1 duplicate"
@@ -52,7 +52,18 @@ challenges:
     pass:
       - { metric: availability, op: '>=', value: 99.9 }
       - { metric: anomalies, op: '<=', value: 1 }
+  - id: queue-outage
+    title: "Queue outage: 0 lost sends"
+    template: problem-send-email-v2
+    scenario:
+      durationSec: 60
+      sources: [{ id: sends, node: users, shape: { kind: constant, rps: 200 }, readRatio: 0 }]
+      events: [{ atSec: 35, event: { kind: kill, target: sqs, durationSec: 25 } }]
+    pass:
+      - { metric: availability, op: '>=', value: 99.9 }
+      - { metric: anomalies, op: '<=', value: 1 }
 keyIdeas:
+  - { label: Transactional outbox (no dual write), link: "lesson:distributed-transaction/transactional-outbox" }
   - { label: Queue absorbs provider outages, link: "lesson:message-queue/at-least-once" }
   - { label: Ack late + idempotent consumer, link: "lesson:celery/crash-late-ack" }
   - { label: Retries with backoff and a DLQ, link: "lesson:message-queue/dlq-poison" }
