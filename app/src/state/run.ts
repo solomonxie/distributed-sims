@@ -1,7 +1,8 @@
 import { create } from 'zustand';
 import { makeMutable } from 'react-native-reanimated';
-import { createRun, type ChaosEvent, type Flight, type Msg, type Reply, type Run, type Snapshot, type Span, type SystemDoc, type Trace, type TrafficEvent } from '@dsims/engine';
+import { createRun, type SendOpts, type ChaosEvent, type Flight, type Msg, type Reply, type Run, type Snapshot, type Span, type SystemDoc, type Trace, type TrafficEvent } from '@dsims/engine';
 import { catalog } from '@dsims/content';
+import { NODE_H, NODE_W } from './doc';
 import type { Layout } from '../canvas/layout';
 import { useSettings } from './settings';
 import { haptic } from '../lib/haptics';
@@ -57,6 +58,8 @@ export interface JourneyHop {
   tcp?: 'SYN' | 'SYN-ACK' | 'ACK';
   /** set off by the request after the user already had the answer */
   async?: boolean;
+  /** sim ms since the request started when this hop reaches its destination */
+  at?: number;
 }
 
 interface Journey {
@@ -88,6 +91,11 @@ interface RunState {
   canBack: boolean;
   /** the followed request stops at every step until Next; off = it plays through */
   stepping: boolean;
+  /** what the next Send / Next step fires: from which client, read or write, how many */
+  sender?: string;
+  sendOp: 'read' | 'write';
+  sendCount: number;
+  sendKey: 'cached' | 'uncached';
   /** the request being narrated: its hops and which one is on screen */
   lead?: { hops: JourneyHop[]; i: number; traceId: number; total?: number; ok?: boolean };
   /** requests fired but still being resolved */
@@ -115,6 +123,9 @@ export const useRun = create<RunState>(() => ({
   seed: 1,
   canBack: false,
   stepping: true,
+  sendOp: 'read',
+  sendCount: 1,
+  sendKey: 'cached',
   pending: 0,
   auto: false,
   baseRps: 0,
@@ -175,6 +186,9 @@ class Controller {
       midway: false,
       pending: 0,
       auto: !!opts?.auto,
+      sendOp: 'read',
+      sendKey: 'cached',
+      sendCount: 1,
       baseRps: (ensureScenario(doc).scenario?.sources ?? []).reduce((a, x) => a + (x.shape.kind === 'constant' ? x.shape.rps : x.shape.kind === 'ramp' ? x.shape.to : x.shape.kind === 'diurnal' ? x.shape.peak : x.shape.base), 0),
     });
     this.pending = [];
@@ -368,7 +382,7 @@ class Controller {
         lead.start += now - mid;
         this.jFrozen = true;
         this.midKey = key;
-        useRun.setState({ midway: true });
+        useRun.setState({ midway: true, canBack: true });
       }
     }
     if (key !== this.primaryKey) this.narrate(lead, leadAt?.i);
@@ -381,10 +395,15 @@ class Controller {
   private lastEnd = 0;
 
   /** Fire one request from `client`; it plays once its fate is known. */
+  /** the user's chosen request shape (client sheet) */
+  sendOpts(): SendOpts {
+    return { key: useRun.getState().sendKey === 'cached' ? 'hot' : 'cold' };
+  }
+
   send(client: string, op: 'read' | 'write' = 'read') {
     const run = this.run;
     if (!run || useRun.getState().ended) return;
-    const id = run.sendOne(client, op);
+    const id = run.sendOne(client, op, this.sendOpts());
     if (id === undefined) return;
     this.pending.push(id);
     useRun.setState({ pending: this.pending.length });
@@ -464,12 +483,12 @@ class Controller {
   private netLesson = false;
 
   /** Play the current step of the followed request, then hold at the next one. */
-  nextStep(sender?: string, op: 'read' | 'write' = 'read') {
+  nextStep(sender?: string, op: 'read' | 'write' = 'read', n = 1) {
     const st = useRun.getState();
     if (!this.run || st.ended || st.rewinding) return;
     if (!this.journeys.length) {
-      // nothing on screen: the next step is a new request
-      if (!this.pending.length && !this.ready.length && sender) this.send(sender, op);
+      // nothing on screen: the next step is a new request (or a burst; the first one is followed)
+      if (!this.pending.length && !this.ready.length && sender) this.burst(sender, op, Math.max(1, n));
       this.advanceSpawn = true;
     }
     this.jFrozen = false;
@@ -488,7 +507,8 @@ class Controller {
     const now = performance.now();
     const at = this.hopAt(lead, now);
     const i = at ? at.i : lead.hops.length - 1;
-    const atStart = !at || now - at.t0 < 60;
+    // parked halfway: Back returns to the start of this hop, however short the hop is
+    const atStart = !useRun.getState().midway && (!at || now - at.t0 < 60);
     const target = Math.max(0, atStart ? i - 1 : i);
     lead.start = now - (target ? lead.ends[target - 1] : 0) - HOP_EPS;
     this.jFrozen = true;
@@ -520,8 +540,13 @@ class Controller {
       const ax = an[a * 2], ay = an[a * 2 + 1], bx = an[b * 2], by = an[b * 2 + 1];
       const dx = bx - ax, dy = by - ay;
       const len = Math.hypot(dx, dy) || 1;
-      const px = ax + dx * k - (dy / len) * 5;
-      const py = ay + dy * k + (dx / len) * 5;
+      const ux = dx / len;
+      const uy = dy / len;
+      // same path as the canvas: box edge to box edge, one lane to the right
+      const clip = Math.min(len / 2, Math.min((NODE_W / 2 + 4) / Math.max(1e-6, Math.abs(ux)), (NODE_H / 2 + 4) / Math.max(1e-6, Math.abs(uy))));
+      const span = Math.max(0, len - 2 * clip);
+      const px = ax + ux * (clip + span * k) - uy * 5;
+      const py = ay + uy * (clip + span * k) + ux * 5;
       const d = Math.hypot(px - x, py - y);
       if (d < radius && (!best || d < best.d)) best = { h, d };
     }
@@ -740,17 +765,17 @@ export function journeyOf(tr: Trace, run: Run, opened = new Set<string>(), tcp =
     for (const f of mine) {
       used.add(f);
       const kind = f.msg?.kind ?? 'message';
-      hops.push({ from: f.from, to: f.to, reply: kind.endsWith('.reply'), ok: !f.err && !f.dropped, spanMs: f.t1 - f.t0, traceId: tr.id, msg: f.msg, pair: -1, calls: false, proto: kind });
+      hops.push({ from: f.from, to: f.to, reply: kind.endsWith('.reply'), ok: !f.err && !f.dropped, spanMs: f.t1 - f.t0, traceId: tr.id, msg: f.msg, pair: -1, calls: false, proto: kind, at: f.t1 - tr.start });
     }
     return mine.length;
   };
-  const handshake = (a: string, b: string) => {
+  const handshake = (a: string, b: string, at: number) => {
     if (!tcp) return;
     const edge = [...w.edges.values()].find(e => e.from === a && e.to === b);
     const link = `${a}>${b}`;
     if (edge?.cfg.keepAlive !== false && opened.has(link)) return;
     opened.add(link);
-    const seg = (from: string, to: string, tcp: JourneyHop['tcp']) => hops.push({ from, to, reply: false, ok: true, spanMs: 0, traceId: tr.id, pair: -1, calls: false, tcp });
+    const seg = (from: string, to: string, tcp: JourneyHop['tcp']) => hops.push({ from, to, reply: false, ok: true, spanMs: 0, traceId: tr.id, pair: -1, calls: false, tcp, at });
     seg(a, b, 'SYN');
     seg(b, a, 'SYN-ACK');
     seg(a, b, 'ACK');
@@ -761,43 +786,44 @@ export function journeyOf(tr: Trace, run: Run, opened = new Set<string>(), tcp =
       const sub = kids.get(ch) ?? [];
       const calls = sub.length > 0;
       const msg = reqFlight(p.node, ch)?.msg;
-      if (!ch.ghost) handshake(p.node, ch.node);
+      const t0 = ch.start - tr.start;
+      if (!ch.ghost) handshake(p.node, ch.node, t0);
       const i = hops.length;
-      hops.push({ from: p.node, to: ch.node, reply: false, ok: true, spanMs: ch.end - ch.start, traceId: tr.id, msg, pair: -1, calls, ghost: ch.ghost });
+      hops.push({ from: p.node, to: ch.node, reply: false, ok: true, spanMs: ch.end - ch.start, traceId: tr.id, msg, pair: -1, calls, ghost: ch.ghost, at: t0 });
       if (ch.ghost) {
         const res = { ok: false, err: 'timeout' as const };
         hops[i].res = res;
-        hops.push({ from: p.node, to: p.node, reply: false, ok: false, spanMs: ch.waitMs ?? 0, traceId: tr.id, msg, pair: -1, calls: false, wait: true, peer: ch.node });
+        hops.push({ from: p.node, to: p.node, reply: false, ok: false, spanMs: ch.waitMs ?? 0, traceId: tr.id, msg, pair: -1, calls: false, wait: true, peer: ch.node, at: t0 });
         hops[i].pair = hops.length;
-        hops.push({ from: ch.node, to: p.node, reply: true, ok: false, err: 'timeout', spanMs: ch.waitMs ?? 0, traceId: tr.id, msg, res, pair: i, calls: false, ghost: true });
+        hops.push({ from: ch.node, to: p.node, reply: true, ok: false, err: 'timeout', spanMs: ch.waitMs ?? 0, traceId: tr.id, msg, res, pair: i, calls: false, ghost: true, at: t0 + (ch.waitMs ?? 0) });
         continue;
       }
       const self = ch.end - ch.start - sub.filter(k => !k.ghost).reduce((a, k) => a + (k.end - k.start), 0) - sub.filter(k => k.ghost).reduce((a, k) => a + (k.waitMs ?? 0), 0);
-      if (!protoHops(ch.node, ch.start) && self >= 5) hops.push({ from: ch.node, to: ch.node, reply: false, ok: true, spanMs: self, traceId: tr.id, msg, pair: -1, calls, wait: true });
+      if (!protoHops(ch.node, ch.start) && self >= 5) hops.push({ from: ch.node, to: ch.node, reply: false, ok: true, spanMs: self, traceId: tr.id, msg, pair: -1, calls, wait: true, at: t0 });
       walk(ch, depth + 1);
       const back = resFlight(p.node, ch);
       const res = back?.reply ?? { ok: ch.ok, err: ch.err as Reply['err'] };
       hops[i].res = res;
       hops[i].pair = hops.length;
-      hops.push({ from: ch.node, to: p.node, reply: true, ok: ch.ok, err: ch.err, spanMs: ch.end - ch.start, traceId: tr.id, msg: back?.msg ?? msg, res, pair: i, calls });
+      hops.push({ from: ch.node, to: p.node, reply: true, ok: ch.ok, err: ch.err, spanMs: ch.end - ch.start, traceId: tr.id, msg: back?.msg ?? msg, res, pair: i, calls, at: ch.end - tr.start });
     }
   };
   walk(root, 0);
   if (!hops.length) return hops;
   const out = hops.slice(0, 64);
-  out.push({ from: tr.origin, to: tr.origin, reply: true, ok: !!tr.ok, spanMs: (tr.end ?? tr.start) - tr.start, traceId: tr.id, pair: -1, calls: false, done: true });
+  out.push({ from: tr.origin, to: tr.origin, reply: true, ok: !!tr.ok, spanMs: (tr.end ?? tr.start) - tr.start, traceId: tr.id, pair: -1, calls: false, done: true, at: (tr.end ?? tr.start) - tr.start });
   // what the request set off that the user didn't wait for: calls by consumers / workers, replication, commits
   for (const sp of orphans.sort((a, b) => a.start - b.start)) {
     if (out.length >= 94) break;
     const msg = reqFlight(sp.from!, sp)?.msg;
     const back = resFlight(sp.from!, sp);
-    out.push({ from: sp.from!, to: sp.node, reply: false, ok: true, spanMs: sp.end - sp.start, traceId: tr.id, msg, pair: out.length + 1, calls: false, async: true });
-    out.push({ from: sp.node, to: sp.from!, reply: true, ok: sp.ok, err: sp.err, spanMs: sp.end - sp.start, traceId: tr.id, msg: back?.msg ?? msg, res: back?.reply ?? { ok: sp.ok, err: sp.err as Reply['err'] }, pair: out.length - 1, calls: false, async: true });
+    out.push({ from: sp.from!, to: sp.node, reply: false, ok: true, spanMs: sp.end - sp.start, traceId: tr.id, msg, pair: out.length + 1, calls: false, async: true, at: sp.start - tr.start });
+    out.push({ from: sp.node, to: sp.from!, reply: true, ok: sp.ok, err: sp.err, spanMs: sp.end - sp.start, traceId: tr.id, msg: back?.msg ?? msg, res: back?.reply ?? { ok: sp.ok, err: sp.err as Reply['err'] }, pair: out.length - 1, calls: false, async: true, at: sp.end - tr.start });
   }
   for (const f of protos) {
     if (used.has(f) || out.length >= 96) continue;
     const kind = f.msg?.kind ?? 'message';
-    out.push({ from: f.from, to: f.to, reply: kind.endsWith('.reply'), ok: !f.err && !f.dropped, spanMs: f.t1 - f.t0, traceId: tr.id, msg: f.msg, pair: -1, calls: false, proto: kind, async: true });
+    out.push({ from: f.from, to: f.to, reply: kind.endsWith('.reply'), ok: !f.err && !f.dropped, spanMs: f.t1 - f.t0, traceId: tr.id, msg: f.msg, pair: -1, calls: false, proto: kind, async: true, at: f.t1 - tr.start });
   }
   return out;
 }

@@ -50,6 +50,8 @@ export interface SystemCanvasProps {
   /** node positions for flights, packed [x,y] per node index */
   anchors?: SharedValue<number[]>;
   targets?: Set<string> | null;
+  /** followed request: elapsed ms when it reached each component so far */
+  stamps?: Record<string, number>;
   dim?: boolean;
   heat?: boolean;
   labels?: boolean;
@@ -342,6 +344,7 @@ export function SystemCanvas(p: SystemCanvasProps) {
                 dim={!!p.targets && !p.targets.has(n.id)}
                 glow={!!p.targets && p.targets.has(n.id)}
                 labels={p.labels !== false}
+                stamp={p.stamps?.[n.id]}
               />
             ))}
           </Group>
@@ -560,6 +563,7 @@ function NodeView({
   dim,
   glow,
   labels,
+  stamp,
 }: {
   n: RNode;
   c: Colors;
@@ -576,6 +580,7 @@ function NodeView({
   dim: boolean;
   glow: boolean;
   labels: boolean;
+  stamp?: number;
 }) {
   const tr = useDerivedValue(() => (dragId.value === n.id ? [{ translateX: dx.value }, { translateY: dy.value }] : [{ translateX: 0 }]));
   const targetOpacity = useDerivedValue(() => (ghostTarget.value === n.id ? 1 : 0));
@@ -607,6 +612,8 @@ function NodeView({
   const badgeText = !labels ? '' : canvasText(snap?.badges?.map(b => b.text).join(' ') ?? '');
   const fBadge = font(10, 700);
   const bw = badgeText ? fBadge.measureText(badgeText).width + 12 : 0;
+  const stampText = stamp !== undefined ? `t+${fmtMs(stamp)}` : '';
+  const sw = stampText ? fBadge.measureText(stampText).width + 12 : 0;
   const chaos = !!(run && snap?.chaos?.length);
   const zap = svgIcon('zap', c.canvas, 2.6);
   const expand = svgIcon('maximize-2', c.text3, 2.2);
@@ -653,6 +660,12 @@ function NodeView({
           <RoundedRect x={x + n.w - bw - 6} y={y - 10} width={bw} height={18} r={9} color={c.surface2} />
           <RoundedRect x={x + n.w - bw - 6} y={y - 10} width={bw} height={18} r={9} color={c.protocol} style="stroke" strokeWidth={1} opacity={0.7} />
           <SkText x={x + n.w - bw} y={y + 3} text={badgeText} font={fBadge} color={c.text} />
+        </>
+      ) : null}
+      {stampText ? (
+        <>
+          <RoundedRect x={x + n.w - sw - 6} y={y + n.h - 8} width={sw} height={18} r={9} color={c.accent} />
+          <SkText x={x + n.w - sw} y={y + n.h + 5} text={stampText} font={fBadge} color={c.onAccent} />
         </>
       ) : null}
       {chaos && zap ? (
@@ -730,13 +743,20 @@ function useParticles(flights?: SharedValue<number[]>, simTime?: SharedValue<num
           canvas.drawLine(x0, cy + hh + 6, x0 + (WAIT_W - 28) * Math.min(1, k), cy + hh + 6, ring);
           continue;
         }
-        // two lanes: every dot keeps to the right of its direction of travel
+        // travel from the edge of one box to the edge of the other, so a parked dot is visible on the border
         const ddx = an[b] - an[a];
         const ddy = an[b + 1] - an[a + 1];
         const len = Math.sqrt(ddx * ddx + ddy * ddy) || 1;
+        const ux = ddx / len;
+        const uy = ddy / len;
+        const clip = Math.min(len / 2, Math.min((WAIT_W / 2 + 4) / Math.max(1e-6, Math.abs(ux)), (WAIT_H / 2 + 4) / Math.max(1e-6, Math.abs(uy))));
+        const sx = an[a] + ux * clip;
+        const sy = an[a + 1] + uy * clip;
+        const span = Math.max(0, len - 2 * clip);
+        // two lanes: every dot keeps to the right of its direction of travel
         const lane = LANE;
-        const x = an[a] + ddx * k - (ddy / len) * lane;
-        const y = an[a + 1] + ddy * k + (ddx / len) * lane;
+        const x = sx + ux * span * k - uy * lane;
+        const y = sy + uy * span * k + ux * lane;
         const op = f[i + 4];
         const flags = f[i + 5];
         const traced = (flags & 1) === 1;

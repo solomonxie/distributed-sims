@@ -13,6 +13,8 @@ interface Props {
   snapPoints: (string | number)[];
   index?: number;
   onClose?: () => void;
+  /** returns to the sheet this one was opened from */
+  onBack?: () => void;
   onChange?: (i: number) => void;
   children: React.ReactNode;
   scroll?: boolean;
@@ -32,7 +34,7 @@ function Background({ style }: BottomSheetBackgroundProps) {
   );
 }
 
-export const Sheet = forwardRef<BottomSheet, Props>(function Sheet({ snapPoints, index = 0, onClose, onChange, children, scroll = true, title, subtitle, headerRight, footer }, ref) {
+export const Sheet = forwardRef<BottomSheet, Props>(function Sheet({ snapPoints, index = 0, onClose, onBack, onChange, children, scroll = true, title, subtitle, headerRight, footer }, ref) {
   const { c } = useTheme();
   const insets = useSafeAreaInsets();
   const points = useMemo(() => snapPoints, [snapPoints]);
@@ -45,6 +47,7 @@ export const Sheet = forwardRef<BottomSheet, Props>(function Sheet({ snapPoints,
         <Background {...({ style: StyleSheet.absoluteFill } as any)} />
         {title ? (
           <View style={[styles.header, { paddingTop: space.m }]}>
+            {onBack && <IconButton name="chevron-left" size={22} color={c.text2} onPress={onBack} label="Back" style={{ marginLeft: -8 }} />}
             <View style={{ flex: 1 }}>
               <Text v="title" numberOfLines={1}>
                 {title}
@@ -58,9 +61,11 @@ export const Sheet = forwardRef<BottomSheet, Props>(function Sheet({ snapPoints,
             {headerRight}
             {onClose && <IconButton name="x" size={20} color={c.text2} onPress={onClose} label="Close" />}
           </View>
-        ) : onClose ? (
-          <View style={{ alignItems: 'flex-end', paddingRight: space.s, paddingTop: space.s }}>
-            <IconButton name="x" size={20} color={c.text2} onPress={onClose} label="Close" />
+        ) : onClose || onBack ? (
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: space.s, paddingTop: space.s }}>
+            <View>{onBack && <IconButton name="chevron-left" size={22} color={c.text2} onPress={onBack} label="Back" style={{ marginLeft: -8 }} />}
+</View>
+            {onClose && <IconButton name="x" size={20} color={c.text2} onPress={onClose} label="Close" />}
           </View>
         ) : null}
         <ScrollView contentContainerStyle={{ paddingHorizontal: space.l, paddingBottom: 24 }} keyboardShouldPersistTaps="handled">
@@ -85,6 +90,7 @@ export const Sheet = forwardRef<BottomSheet, Props>(function Sheet({ snapPoints,
     >
       {title ? (
         <View style={styles.header}>
+          {onBack && <IconButton name="chevron-left" size={22} color={c.text2} onPress={onBack} label="Back" style={{ marginLeft: -8 }} />}
           <View style={{ flex: 1 }}>
             <Text v="title" numberOfLines={1}>
               {title}
@@ -97,6 +103,13 @@ export const Sheet = forwardRef<BottomSheet, Props>(function Sheet({ snapPoints,
           </View>
           {headerRight}
           {onClose && <IconButton name="x" size={20} color={c.text2} onPress={onClose} label="Close" />}
+        </View>
+      ) : onBack ? (
+        <View style={[styles.header, { paddingLeft: space.s }]}>
+          <IconButton name="chevron-left" size={22} color={c.text2} onPress={onBack} label="Back" />
+          <Text v="callout" color={c.text2}>
+            Back
+          </Text>
         </View>
       ) : null}
       {scroll ? (
