@@ -300,7 +300,7 @@ export function airflowScheduler(n: SimNode): NodeLogic {
       // REST API: trigger a manual DagRun
       const id = dbId();
       if (!id) return req.reply({ ok: false, err: '503' });
-      n.rpc(id, { kind: 'airflow.db.trigger' }, n.num('dbTimeoutMs', 5000), r => {
+      n.rpc(id, { kind: 'airflow.db.trigger', traceId: req.msg.traceId }, n.num('dbTimeoutMs', 5000), r => {
         if (r.ok) {
           const db = airflowDb(n.world, id);
           db.runs.push({ id: ++db.runSeq, label: `manual_${db.runSeq}`, created: n.now, condAt: n.now, state: 'queued', tis: [] });

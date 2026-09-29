@@ -132,8 +132,8 @@ register('zk-server', n => {
   };
 
   /** Replicate through the leader, then apply. */
-  const commit = (op: string, d: any, key: number, cb: (r: Reply) => void) => {
-    const msg = n.world.newMsg({ from: n.id, to: n.id, kind: 'zk.txn', op: 'write', key: key % 1024, weight: 1 });
+  const commit = (op: string, d: any, key: number, cb: (r: Reply) => void, traceId?: number) => {
+    const msg = n.world.newMsg({ from: n.id, to: n.id, kind: 'zk.txn', op: 'write', key: key % 1024, weight: 1, traceId });
     raft.onRequest!({ msg, at: n.now, reply: r => cb(r.ok ? apply(op, d) : { ok: false, err: r.err ?? 'unavailable' }) });
   };
 
@@ -160,9 +160,9 @@ register('zk-server', n => {
       awake(n, () => {
         switch (m.kind) {
           case 'zk.connect':
-            return commit('session', { client: m.from, proc: d.proc, timeoutMs: d.timeoutMs }, m.id, r => req.reply(r));
+            return commit('session', { client: m.from, proc: d.proc, timeoutMs: d.timeoutMs }, m.id, r => req.reply(r), m.traceId);
           case 'zk.create':
-            return commit('create', d, m.id, r => req.reply(r));
+            return commit('create', d, m.id, r => req.reply(r), m.traceId);
           case 'zk.ping': {
             const s = e.sessions.get(d.sid);
             if (!s || s.expired) return req.reply({ ok: false, err: 'auth' });

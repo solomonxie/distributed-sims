@@ -143,6 +143,9 @@ class View {
 register('redis-cluster-node', n => {
   let view: View | undefined;
   let offset = 0;
+  /** offsets of writes by traced requests, and what each replica was last sent */
+  const tracedOff: { off: number; id: number }[] = [];
+  const shipped = new Map<string, number>();
   let currentEpoch = 0;
   const lastPong = new Map<string, number>();
   const pinging = new Set<string>();
@@ -350,7 +353,13 @@ register('redis-cluster-node', n => {
     n.process(req.msg.weight, (n.num('execUs', 20) / 1000) * n.mods.slowX, ok => {
       if (!ok) return req.reply({ ok: false, err: '503' });
       ops += req.msg.weight;
-      if (op === 'write') offset += req.msg.weight;
+      if (op === 'write') {
+        offset += req.msg.weight;
+        if (req.msg.traceId !== undefined) {
+          tracedOff.push({ off: offset, id: req.msg.traceId });
+          if (tracedOff.length > 50) tracedOff.shift();
+        }
+      }
       req.reply({ ok: true, version: offset });
     });
   }
@@ -436,7 +445,13 @@ register('redis-cluster-node', n => {
       n.every(n.num('pingMs', 100), tick);
       n.every(n.num('replLagMs', 100), () => {
         if (!isPrimary()) return;
-        for (const id of v().ids) if (v().primaryOf.get(id) === me()) n.send(id, { kind: 'redis.REPL', data: { offset } });
+        for (const id of v().ids) {
+          if (v().primaryOf.get(id) !== me()) continue;
+          const from = shipped.get(id) ?? 0;
+          shipped.set(id, offset);
+          const traceId = tracedOff.find(x => x.off > from && x.off <= offset)?.id;
+          n.send(id, { kind: 'redis.REPL', traceId, data: { offset } });
+        }
       });
       n.every(1000, () => {
         n.gauge('opsPerSec', ops);
@@ -568,7 +583,7 @@ register('redis-cluster-client', n => {
     }
     hops++;
     const slot = keySlot(keys[0]);
-    n.rpc(to, { kind: 'redis.cmd', op: req.msg.op, weight: req.msg.weight, key: req.msg.key, data: { keys, asking } }, n.num('timeoutMs', 500), r => {
+    n.rpc(to, { kind: 'redis.cmd', op: req.msg.op, weight: req.msg.weight, key: req.msg.key, traceId: req.msg.traceId, data: { keys, asking } }, n.num('timeoutMs', 500), r => {
       const code = r.data?.code;
       if (trace && r.ok && !code) n.log('protocol', `${n.world.nodeName(to)} ran it on its single thread and replied${req.msg.op === 'write' ? '; the write streams to its replica asynchronously' : ''}`);
       if (r.ok && !code) return req.reply({ ok: true, version: r.version });

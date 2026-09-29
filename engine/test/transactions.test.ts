@@ -128,3 +128,14 @@ test('txn templates run with the group catalog', () => {
     if (f === 'txn-idempotency.json') expect(r.snapshot().nodes.stripe.gauges.duplicates).toBe(0);
   }
 });
+
+test('2PC messages belong to the request that started the transaction', () => {
+  const r = createRun(txnDoc({}, 1), { catalog: cat, seed: 3 });
+  r.step(500, 1e9);
+  const id = r.sendOne('c', 'write')!;
+  r.step(r.now + 3000, 1e9);
+  const kinds = (r.world.traceFlights.get(id) ?? []).filter(f => f.op === 'proto').map(f => f.msg?.kind);
+  expect(kinds.filter(k => k === 'txn.prepare')).toHaveLength(3);
+  expect(kinds.filter(k => k === 'txn.prepare.reply')).toHaveLength(3);
+  expect(kinds.filter(k => k === 'txn.commit')).toHaveLength(3);
+});

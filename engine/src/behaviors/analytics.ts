@@ -515,7 +515,7 @@ export function lakehouse(n: SimNode): NodeLogic {
     go();
   }
 
-  function readFiles(filesToRead: number, then: () => void) {
+  function readFiles(filesToRead: number, then: () => void, traceId?: number) {
     const e = store();
     if (!e) return then();
     // one GET per file (footer + column chunks), split across prefixes
@@ -523,7 +523,7 @@ export function lakehouse(n: SimNode): NodeLogic {
     let left = calls;
     let throttled = false;
     for (let i = 0; i < calls; i++) {
-      const msg = n.world.newMsg({ from: n.id, to: e.to, weight: Math.max(1, Math.round(filesToRead / calls)), op: 'read', key: n.rng.int(1024), size: 1e6 });
+      const msg = n.world.newMsg({ from: n.id, to: e.to, weight: Math.max(1, Math.round(filesToRead / calls)), op: 'read', key: n.rng.int(1024), size: 1e6, traceId });
       n.call(e, msg, r => {
         if (!r.ok) throttled = true;
         if (--left) return;
@@ -556,15 +556,18 @@ export function lakehouse(n: SimNode): NodeLogic {
     n.gauge('filesPerQuery', fileCount);
     const overhead = n.serviceTime('p50Ms', 'p99Ms', 300, 1200) + replay * n.num('logReplayMs', 50);
     queriesRunning++;
-    readFiles(fileCount, () =>
-      compute(req.msg.weight, coreMs, tasks, ok => {
-        queriesRunning--;
-        if (!ok) return req.reply(busy);
-        n.timer(overhead, () => {
-          timed(req);
-          req.reply({ ok: true });
-        });
-      }),
+    readFiles(
+      fileCount,
+      () =>
+        compute(req.msg.weight, coreMs, tasks, ok => {
+          queriesRunning--;
+          if (!ok) return req.reply(busy);
+          n.timer(overhead, () => {
+            timed(req);
+            req.reply({ ok: true });
+          });
+        }),
+      req.msg.traceId,
     );
   }
 
@@ -712,7 +715,7 @@ export function lakehouse(n: SimNode): NodeLogic {
             req.reply({ ok: true });
           });
           if (!e) return done();
-          n.call(e, n.world.newMsg({ from: n.id, to: e.to, weight: m.weight, op: 'write', key: n.rng.int(1024), size: 1e6 }), () => done());
+          n.call(e, n.world.newMsg({ from: n.id, to: e.to, weight: m.weight, op: 'write', key: n.rng.int(1024), size: 1e6, traceId: m.traceId }), () => done());
         }, req);
       }
       whenUp(() => query(req), req);

@@ -346,7 +346,7 @@ register('es-data', n => {
             let left = reps.length;
             if (!left) return req.reply({ ok: true });
             for (const r of reps)
-              n.rpc(r.node, { kind: 'es.replicate', weight: w, data: { shard: d.shard, trace: d.trace } }, n.num('replicaTimeoutMs', 1000), () => {
+              n.rpc(r.node, { kind: 'es.replicate', weight: w, traceId: req.msg.traceId, data: { shard: d.shard, trace: d.trace } }, n.num('replicaTimeoutMs', 1000), () => {
                 if (--left === 0) req.reply({ ok: true });
               });
           });
@@ -431,11 +431,11 @@ register('es-coord', n => {
       .sort((a, b) => a.s - b.s)
       .map(x => x.c.node);
 
-  const shardCall = (nodes: Id[], kind: string, data: any, w: number, done: (ok: boolean, ms: number, node?: Id) => void) => {
+  const shardCall = (nodes: Id[], kind: string, data: any, w: number, done: (ok: boolean, ms: number, node?: Id) => void, traceId?: number) => {
     const t0 = n.now;
     const next = (i: number) => {
       if (i >= nodes.length) return done(false, n.now - t0);
-      callNode(n, nodes[i], { kind, weight: w, data }, n.num('shardTimeoutMs', 1000), r => {
+      callNode(n, nodes[i], { kind, weight: w, traceId, data }, n.num('shardTimeoutMs', 1000), r => {
         ewma.set(nodes[i], (ewma.get(nodes[i]) ?? 5) * 0.8 + (n.now - t0) * 0.2);
         if (r.ok) done(true, n.now - t0, nodes[i]);
         else if (r.err === '429') done(false, n.now - t0);
@@ -492,13 +492,20 @@ register('es-coord', n => {
           if (trace) n.log('protocol', `${n.name}: fetch phase → ${hits.length} shards holding the top 10 hits`);
           let f = hits.length;
           for (const s of hits)
-            shardCall(rank(st.shards[s]), 'es.fetch', { shard: s }, w, () => {
-              if (--f) return;
-              if (trace) n.log('protocol', `${n.name}: search done, hits returned to client`);
-              req.reply({ ok: true });
-            });
+            shardCall(
+              rank(st.shards[s]),
+              'es.fetch',
+              { shard: s },
+              w,
+              () => {
+                if (--f) return;
+                if (trace) n.log('protocol', `${n.name}: search done, hits returned to client`);
+                req.reply({ ok: true });
+              },
+              req.msg.traceId,
+            );
         });
-      });
+      }, req.msg.traceId);
     });
   };
 
@@ -519,14 +526,14 @@ register('es-coord', n => {
       n.log('protocol', `${n.name}: index doc ${k} → hash(_id) % ${st.shards.length} = shard [${s}], primary on ${n.world.nodeName(primary.node)}`);
     }
     const go = () =>
-      callNode(n, primary.node, { kind: 'es.index', weight: w, data: { shard: s, trace } }, n.num('indexTimeoutMs', 1000), r => {
+      callNode(n, primary.node, { kind: 'es.index', weight: w, traceId: req.msg.traceId, data: { shard: s, trace } }, n.num('indexTimeoutMs', 1000), r => {
         if (trace && r.ok) n.log('protocol', `${n.name}: primary + replicas acked; doc searchable after the next refresh`);
         req.reply(r.ok ? { ok: true } : { ok: false, err: r.err === '429' ? '429' : r.err ?? '5xx' });
       });
     const newFields = Number(req.msg.data?.newFields ?? 0);
     if (!newFields || !masters.length) return go();
     // dynamic mapping: a new field needs a cluster-state update on the master first
-    n.rpc(st.master!, { kind: 'es.put-mapping', data: { fields: newFields } }, n.num('mappingTimeoutMs', 3000), r => {
+    n.rpc(st.master!, { kind: 'es.put-mapping', traceId: req.msg.traceId, data: { fields: newFields } }, n.num('mappingTimeoutMs', 3000), r => {
       if (r.ok) return go();
       if (r.err === '5xx')
         throttledLog(st.logAt, n, 'fields', 3000, 'protocol', `${n.name}: illegal_argument_exception — Limit of total fields [${n.world.nodes.get(st.master!)?.num('totalFieldsLimit', 1000) ?? 1000}] has been exceeded`);

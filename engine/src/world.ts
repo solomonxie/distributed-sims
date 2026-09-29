@@ -60,6 +60,8 @@ export interface LogEvent {
 
 export interface Span {
   node: Id;
+  /** the component that sent the request this span handled */
+  from?: Id;
   start: number;
   end: number;
   ok: boolean;
@@ -200,13 +202,20 @@ export class World {
     return { ...m, id: this.msgSeq++, from, to, hops: m.hops + 1 };
   }
 
-  newTrace(origin: Id): number | undefined {
+  /** traces a user asked for (sendOne): never evicted, so step mode can replay them under heavy traffic */
+  pinned = new Set<number>();
+
+  newTrace(origin: Id, pin = false): number | undefined {
     const id = this.traceSeq++;
     this.traces.set(id, { id, start: this.now, spans: [], origin });
-    if (this.traces.size > 300) {
-      const first = this.traces.keys().next().value!;
-      this.traces.delete(first);
-      this.traceFlights.delete(first);
+    if (pin) this.pinned.add(id);
+    if (this.traces.size > 300 + this.pinned.size) {
+      for (const k of this.traces.keys()) {
+        if (this.pinned.has(k)) continue;
+        this.traces.delete(k);
+        this.traceFlights.delete(k);
+        break;
+      }
     }
     return id;
   }
@@ -295,7 +304,7 @@ export class World {
           b.errs[r.err ?? '5xx'] = (b.errs[r.err ?? '5xx'] ?? 0) + msg.weight;
         }
         if (msg.traceId !== undefined) {
-          this.traces.get(msg.traceId)?.spans.push({ node: node.id, start: at, end: this.now, ok: r.ok, err: r.err });
+          this.traces.get(msg.traceId)?.spans.push({ node: node.id, from: msg.from, start: at, end: this.now, ok: r.ok, err: r.err });
         }
         onReply(r);
       },
@@ -409,7 +418,9 @@ export class World {
     this.protoRecord(src.id, to, msg);
     this.transmit(src.id, to, msg, undefined, 'proto', () =>
       this.deliver(msg, r => {
-        const back = this.newMsg({ proto: true, kind: msg.kind + '.reply', from: to, to: src.id });
+        // a reply may name its own trace (a long-poll answered with traced data), or none
+        const traceId = 'traceId' in r ? (r as Reply & { traceId?: number }).traceId : msg.traceId;
+        const back = this.newMsg({ proto: true, kind: msg.kind + '.reply', from: to, to: src.id, traceId });
         this.protoRecord(to, src.id, back, r.ok ? 'ok' : r.err);
         this.transmit(to, src.id, back, undefined, 'proto', () => {
           if (done || epoch !== src.epoch) return;

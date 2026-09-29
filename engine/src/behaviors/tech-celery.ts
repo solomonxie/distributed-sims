@@ -13,6 +13,8 @@ interface Task {
   ms: number;
   born: number;
   trace?: boolean;
+  /** the request that called delay(), when it was traced */
+  traceId?: number;
 }
 
 interface Ledger {
@@ -41,19 +43,19 @@ function p95(xs: number[]): number {
   return s[Math.min(s.length - 1, Math.floor(s.length * 0.95))];
 }
 
-function newTask(n: SimNode, name: string, key?: string, trace?: boolean): Task {
+function newTask(n: SimNode, name: string, key?: string, trace?: boolean, traceId?: number): Task {
   const l = ledger(n.world);
   const id = `t${++l.seq}`;
   const long = n.rng.chance(n.num('longTaskPct', 0) / 100);
   const ms = long ? n.num('longTaskMs', 20000) : n.rng.lognormal(n.num('taskMs', 1000), n.num('taskP99Ms', 3000));
-  return { id, key: key ?? id, name, ms, born: n.now, trace: trace || l.traced++ < 3 };
+  return { id, key: key ?? id, name, ms, born: n.now, trace: trace || l.traced++ < 3, traceId };
 }
 
 function publish(n: SimNode, task: Task, cb: (ok: boolean) => void) {
   const broker = peers(n, 'celery-broker')[0];
   if (!broker) return cb(false);
   if (task.trace) n.log('protocol', `delay() → ${task.id} (${task.name}) sent to broker`);
-  n.rpc(broker, { kind: 'celery.publish', data: { task } }, 1500, r => cb(r.ok));
+  n.rpc(broker, { kind: 'celery.publish', traceId: task.traceId, data: { task } }, 1500, r => cb(r.ok));
 }
 
 // ---------- producer: the app calling task.delay() ----------
@@ -61,7 +63,7 @@ register('celery-producer', n => ({
   onRequest(req: Req) {
     n.process(req.msg.weight, n.serviceTime('p50Ms', 'p99Ms', 2, 10), ok => {
       if (!ok) return req.reply({ ok: false, err: '503' });
-      const task = newTask(n, n.str('taskName', 'process_order'), undefined, req.msg.traceId !== undefined);
+      const task = newTask(n, n.str('taskName', 'process_order'), undefined, req.msg.traceId !== undefined, req.msg.traceId);
       publish(n, task, ok2 => req.reply(ok2 ? { ok: true } : { ok: false, err: '503' }));
     });
   },
@@ -111,7 +113,7 @@ register('celery-broker', n => {
       const t = ++tag;
       unacked.set(t, { task, worker: chosen.id, epoch: chosen.epoch, at: n.now });
       inflight.set(chosen.id, (inflight.get(chosen.id) ?? 0) + 1);
-      n.send(chosen.id, { kind: 'celery.deliver', data: { task, tag: t } });
+      n.send(chosen.id, { kind: 'celery.deliver', traceId: task.traceId, data: { task, tag: t } });
     }
   };
 
@@ -191,7 +193,7 @@ register('celery-worker', n => {
   const waits: number[] = [];
   const acksLate = () => n.bool('acksLate', false);
   const slots = () => Math.max(1, n.num('slots', 4));
-  const ack = (r: Reserved) => n.send(r.broker, { kind: 'celery.ack', data: { tag: r.tag, id: r.task.id } });
+  const ack = (r: Reserved) => n.send(r.broker, { kind: 'celery.ack', traceId: r.task.traceId, data: { tag: r.tag, id: r.task.id } });
 
   const gauges = () => {
     n.gauge('running', running.size);
@@ -217,7 +219,7 @@ register('celery-worker', n => {
     if (acksLate()) ack(r);
     const backend = peers(n, 'celery-result-backend')[0];
     if (backend)
-      n.rpc(backend, { kind: 'celery.store-result', data: { id: t.id } }, 2000, res => {
+      n.rpc(backend, { kind: 'celery.store-result', traceId: t.traceId, data: { id: t.id } }, 2000, res => {
         if (!res.ok) resultErrors++;
         else if (t.trace) n.log('protocol', `${t.id} succeeded in ${((n.now - startedAt) / 1000).toFixed(1)}s; result stored`);
       });

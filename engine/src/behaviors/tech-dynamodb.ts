@@ -230,7 +230,7 @@ register('dynamodb-router', n => {
     if (gsis.length && n.rng.chance(n.num('gsiReadPct', 0) / 100)) {
       const g = gsis[0];
       if (traceOnce(t, 'gsi')) n.log('protocol', `${n.name}: Query on GSI '${g.name}' — always eventually consistent`);
-      return callNode(n, g.id, { kind: 'dynamo.query', weight: w, data: { k } }, 1000, r => {
+      return callNode(n, g.id, { kind: 'dynamo.query', weight: w, traceId: req.msg.traceId, data: { k } }, 1000, r => {
         if (!r.ok) return req.reply(r);
         const stale = t.truth.checkRead(n, k, r.version ?? 0, w);
         req.reply({ ok: true, version: r.version, value: r.value, stale });
@@ -241,17 +241,17 @@ register('dynamodb-router', n => {
     if (!admit(t, p, 'r', rcuOf(w, consistent), k)) return req.reply({ ok: false, err: '429' });
     const trace = req.msg.traceId !== undefined && traceOnce(t, 'get');
     if (trace) n.log('protocol', `${n.name}: GetItem key ${k} → partition ${p.id} on ${n.world.nodeName(p.node)}, ${consistent ? 'strongly consistent (leader, 1 RCU)' : 'eventually consistent (any replica, 0.5 RCU)'}`);
-    callNode(n, p.node, { kind: 'dynamo.get', weight: w, data: { k, consistent, trace } }, 1000, r => {
+    callNode(n, p.node, { kind: 'dynamo.get', weight: w, traceId: req.msg.traceId, data: { k, consistent, trace } }, 1000, r => {
       if (!r.ok) return req.reply(r);
       const stale = t.truth.checkRead(n, k, r.version ?? 0, w);
       req.reply({ ok: true, version: r.version, value: r.value, stale });
     });
   };
 
-  const put = (t: Table, k: number, value: number, w: number, trace: boolean, cb: (r: import('../types').Reply) => void) => {
+  const put = (t: Table, k: number, value: number, w: number, trace: boolean, cb: (r: import('../types').Reply) => void, traceId?: number) => {
     const p = partOf(t, k);
     if (trace) n.log('protocol', `${n.name}: PutItem key ${k} — authenticated, hash → partition ${p.id} on ${n.world.nodeName(p.node)}`);
-    callNode(n, p.node, { kind: 'dynamo.put', weight: w, data: { k, value, trace } }, 1000, r => {
+    callNode(n, p.node, { kind: 'dynamo.put', weight: w, traceId, data: { k, value, trace } }, 1000, r => {
       if (r.ok) t.truth.ack(k, r.version ?? 0, w);
       cb(r);
     });
@@ -273,7 +273,7 @@ register('dynamodb-router', n => {
     }
     const p = partOf(t, k);
     if (!admit(t, p, 'w', wcuOf(w), k)) return req.reply({ ok: false, err: '429' });
-    put(t, k, req.msg.value ?? 0, w, req.msg.traceId !== undefined && traceOnce(t, 'put'), r => req.reply(r));
+    put(t, k, req.msg.value ?? 0, w, req.msg.traceId !== undefined && traceOnce(t, 'put'), r => req.reply(r), req.msg.traceId);
   };
 
   /** TransactWriteItems on two items: prepare both (2× WCU), then commit; overlapping transactions cancel. */
@@ -298,7 +298,7 @@ register('dynamodb-router', n => {
       for (const i of items) if (t.locks.get(i) === hold) t.locks.delete(i);
     };
     for (const i of items)
-      callNode(n, partOf(t, i).node, { kind: 'dynamo.prepare', weight: w, data: { k: i } }, 1000, r => {
+      callNode(n, partOf(t, i).node, { kind: 'dynamo.prepare', weight: w, traceId: req.msg.traceId, data: { k: i } }, 1000, r => {
         ok = ok && r.ok;
         if (--left) return;
         if (!ok) {
@@ -307,12 +307,20 @@ register('dynamodb-router', n => {
         }
         let c = items.length;
         for (const j of items)
-          put(t, j, req.msg.value ?? 0, w, false, () => {
-            if (--c) return;
-            unlock();
-            if (trace) n.log('protocol', `${n.name}: transaction committed on both items`);
-            req.reply({ ok: true });
-          });
+          put(
+            t,
+            j,
+            req.msg.value ?? 0,
+            w,
+            false,
+            () => {
+              if (--c) return;
+              unlock();
+              if (trace) n.log('protocol', `${n.name}: transaction committed on both items`);
+              req.reply({ ok: true });
+            },
+            req.msg.traceId,
+          );
       });
   };
 
@@ -395,7 +403,7 @@ register('dynamodb-storage', n => {
             });
             for (const g of members(n, 'dynamodb-gsi')) {
               t.gsiBacklog += w;
-              n.send(g.id, { kind: 'dynamo.gsi-put', weight: w, data: { k: d.k, rec, trace: d.trace } });
+              n.send(g.id, { kind: 'dynamo.gsi-put', weight: w, traceId: req.msg.traceId, data: { k: d.k, rec, trace: d.trace } });
             }
           });
       }

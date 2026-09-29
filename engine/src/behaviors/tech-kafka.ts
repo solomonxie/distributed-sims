@@ -33,6 +33,14 @@ interface Part {
   waiters: Waiter[];
   seqs: Map<string, { seq: number; off: number }>;
   altering: boolean;
+  /** end offsets of records produced by traced requests (newest last) */
+  traced?: { off: number; id: number }[];
+}
+
+/** Trace id of a traced record in (from, to], if any. */
+function tracedIn(part: Part, from: number, to: number): number | undefined {
+  for (const t of part.traced ?? []) if (t.off > from && t.off <= to) return t.id;
+  return undefined;
 }
 
 interface Member {
@@ -191,6 +199,8 @@ export function kafkaBroker(n: SimNode): NodeLogic {
   let c: KCluster;
   const say = throttled(n);
   let parked = new Map<Id, { parts: number[]; respond: () => void }>();
+  /** leader → trace id of traced records just fetched from it, to confirm on the next fetch */
+  const confirm = new Map<Id, number>();
   let fetchDelayMs = 0;
 
   const led = () => c.parts.filter(p => p.leader === n.id);
@@ -222,6 +232,10 @@ export function kafkaBroker(n: SimNode): NodeLogic {
       }
       const off = leoOf(part, n.id) + msg.weight;
       part.leo.set(n.id, off);
+      if (msg.traceId !== undefined) {
+        (part.traced ??= []).push({ off, id: msg.traceId });
+        if (part.traced.length > 50) part.traced.shift();
+      }
       part.seqs.set(key, { seq: d.seq, off });
       if (part.seqs.size > 2000) part.seqs.delete(part.seqs.keys().next().value!);
       wake(d.p);
@@ -262,14 +276,16 @@ export function kafkaBroker(n: SimNode): NodeLogic {
       done = true;
       parked.delete(f);
       const out: Record<number, [number, number]> = {};
+      let traceId: number | undefined;
       for (const p of ps) {
         const part = c.parts[p];
         if (part.leader !== n.id) continue;
         const mine = leoOf(part, n.id);
+        traceId ??= tracedIn(part, part.fetchOff.get(f) ?? 0, mine);
         part.leoAtResp.set(f, mine);
         out[p] = [mine, part.hw];
       }
-      req.reply({ ok: true, data: out });
+      req.reply({ ok: true, data: out, traceId } as Reply);
     };
     if (hasData || !ps.length) return respond();
     parked.get(f)?.respond();
@@ -283,8 +299,13 @@ export function kafkaBroker(n: SimNode): NodeLogic {
     if (!mine.length || !isUp(n.world, leader)) return n.timer(200, () => fetchLoop(leader));
     const offs: Record<number, number> = {};
     for (const p of mine) offs[p.p] = leoOf(p, n.id);
-    n.rpc(leader, { kind: 'kafka.Fetch', data: { offs, replica: true } }, 2000, r => {
+    // the fetch after receiving traced records is what tells the leader this replica has them
+    const traceId = confirm.get(leader);
+    confirm.delete(leader);
+    n.rpc(leader, { kind: 'kafka.Fetch', traceId, data: { offs, replica: true } }, 2000, r => {
       if (!r.ok) return n.timer(200, () => fetchLoop(leader));
+      const tr = (r as Reply & { traceId?: number }).traceId;
+      if (tr !== undefined) confirm.set(leader, tr);
       let w = 0;
       for (const [k, v] of Object.entries(r.data ?? {}) as [string, [number, number]][]) {
         const part = c.parts[+k];
@@ -735,12 +756,13 @@ export function kafkaProducer(n: SimNode): NodeLogic {
     };
     if (!part.leader) return retry('offline');
     const data = { p: b.p, seq: b.seq, pid, acks: a, idem: n.bool('idempotence', true) && a === 'all' };
+    const traceId = b.reqs.find(q => q.msg.traceId !== undefined)?.msg.traceId;
     touchEdge(n, part.leader, b.w);
     if (a === '0') {
-      n.send(part.leader, { kind: 'kafka.Produce', weight: b.w, data });
+      n.send(part.leader, { kind: 'kafka.Produce', weight: b.w, traceId, data });
       return finish(b, { ok: true });
     }
-    n.rpc(part.leader, { kind: 'kafka.Produce', weight: b.w, data }, n.num('requestTimeoutMs', 1000), r => {
+    n.rpc(part.leader, { kind: 'kafka.Produce', weight: b.w, traceId, data }, n.num('requestTimeoutMs', 1000), r => {
       if (r.ok) return finish(b, r);
       if (r.data === 'NOT_ENOUGH_REPLICAS') say('nemr', `${pname(b.p)} NOT_ENOUGH_REPLICAS → retrying`);
       retry(r.err ?? 'unavailable');
@@ -785,6 +807,8 @@ export function kafkaProducer(n: SimNode): NodeLogic {
 
 interface Work {
   batch: { p: number; from: number; to: number }[];
+  /** a traced record is in this batch */
+  traceId?: number;
   w: number;
   gen: number;
   start: number;
@@ -807,6 +831,8 @@ export function kafkaConsumer(n: SimNode): NodeLogic {
   let joinTok = 0;
   let joinAt = 0;
   let lastCommit = 0;
+  /** a processed traced record whose offset hasn't been committed yet */
+  let uncommittedTrace: number | undefined;
   const say = throttled(n);
 
   const commitMode = () => n.str<string>('commit', 'after');
@@ -874,20 +900,24 @@ export function kafkaConsumer(n: SimNode): NodeLogic {
     }
     let pending = byLeader.size;
     const myGen = gen;
-    busy = { batch, w, gen, start: n.now, expectMs: 0, committed: false };
+    const traced = (b: Work['batch'][number]) => tracedIn(c.parts[b.p], b.from, b.to);
+    busy = { batch, w, gen, start: n.now, expectMs: 0, committed: false, traceId: batch.map(traced).find(x => x !== undefined) };
     const me = busy;
     for (const [L, ps] of byLeader) {
       touchEdge(n, L, batch.filter(b => ps.includes(b.p)).reduce((a, b) => a + b.to - b.from, 0));
-      n.rpc(L, { kind: 'kafka.Fetch', data: { parts: ps } }, 1000, () => {
+      const traceId = batch.filter(b => ps.includes(b.p)).map(traced).find(x => x !== undefined);
+      n.rpc(L, { kind: 'kafka.Fetch', traceId, data: { parts: ps } }, 1000, () => {
         if (--pending === 0 && busy === me && gen === myGen) handle(me);
       });
     }
   }
 
-  function commit(offs: Record<number, number>, g: number, cb: (ok: boolean, why?: string) => void) {
+  function commit(offs: Record<number, number>, g: number, cb: (ok: boolean, why?: string) => void, traceId?: number) {
     if (!coord) return cb(false, 'no coordinator');
     lastCommit = n.now;
-    n.rpc(coord, { kind: 'kafka.OffsetCommit', data: { group: gid, gen: g, offs } }, 1000, r => cb(r.ok, String(r.data ?? r.err)));
+    const tid = traceId ?? uncommittedTrace;
+    uncommittedTrace = undefined;
+    n.rpc(coord, { kind: 'kafka.OffsetCommit', traceId: tid, data: { group: gid, gen: g, offs } }, 1000, r => cb(r.ok, String(r.data ?? r.err)));
   }
 
   /** processed but not yet committed (re-read after a crash or failed commit) */
@@ -908,12 +938,17 @@ export function kafkaConsumer(n: SimNode): NodeLogic {
       needRejoin = true;
     });
     if (commitMode() === 'before')
-      commit(Object.fromEntries(work.batch.map(b => [b.p, b.to])), work.gen, ok => {
-        if (busy !== work) return;
-        if (!ok) return done(work, false);
-        work.committed = true;
-        doWork(work);
-      });
+      commit(
+        Object.fromEntries(work.batch.map(b => [b.p, b.to])),
+        work.gen,
+        ok => {
+          if (busy !== work) return;
+          if (!ok) return done(work, false);
+          work.committed = true;
+          doWork(work);
+        },
+        work.traceId,
+      );
     else doWork(work);
   }
 
@@ -922,7 +957,7 @@ export function kafkaConsumer(n: SimNode): NodeLogic {
     const outs = n.outEdges();
     if (outs.length) {
       work.expectMs = 0;
-      const msg = n.world.newMsg({ from: n.id, to: n.id, weight: work.w, op: 'write', data: { records: work.w } });
+      const msg = n.world.newMsg({ from: n.id, to: n.id, weight: work.w, op: 'write', traceId: work.traceId, data: { records: work.w } });
       let left = outs.length;
       let ok = true;
       for (const e of outs)
@@ -948,6 +983,7 @@ export function kafkaConsumer(n: SimNode): NodeLogic {
       b.okW += work.w;
       b.hist.add(n.now - work.start, work.w);
       if (work.gen === gen) for (const b of work.batch) if (parts.includes(b.p)) pos.set(b.p, Math.max(pos.get(b.p) ?? 0, b.to));
+      if (work.traceId !== undefined && !work.committed) uncommittedTrace = work.traceId;
       if (commitMode() === 'after' && n.now - lastCommit >= n.num('commitIntervalMs', 1000)) {
         const offs = Object.fromEntries(parts.map(p => [p, pos.get(p) ?? 0]));
         const g = gen;
