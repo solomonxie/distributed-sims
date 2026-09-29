@@ -1,0 +1,48 @@
+id: fp-hof
+title: "Higher-order functions & closures"
+group: languages
+language: fp
+icon: square-function
+order: 2
+summary: "Functions as values: closures capture state, map/filter/reduce replace loops, currying and composition build pipelines."
+info: "When functions are values they can be passed, returned and stored. Closures carry their environment with them, and small functions compose into pipelines that describe what to compute rather than how to loop."
+algos: [fp-hof]
+lessons:
+  - id: closure
+    title: "Closures"
+    minutes: 3
+    algo: fp-hof
+    steps:
+      - title: "Captured environment"
+        body: "The returned arrow keeps n alive after counter() returns."
+        input: closure
+        check: { metric: manual }
+      - title: "Private state"
+        body: "Each counter() call gets its own n."
+        check: { metric: manual }
+
+  - id: pipeline
+    title: "map, filter, reduce"
+    minutes: 2
+    algo: fp-hof
+    steps:
+      - title: "No loop counter"
+        body: "Each step returns a new array."
+        input: pipeline
+        check: { metric: manual }
+      - title: "Fold"
+        body: "reduce combines a list into one value; map and filter are special folds."
+        check: { metric: manual }
+
+  - id: compose
+    title: "Currying & composition"
+    minutes: 3
+    algo: fp-hof
+    steps:
+      - title: "Partial application"
+        body: "add(1) returns a new function waiting for the second argument."
+        input: compose
+        check: { metric: manual }
+      - title: "Pipelines"
+        body: "pipe(inc, dbl) runs inc, then dbl."
+        check: { metric: manual }

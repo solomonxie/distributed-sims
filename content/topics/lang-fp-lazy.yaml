@@ -1,0 +1,48 @@
+id: fp-lazy
+title: "Lazy evaluation"
+group: languages
+language: fp
+icon: hourglass
+order: 4
+summary: "Thunks evaluated on demand, infinite lists, and the space leaks laziness can cause."
+info: "Haskell evaluates an expression only when its value is needed. That skips unused work and makes infinite structures usable, but a chain of unforced thunks can quietly consume memory."
+algos: [fp-lazy]
+lessons:
+  - id: thunks
+    title: "Thunks"
+    minutes: 2
+    algo: fp-lazy
+    steps:
+      - title: "Suspended"
+        body: "let binds names to thunks; nothing runs yet."
+        input: thunks
+        check: { metric: manual }
+      - title: "Forced once"
+        body: "A forced thunk is overwritten with its value."
+        check: { metric: manual }
+
+  - id: infinite
+    title: "Infinite lists"
+    minutes: 2
+    algo: fp-lazy
+    steps:
+      - title: "On demand"
+        body: "take 3 builds only three cells."
+        input: infinite
+        check: { metric: manual }
+      - title: "The rest"
+        body: "The tail stays an unevaluated thunk."
+        check: { metric: manual }
+
+  - id: leak
+    title: "Space leaks"
+    minutes: 2
+    algo: fp-lazy
+    steps:
+      - title: "Thunk chain"
+        body: "Lazy foldl stores every pending addition."
+        input: leak
+        check: { metric: manual }
+      - title: "Strictness"
+        body: "foldl' forces the accumulator each step."
+        check: { metric: manual }

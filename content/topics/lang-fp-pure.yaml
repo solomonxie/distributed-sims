@@ -1,0 +1,48 @@
+id: fp-pure
+title: "Pure functions & immutability"
+group: languages
+language: fp
+icon: sparkles
+order: 1
+summary: "Same input, same output: referential transparency, persistent data with structural sharing, and keeping effects at the edges."
+info: "Functional programming builds programs from functions that only compute. Without hidden state, code is easier to test, cache and run in parallel. Real programs still do I/O, so it is pushed into a thin shell around a pure core."
+algos: [fp-pure]
+lessons:
+  - id: pure
+    title: "Pure vs impure"
+    minutes: 2
+    algo: fp-pure
+    steps:
+      - title: "Hidden state"
+        body: "addImpure changes a variable outside itself, so the same call returns different answers."
+        input: pure
+        check: { metric: manual }
+      - title: "Referential transparency"
+        body: "A pure call can be replaced by its result. That is what makes memoisation and parallelism safe."
+        check: { metric: manual }
+
+  - id: persistent
+    title: "Persistent data"
+    minutes: 3
+    algo: fp-pure
+    steps:
+      - title: "Never mutate"
+        body: "Prepending creates one new cell pointing at the old list."
+        input: persistent
+        check: { metric: manual }
+      - title: "Structural sharing"
+        body: "Many versions share cells safely, because nobody can change them."
+        check: { metric: manual }
+
+  - id: edges
+    title: "Functional core, imperative shell"
+    minutes: 2
+    algo: fp-pure
+    steps:
+      - title: "Pure core"
+        body: "Business rules are pure functions, tested without mocks."
+        input: edges
+        check: { metric: manual }
+      - title: "Thin shell"
+        body: "Reads and writes happen once, at the outer layer."
+        check: { metric: manual }

@@ -15,3 +15,7 @@ ships per-service AWS icons.
 upstream brand to represent — compute is intentionally generic, see
 DESIGN.md section 5). `envoy.svg` came from Simple Icons' `envoyproxy`
 icon.
+
+Language logos (`cpp`, `go`, `python`, `java`, `rust`, `csharp`) are
+Devicon `*-original` icons; `rust.svg` is filled #CE422B so it shows on
+the dark theme.

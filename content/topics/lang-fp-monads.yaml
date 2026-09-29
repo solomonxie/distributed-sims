@@ -1,0 +1,48 @@
+id: fp-monads
+title: "Functors & monads"
+group: languages
+language: fp
+icon: boxes
+order: 6
+summary: "map lifts functions into a context, flatMap chains steps that can fail, and do-notation reads like plain code."
+info: "Functors and monads are interfaces for values in a context: optional, many, later, or failed. map transforms the value inside; bind (flatMap) sequences steps and handles the context once, instead of in every caller."
+algos: [fp-monad]
+lessons:
+  - id: functor
+    title: "Functor: map"
+    minutes: 2
+    algo: fp-monad
+    steps:
+      - title: "Inside the box"
+        body: "fmap applies a function to the value inside Just, a list or a Promise."
+        input: functor
+        check: { metric: manual }
+      - title: "Nothing stays Nothing"
+        body: "No null check is written."
+        check: { metric: manual }
+
+  - id: bind
+    title: "Monad: flatMap"
+    minutes: 3
+    algo: fp-monad
+    steps:
+      - title: "Chaining"
+        body: ">>= passes the value to the next step."
+        input: bind
+        check: { metric: manual }
+      - title: "Short-circuit"
+        body: "The first Nothing skips the rest."
+        check: { metric: manual }
+
+  - id: doblock
+    title: "do-notation & Either"
+    minutes: 3
+    algo: fp-monad
+    steps:
+      - title: "Sugar"
+        body: "do blocks desugar to >>=."
+        input: doblock
+        check: { metric: manual }
+      - title: "Errors as values"
+        body: "Either stops at the first Left, like ? in Rust."
+        check: { metric: manual }

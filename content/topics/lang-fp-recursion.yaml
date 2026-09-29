@@ -1,0 +1,48 @@
+id: fp-recursion
+title: "Recursion & folds"
+group: languages
+language: fp
+icon: repeat
+order: 3
+summary: "Recursion instead of loops, tail calls in constant stack, and how foldr and foldl associate."
+info: "Without mutable loop counters, iteration becomes recursion. Plain recursion grows the stack; tail recursion with an accumulator compiles to a loop. Folds capture the common recursion patterns once."
+algos: [fp-rec]
+lessons:
+  - id: stack
+    title: "Recursion"
+    minutes: 2
+    algo: fp-rec
+    steps:
+      - title: "Pending work"
+        body: "Each frame waits to add its x after the inner call returns."
+        input: stack
+        check: { metric: manual }
+      - title: "Stack depth"
+        body: "Depth equals list length, so huge inputs overflow."
+        check: { metric: manual }
+
+  - id: tail
+    title: "Tail calls"
+    minutes: 2
+    algo: fp-rec
+    steps:
+      - title: "Accumulator"
+        body: "The running total travels as an argument."
+        input: tail
+        check: { metric: manual }
+      - title: "Constant stack"
+        body: "A tail call reuses the frame, like a jump."
+        check: { metric: manual }
+
+  - id: folds
+    title: "foldr vs foldl"
+    minutes: 2
+    algo: fp-rec
+    steps:
+      - title: "Right vs left"
+        body: "foldr nests to the right, foldl to the left."
+        input: folds
+        check: { metric: manual }
+      - title: "Associativity"
+        body: "Only associative operations give the same answer both ways."
+        check: { metric: manual }

@@ -1,0 +1,48 @@
+id: fp-types
+title: "Algebraic data types"
+group: languages
+language: fp
+icon: shapes
+order: 5
+summary: "Sum and product types, pattern matching, and compiler-checked exhaustiveness."
+info: "Algebraic data types describe data as AND (product) and OR (sum) combinations. Pattern matching takes values apart by constructor, and the compiler warns when a case is missing, so adding a variant shows every place to update."
+algos: [fp-adt]
+lessons:
+  - id: sum
+    title: "Sum & product types"
+    minutes: 3
+    algo: fp-adt
+    steps:
+      - title: "AND and OR"
+        body: "Point has x and y; Shape is a Circle or a Rect."
+        input: sum
+        check: { metric: manual }
+      - title: "Illegal states"
+        body: "Invalid combinations can’t be constructed."
+        check: { metric: manual }
+
+  - id: match
+    title: "Pattern matching"
+    minutes: 2
+    algo: fp-adt
+    steps:
+      - title: "Try in order"
+        body: "Clauses are tried top to bottom."
+        input: match
+        check: { metric: manual }
+      - title: "Destructure"
+        body: "A match checks the tag and binds the fields at once."
+        check: { metric: manual }
+
+  - id: exhaustive
+    title: "Exhaustiveness"
+    minutes: 2
+    algo: fp-adt
+    steps:
+      - title: "New variant"
+        body: "Adding Tri breaks every match that ignores it."
+        input: exhaustive
+        check: { metric: manual }
+      - title: "Caught early"
+        body: "The compiler lists the missing cases."
+        check: { metric: manual }
