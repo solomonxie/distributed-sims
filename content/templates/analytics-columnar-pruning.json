@@ -18,7 +18,7 @@
       "type": "iot-device",
       "name": "Event ingest",
       "pos": {
-        "x": 195,
+        "x": 223,
         "y": 60
       }
     },
@@ -27,7 +27,7 @@
       "type": "web-client",
       "name": "Dashboards \u00b7 last day",
       "pos": {
-        "x": 335,
+        "x": 391,
         "y": 60
       }
     },
@@ -50,7 +50,7 @@
       "type": "columnar-db",
       "name": "CH \u00b7 time filter, row inserts",
       "pos": {
-        "x": 335,
+        "x": 391,
         "y": 220
       },
       "skin": "clickhouse",

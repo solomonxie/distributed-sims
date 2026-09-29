@@ -19,7 +19,7 @@
       "skin": "saga-orchestrator",
       "name": "Orchestrator",
       "pos": {
-        "x": 195,
+        "x": 223,
         "y": 60
       }
     },
@@ -37,7 +37,7 @@
       "type": "service",
       "name": "Payment",
       "pos": {
-        "x": 195,
+        "x": 223,
         "y": 200
       }
     },
@@ -46,7 +46,7 @@
       "type": "service",
       "name": "Inventory",
       "pos": {
-        "x": 335,
+        "x": 391,
         "y": 200
       },
       "config": {
@@ -76,7 +76,7 @@
       "type": "service",
       "name": "Payment",
       "pos": {
-        "x": 195,
+        "x": 223,
         "y": 620
       }
     },
@@ -85,7 +85,7 @@
       "type": "service",
       "name": "Inventory",
       "pos": {
-        "x": 335,
+        "x": 391,
         "y": 620
       }
     },
@@ -94,7 +94,7 @@
       "type": "pub-sub",
       "name": "order.created",
       "pos": {
-        "x": 195,
+        "x": 223,
         "y": 480
       }
     },
@@ -103,7 +103,7 @@
       "type": "pub-sub",
       "name": "payment.done",
       "pos": {
-        "x": 335,
+        "x": 391,
         "y": 480
       }
     }

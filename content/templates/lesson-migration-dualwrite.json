@@ -9,7 +9,7 @@
       "type": "web-client",
       "name": "Users",
       "pos": {
-        "x": 195,
+        "x": 243,
         "y": 40
       }
     },
@@ -18,7 +18,7 @@
       "type": "service",
       "name": "App",
       "pos": {
-        "x": 195,
+        "x": 243,
         "y": 160
       }
     },
@@ -27,7 +27,7 @@
       "type": "relational-db",
       "name": "Old DB",
       "pos": {
-        "x": 195,
+        "x": 243,
         "y": 290
       },
       "skin": "mysql"
@@ -49,7 +49,7 @@
       "type": "outbox-relay",
       "name": "CDC backfill",
       "pos": {
-        "x": 315,
+        "x": 411,
         "y": 290
       },
       "skin": "debezium",
@@ -73,7 +73,7 @@
       "type": "relational-db",
       "name": "New DB (CDC)",
       "pos": {
-        "x": 315,
+        "x": 411,
         "y": 440
       },
       "skin": "aurora",

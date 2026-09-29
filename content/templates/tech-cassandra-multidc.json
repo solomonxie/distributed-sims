@@ -9,7 +9,7 @@
       "type": "web-client",
       "name": "Users",
       "pos": {
-        "x": 110,
+        "x": 124,
         "y": 30
       },
       "config": {}
@@ -19,7 +19,7 @@
       "type": "web-client",
       "name": "Users",
       "pos": {
-        "x": 280,
+        "x": 354,
         "y": 30
       },
       "config": {}
@@ -29,8 +29,8 @@
       "type": "cassandra-driver",
       "name": "app LOCAL_QUORUM",
       "pos": {
-        "x": 110,
-        "y": 120
+        "x": 124,
+        "y": 138
       },
       "parent": "us",
       "config": {
@@ -44,8 +44,8 @@
       "type": "cassandra-driver",
       "name": "app QUORUM",
       "pos": {
-        "x": 280,
-        "y": 120
+        "x": 354,
+        "y": 138
       },
       "parent": "us",
       "config": {
@@ -60,7 +60,7 @@
       "name": "n1 (dc1)",
       "pos": {
         "x": 70,
-        "y": 240
+        "y": 282
       },
       "parent": "us",
       "config": {
@@ -72,8 +72,8 @@
       "type": "cassandra-node",
       "name": "n2 (dc1)",
       "pos": {
-        "x": 195,
-        "y": 240
+        "x": 239,
+        "y": 282
       },
       "parent": "us",
       "config": {
@@ -85,8 +85,8 @@
       "type": "cassandra-node",
       "name": "n3 (dc1)",
       "pos": {
-        "x": 320,
-        "y": 240
+        "x": 408,
+        "y": 282
       },
       "parent": "us",
       "config": {
@@ -99,7 +99,7 @@
       "name": "n4 (dc2)",
       "pos": {
         "x": 70,
-        "y": 420
+        "y": 498
       },
       "parent": "eu",
       "config": {
@@ -111,8 +111,8 @@
       "type": "cassandra-node",
       "name": "n5 (dc2)",
       "pos": {
-        "x": 195,
-        "y": 420
+        "x": 239,
+        "y": 498
       },
       "parent": "eu",
       "config": {
@@ -124,8 +124,8 @@
       "type": "cassandra-node",
       "name": "n6 (dc2)",
       "pos": {
-        "x": 320,
-        "y": 420
+        "x": 408,
+        "y": 498
       },
       "parent": "eu",
       "config": {

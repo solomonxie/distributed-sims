@@ -22,7 +22,7 @@
       "skin": "zookeeper-node",
       "name": "zk-2",
       "pos": {
-        "x": 195,
+        "x": 258,
         "y": 360
       },
       "config": {},
@@ -34,7 +34,7 @@
       "skin": "zookeeper-node",
       "name": "zk-3",
       "pos": {
-        "x": 300,
+        "x": 426,
         "y": 360
       },
       "config": {},
@@ -59,7 +59,7 @@
       "skin": "election-app",
       "name": "app-2",
       "pos": {
-        "x": 195,
+        "x": 258,
         "y": 150
       },
       "config": {
@@ -72,7 +72,7 @@
       "skin": "election-app",
       "name": "app-3",
       "pos": {
-        "x": 300,
+        "x": 426,
         "y": 150
       },
       "config": {

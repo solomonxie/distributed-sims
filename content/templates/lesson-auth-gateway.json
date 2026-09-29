@@ -20,7 +20,7 @@
       "name": "Gateway auth",
       "pos": {
         "x": 100,
-        "y": 110
+        "y": 119
       },
       "skin": "oauth2-proxy",
       "config": {
@@ -33,7 +33,7 @@
       "name": "Orders",
       "pos": {
         "x": 100,
-        "y": 200
+        "y": 218
       }
     },
     {
@@ -42,7 +42,7 @@
       "name": "Billing",
       "pos": {
         "x": 100,
-        "y": 290
+        "y": 317
       }
     },
     {
@@ -51,7 +51,7 @@
       "name": "Ledger",
       "pos": {
         "x": 100,
-        "y": 380
+        "y": 416
       }
     },
     {
@@ -60,7 +60,7 @@
       "name": "IdP",
       "pos": {
         "x": 100,
-        "y": 480
+        "y": 526
       },
       "skin": "keycloak",
       "config": {
@@ -72,7 +72,7 @@
       "type": "web-client",
       "name": "Users",
       "pos": {
-        "x": 290,
+        "x": 309,
         "y": 20
       },
       "skin": "react-spa"
@@ -82,8 +82,8 @@
       "type": "auth-middleware",
       "name": "Orders auth",
       "pos": {
-        "x": 290,
-        "y": 110
+        "x": 309,
+        "y": 119
       },
       "skin": "oauth2-proxy",
       "config": {
@@ -95,8 +95,8 @@
       "type": "service",
       "name": "Orders",
       "pos": {
-        "x": 290,
-        "y": 170
+        "x": 309,
+        "y": 185
       }
     },
     {
@@ -104,8 +104,8 @@
       "type": "auth-middleware",
       "name": "Billing auth",
       "pos": {
-        "x": 290,
-        "y": 230
+        "x": 309,
+        "y": 251
       },
       "skin": "oauth2-proxy",
       "config": {
@@ -117,8 +117,8 @@
       "type": "service",
       "name": "Billing",
       "pos": {
-        "x": 290,
-        "y": 290
+        "x": 309,
+        "y": 317
       }
     },
     {
@@ -126,8 +126,8 @@
       "type": "auth-middleware",
       "name": "Ledger auth",
       "pos": {
-        "x": 290,
-        "y": 350
+        "x": 309,
+        "y": 383
       },
       "skin": "oauth2-proxy",
       "config": {
@@ -139,8 +139,8 @@
       "type": "service",
       "name": "Ledger",
       "pos": {
-        "x": 290,
-        "y": 410
+        "x": 309,
+        "y": 449
       }
     },
     {
@@ -148,8 +148,8 @@
       "type": "identity-provider",
       "name": "IdP",
       "pos": {
-        "x": 290,
-        "y": 480
+        "x": 309,
+        "y": 526
       },
       "skin": "keycloak",
       "config": {

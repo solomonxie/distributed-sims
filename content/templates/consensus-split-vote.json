@@ -4,12 +4,12 @@
   "name": "Raft: split votes",
   "description": "4 members with equal 150ms election timeouts time out together, all vote for themselves, and no one wins: term after term, writes fail. Fix: set Election timeout max to 300ms (randomized).",
   "nodes": [
-    { "id": "web", "type": "web-client", "name": "Clients", "pos": { "x": 195, "y": 40 } },
-    { "id": "api", "type": "service", "name": "API", "pos": { "x": 195, "y": 170 }, "config": { "fanout": "one" } },
+    { "id": "web", "type": "web-client", "name": "Clients", "pos": { "x": 300, "y": 40 } },
+    { "id": "api", "type": "service", "name": "API", "pos": { "x": 300, "y": 170 }, "config": { "fanout": "one" } },
     { "id": "m1", "type": "consensus-member", "name": "node-1", "pos": { "x": 55, "y": 320 }, "config": { "electionMinMs": 150, "electionMaxMs": 150 } },
-    { "id": "m2", "type": "consensus-member", "name": "node-2", "pos": { "x": 150, "y": 320 }, "config": { "electionMinMs": 150, "electionMaxMs": 150 } },
-    { "id": "m3", "type": "consensus-member", "name": "node-3", "pos": { "x": 245, "y": 320 }, "config": { "electionMinMs": 150, "electionMaxMs": 150 } },
-    { "id": "m4", "type": "consensus-member", "name": "node-4", "pos": { "x": 340, "y": 320 }, "config": { "electionMinMs": 150, "electionMaxMs": 150 } }
+    { "id": "m2", "type": "consensus-member", "name": "node-2", "pos": { "x": 221, "y": 320 }, "config": { "electionMinMs": 150, "electionMaxMs": 150 } },
+    { "id": "m3", "type": "consensus-member", "name": "node-3", "pos": { "x": 388, "y": 320 }, "config": { "electionMinMs": 150, "electionMaxMs": 150 } },
+    { "id": "m4", "type": "consensus-member", "name": "node-4", "pos": { "x": 554, "y": 320 }, "config": { "electionMinMs": 150, "electionMaxMs": 150 } }
   ],
   "edges": [
     { "id": "e0", "from": "web", "to": "api" },

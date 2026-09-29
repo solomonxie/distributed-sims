@@ -10,7 +10,7 @@
       "skin": "ios-app",
       "name": "Map users",
       "pos": {
-        "x": 0,
+        "x": 48,
         "y": 0
       }
     },
@@ -21,7 +21,7 @@
       "name": "Load balancer",
       "parent": "us-east",
       "pos": {
-        "x": 0,
+        "x": 48,
         "y": 110
       }
     },
@@ -32,7 +32,7 @@
       "name": "Maps API",
       "parent": "us-east",
       "pos": {
-        "x": 0,
+        "x": 48,
         "y": 220
       },
       "config": {
@@ -61,7 +61,7 @@
       "name": "Routing (Dijkstra)",
       "parent": "us-east",
       "pos": {
-        "x": 0,
+        "x": 48,
         "y": 330
       },
       "config": {
@@ -77,7 +77,7 @@
       "name": "Locations DB",
       "parent": "us-east",
       "pos": {
-        "x": 120,
+        "x": 216,
         "y": 330
       }
     }

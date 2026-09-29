@@ -9,7 +9,7 @@
       "type": "web-client",
       "name": "Clients (3 conns)",
       "pos": {
-        "x": 75,
+        "x": 110,
         "y": 40
       }
     },
@@ -18,7 +18,7 @@
       "type": "load-balancer",
       "name": "L4 balancer",
       "pos": {
-        "x": 75,
+        "x": 110,
         "y": 170
       },
       "skin": "aws-nlb",
@@ -49,7 +49,7 @@
       "type": "service",
       "name": "api-2",
       "pos": {
-        "x": 75,
+        "x": 110,
         "y": 400
       },
       "config": {
@@ -65,7 +65,7 @@
       "type": "service",
       "name": "api-3",
       "pos": {
-        "x": 125,
+        "x": 195,
         "y": 310
       },
       "config": {
@@ -81,7 +81,7 @@
       "type": "web-client",
       "name": "Clients (3 conns)",
       "pos": {
-        "x": 315,
+        "x": 518,
         "y": 40
       }
     },
@@ -90,7 +90,7 @@
       "type": "load-balancer",
       "name": "L7 balancer",
       "pos": {
-        "x": 315,
+        "x": 518,
         "y": 170
       },
       "skin": "envoy-lb",
@@ -104,7 +104,7 @@
       "type": "service",
       "name": "api-1",
       "pos": {
-        "x": 265,
+        "x": 433,
         "y": 310
       },
       "config": {
@@ -120,7 +120,7 @@
       "type": "service",
       "name": "api-2",
       "pos": {
-        "x": 315,
+        "x": 518,
         "y": 400
       },
       "config": {
@@ -136,7 +136,7 @@
       "type": "service",
       "name": "api-3",
       "pos": {
-        "x": 365,
+        "x": 603,
         "y": 310
       },
       "config": {

@@ -18,7 +18,7 @@
       "type": "service",
       "name": "Catalog API",
       "pos": {
-        "x": 195,
+        "x": 223,
         "y": 60
       }
     },
@@ -28,7 +28,7 @@
       "skin": "elasticsearch",
       "name": "Elasticsearch",
       "pos": {
-        "x": 335,
+        "x": 391,
         "y": 60
       },
       "config": {

@@ -19,7 +19,7 @@
       "type": "api-gateway",
       "name": "API Gateway",
       "pos": {
-        "x": 195,
+        "x": 223,
         "y": 60
       }
     },
@@ -28,7 +28,7 @@
       "type": "serverless-fn",
       "name": "Checkout fn",
       "pos": {
-        "x": 195,
+        "x": 223,
         "y": 200
       },
       "skin": "aws-lambda",
@@ -45,7 +45,7 @@
       "type": "relational-db",
       "name": "Orders DB",
       "pos": {
-        "x": 195,
+        "x": 223,
         "y": 340
       },
       "skin": "postgres",
@@ -58,7 +58,7 @@
       "type": "cron",
       "name": "Nightly sync",
       "pos": {
-        "x": 335,
+        "x": 391,
         "y": 200
       },
       "skin": "k8s-cronjob",
@@ -72,7 +72,7 @@
       "type": "serverless-fn",
       "name": "Report fn",
       "pos": {
-        "x": 335,
+        "x": 391,
         "y": 340
       },
       "skin": "cloud-functions",

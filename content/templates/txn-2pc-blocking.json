@@ -4,11 +4,11 @@
   "name": "2PC blocking",
   "description": "Coordinator crashes right after prepare. Participants keep their locks (lockedKeys) until it restarts and recovers from its log.",
   "nodes": [
-    { "id": "web", "type": "web-client", "name": "Checkout", "pos": { "x": 195, "y": 60 } },
-    { "id": "tm", "type": "txn-coordinator", "skin": "2pc-coordinator", "name": "Coordinator", "pos": { "x": 195, "y": 200 } },
+    { "id": "web", "type": "web-client", "name": "Checkout", "pos": { "x": 223, "y": 60 } },
+    { "id": "tm", "type": "txn-coordinator", "skin": "2pc-coordinator", "name": "Coordinator", "pos": { "x": 223, "y": 200 } },
     { "id": "orders", "type": "relational-db", "skin": "postgres", "name": "Orders DB", "pos": { "x": 55, "y": 340 } },
-    { "id": "payments", "type": "relational-db", "skin": "postgres", "name": "Payments DB", "pos": { "x": 195, "y": 340 } },
-    { "id": "stock", "type": "relational-db", "skin": "postgres", "name": "Stock DB", "pos": { "x": 335, "y": 340 } }
+    { "id": "payments", "type": "relational-db", "skin": "postgres", "name": "Payments DB", "pos": { "x": 223, "y": 340 } },
+    { "id": "stock", "type": "relational-db", "skin": "postgres", "name": "Stock DB", "pos": { "x": 391, "y": 340 } }
   ],
   "edges": [
     { "id": "e1", "from": "web", "to": "tm", "config": { "timeoutMs": 3000 } },

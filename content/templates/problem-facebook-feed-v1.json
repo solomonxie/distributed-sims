@@ -5,10 +5,10 @@
   "description": "Every post is copied synchronously into each follower's feed rows in the same Postgres that serves feed reads. A celebrity post means millions of inserts on one hot row range.",
   "nodes": [
     {"id":"users","type":"mobile-client","skin":"ios-app","name":"Readers","pos":{"x":-80,"y":0}},
-    {"id":"authors","type":"mobile-client","skin":"android-app","name":"Posters","pos":{"x":80,"y":0}},
+    {"id":"authors","type":"mobile-client","skin":"android-app","name":"Posters","pos":{"x":96,"y":0}},
     {"id":"feed-api","type":"service","skin":"go-service","name":"Feed API","pos":{"x":-80,"y":110},"config":{"instances":2}},
-    {"id":"post-api","type":"service","skin":"go-service","name":"Post API","pos":{"x":80,"y":110},"config":{"instances":2}},
-    {"id":"db","type":"relational-db","skin":"postgres","name":"Feeds DB","pos":{"x":0,"y":220},"config":{"writeP50Ms":20,"writeP99Ms":80}}
+    {"id":"post-api","type":"service","skin":"go-service","name":"Post API","pos":{"x":96,"y":110},"config":{"instances":2}},
+    {"id":"db","type":"relational-db","skin":"postgres","name":"Feeds DB","pos":{"x":8,"y":220},"config":{"writeP50Ms":20,"writeP99Ms":80}}
   ],
   "edges": [
     {"id":"users-feed-api","from":"users","to":"feed-api","config":{"timeoutMs":3000}},

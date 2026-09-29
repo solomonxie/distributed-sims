@@ -32,7 +32,7 @@
       "skin": "rabbitmq-topic-exchange",
       "name": "events (topic)",
       "pos": {
-        "x": 195,
+        "x": 366,
         "y": 140
       },
       "config": {}
@@ -43,7 +43,7 @@
       "skin": "rabbitmq-broker-node",
       "name": "rmq-1",
       "pos": {
-        "x": 195,
+        "x": 366,
         "y": 30
       },
       "config": {}
@@ -54,7 +54,7 @@
       "skin": "rabbitmq-broker-node",
       "name": "rmq-2",
       "pos": {
-        "x": 275,
+        "x": 534,
         "y": 30
       },
       "config": {}
@@ -65,7 +65,7 @@
       "skin": "rabbitmq-broker-node",
       "name": "rmq-3",
       "pos": {
-        "x": 355,
+        "x": 702,
         "y": 30
       },
       "config": {}
@@ -76,7 +76,7 @@
       "skin": "rabbitmq-quorum-queue",
       "name": "billing",
       "pos": {
-        "x": 55,
+        "x": 72,
         "y": 260
       },
       "config": {
@@ -90,7 +90,7 @@
       "skin": "rabbitmq-quorum-queue",
       "name": "audit",
       "pos": {
-        "x": 195,
+        "x": 366,
         "y": 260
       },
       "config": {
@@ -104,7 +104,7 @@
       "skin": "rabbitmq-quorum-queue",
       "name": "mailer",
       "pos": {
-        "x": 335,
+        "x": 660,
         "y": 260
       },
       "config": {
@@ -118,7 +118,7 @@
       "skin": "rabbitmq-worker",
       "name": "billing worker",
       "pos": {
-        "x": 55,
+        "x": 72,
         "y": 380
       },
       "config": {}
@@ -129,7 +129,7 @@
       "skin": "rabbitmq-worker",
       "name": "audit worker",
       "pos": {
-        "x": 195,
+        "x": 366,
         "y": 380
       },
       "config": {}
@@ -140,7 +140,7 @@
       "skin": "rabbitmq-worker",
       "name": "mailer",
       "pos": {
-        "x": 335,
+        "x": 660,
         "y": 380
       },
       "config": {}

@@ -34,7 +34,7 @@
       "type": "web-client",
       "name": "Users",
       "pos": {
-        "x": 315,
+        "x": 447,
         "y": 40
       }
     },
@@ -43,7 +43,7 @@
       "type": "api-gateway",
       "name": "API router",
       "pos": {
-        "x": 315,
+        "x": 447,
         "y": 150
       },
       "config": {
@@ -55,7 +55,7 @@
       "type": "monolith",
       "name": "API · recs pool (10)",
       "pos": {
-        "x": 255,
+        "x": 354,
         "y": 270
       },
       "skin": "spring-monolith",
@@ -70,7 +70,7 @@
       "type": "monolith",
       "name": "API · catalog pool (10)",
       "pos": {
-        "x": 365,
+        "x": 525,
         "y": 270
       },
       "skin": "spring-monolith",
@@ -85,7 +85,7 @@
       "type": "service",
       "name": "Recommendations",
       "pos": {
-        "x": 135,
+        "x": 168,
         "y": 410
       }
     },
@@ -94,7 +94,7 @@
       "type": "service",
       "name": "Catalog",
       "pos": {
-        "x": 285,
+        "x": 401,
         "y": 410
       }
     }

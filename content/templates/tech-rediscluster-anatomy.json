@@ -10,7 +10,7 @@
       "skin": "react-spa",
       "name": "Users",
       "pos": {
-        "x": 195,
+        "x": 223,
         "y": 30
       },
       "config": {}
@@ -21,7 +21,7 @@
       "skin": "redis-cluster-lettuce",
       "name": "app (cluster client)",
       "pos": {
-        "x": 195,
+        "x": 223,
         "y": 130
       },
       "config": {}
@@ -45,7 +45,7 @@
       "skin": "redis-cluster-primary",
       "name": "rc-2",
       "pos": {
-        "x": 195,
+        "x": 223,
         "y": 260
       },
       "config": {
@@ -58,7 +58,7 @@
       "skin": "redis-cluster-primary",
       "name": "rc-3",
       "pos": {
-        "x": 335,
+        "x": 391,
         "y": 260
       },
       "config": {
@@ -84,7 +84,7 @@
       "skin": "redis-cluster-replica",
       "name": "rc-5",
       "pos": {
-        "x": 195,
+        "x": 223,
         "y": 380
       },
       "config": {
@@ -97,7 +97,7 @@
       "skin": "redis-cluster-replica",
       "name": "rc-6",
       "pos": {
-        "x": 335,
+        "x": 391,
         "y": 380
       },
       "config": {

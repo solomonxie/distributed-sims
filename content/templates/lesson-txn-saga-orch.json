@@ -9,7 +9,7 @@
       "type": "web-client",
       "name": "Checkout",
       "pos": {
-        "x": 195,
+        "x": 223,
         "y": 60
       }
     },
@@ -19,7 +19,7 @@
       "skin": "saga-orchestrator",
       "name": "Orchestrator",
       "pos": {
-        "x": 195,
+        "x": 223,
         "y": 190
       }
     },
@@ -37,7 +37,7 @@
       "type": "service",
       "name": "Payment",
       "pos": {
-        "x": 195,
+        "x": 223,
         "y": 330
       }
     },
@@ -46,7 +46,7 @@
       "type": "service",
       "name": "Inventory",
       "pos": {
-        "x": 335,
+        "x": 391,
         "y": 330
       }
     }

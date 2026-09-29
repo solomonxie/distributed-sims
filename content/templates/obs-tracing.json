@@ -18,7 +18,7 @@
       "type": "service",
       "name": "Gateway",
       "pos": {
-        "x": 195,
+        "x": 223,
         "y": 60
       }
     },
@@ -27,7 +27,7 @@
       "type": "service",
       "name": "Orders",
       "pos": {
-        "x": 335,
+        "x": 391,
         "y": 60
       }
     },
@@ -36,7 +36,7 @@
       "type": "service",
       "name": "Payments",
       "pos": {
-        "x": 335,
+        "x": 391,
         "y": 200
       }
     },
@@ -46,7 +46,7 @@
       "skin": "stripe",
       "name": "Stripe",
       "pos": {
-        "x": 335,
+        "x": 391,
         "y": 340
       },
       "config": {
@@ -74,7 +74,7 @@
       "skin": "prometheus",
       "name": "Prometheus",
       "pos": {
-        "x": 195,
+        "x": 223,
         "y": 340
       }
     }

@@ -9,7 +9,7 @@
       "type": "web-client",
       "name": "Users A",
       "pos": {
-        "x": 110,
+        "x": 121,
         "y": 40
       }
     },
@@ -18,7 +18,7 @@
       "type": "web-client",
       "name": "Users B",
       "pos": {
-        "x": 280,
+        "x": 325,
         "y": 40
       }
     },
@@ -27,7 +27,7 @@
       "type": "kafka-producer",
       "name": "producer acks=1",
       "pos": {
-        "x": 110,
+        "x": 121,
         "y": 150
       },
       "config": {
@@ -39,7 +39,7 @@
       "type": "kafka-producer",
       "name": "producer acks=all",
       "pos": {
-        "x": 280,
+        "x": 325,
         "y": 150
       },
       "config": {
@@ -60,7 +60,7 @@
       "type": "kafka-broker",
       "name": "broker-2",
       "pos": {
-        "x": 195,
+        "x": 223,
         "y": 280
       }
     },
@@ -69,7 +69,7 @@
       "type": "kafka-broker",
       "name": "broker-3",
       "pos": {
-        "x": 335,
+        "x": 391,
         "y": 280
       }
     },
@@ -78,7 +78,7 @@
       "type": "kraft-controller",
       "name": "controller",
       "pos": {
-        "x": 195,
+        "x": 223,
         "y": 400
       }
     },
@@ -87,7 +87,7 @@
       "type": "kafka-consumer",
       "name": "consumer-1",
       "pos": {
-        "x": 110,
+        "x": 121,
         "y": 520
       },
       "config": {
@@ -99,7 +99,7 @@
       "type": "kafka-consumer",
       "name": "consumer-2",
       "pos": {
-        "x": 280,
+        "x": 325,
         "y": 520
       },
       "config": {

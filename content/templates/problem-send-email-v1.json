@@ -4,10 +4,10 @@
   "name": "Send email: naive",
   "description": "The API calls SendGrid inline. Works on a quiet day; a provider outage or a marketing blast fails user requests directly.",
   "nodes": [
-    {"id":"users","type":"web-client","skin":"react-spa","name":"Users","pos":{"x":0,"y":0}},
-    {"id":"api","type":"service","skin":"node-service","name":"Notify API","pos":{"x":0,"y":110},"config":{"instances":2}},
+    {"id":"users","type":"web-client","skin":"react-spa","name":"Users","pos":{"x":8,"y":0}},
+    {"id":"api","type":"service","skin":"node-service","name":"Notify API","pos":{"x":8,"y":110},"config":{"instances":2}},
     {"id":"db","type":"relational-db","skin":"postgres","name":"Notifications DB","pos":{"x":-80,"y":220}},
-    {"id":"sendgrid","type":"external-api","skin":"sendgrid","name":"SendGrid","pos":{"x":80,"y":220}}
+    {"id":"sendgrid","type":"external-api","skin":"sendgrid","name":"SendGrid","pos":{"x":96,"y":220}}
   ],
   "edges": [
     {"id":"users-api","from":"users","to":"api","config":{"timeoutMs":5000}},

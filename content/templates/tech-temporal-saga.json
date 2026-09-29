@@ -9,7 +9,7 @@
       "type": "web-client",
       "name": "Checkout app",
       "pos": {
-        "x": 0,
+        "x": 66,
         "y": 0
       }
     },
@@ -18,7 +18,7 @@
       "type": "temporal-frontend",
       "name": "Frontend",
       "pos": {
-        "x": 0,
+        "x": 66,
         "y": 120
       }
     },
@@ -27,7 +27,7 @@
       "type": "temporal-history",
       "name": "History",
       "pos": {
-        "x": -100,
+        "x": -89,
         "y": 240
       }
     },
@@ -36,7 +36,7 @@
       "type": "temporal-matching",
       "name": "Matching",
       "pos": {
-        "x": 100,
+        "x": 221,
         "y": 240
       }
     },
@@ -46,7 +46,7 @@
       "skin": "temporal-cassandra",
       "name": "Persistence",
       "pos": {
-        "x": -100,
+        "x": -89,
         "y": 360
       }
     },
@@ -55,7 +55,7 @@
       "type": "temporal-worker",
       "name": "Worker 1",
       "pos": {
-        "x": 40,
+        "x": 128,
         "y": 360
       },
       "config": {
@@ -70,7 +70,7 @@
       "type": "temporal-worker",
       "name": "Worker 2",
       "pos": {
-        "x": 150,
+        "x": 299,
         "y": 360
       },
       "config": {
@@ -94,7 +94,7 @@
       "type": "service",
       "name": "Inventory",
       "pos": {
-        "x": 0,
+        "x": 66,
         "y": 480
       }
     },
@@ -104,7 +104,7 @@
       "skin": "stripe",
       "name": "Shipping API",
       "pos": {
-        "x": 120,
+        "x": 252,
         "y": 480
       }
     }

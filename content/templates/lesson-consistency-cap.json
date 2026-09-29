@@ -4,13 +4,13 @@
   "name": "Lesson: CAP under partition",
   "description": "Left: a 3-member etcd cluster (CP) across two zones. Right: a 3-member Cassandra at consistency ONE (AP). Cut each one in two and compare what clients see.",
   "nodes": [
-    { "id": "web", "type": "web-client", "name": "Users", "pos": { "x": 195, "y": 50 } },
-    { "id": "api-cp", "type": "service", "name": "Config API (CP)", "pos": { "x": 90, "y": 170 }, "config": { "fanout": "one" } },
-    { "id": "api-ap", "type": "service", "name": "Cart API (AP)", "pos": { "x": 300, "y": 170 } },
+    { "id": "web", "type": "web-client", "name": "Users", "pos": { "x": 304, "y": 50 } },
+    { "id": "api-cp", "type": "service", "name": "Config API (CP)", "pos": { "x": 125, "y": 170 }, "config": { "fanout": "one" } },
+    { "id": "api-ap", "type": "service", "name": "Cart API (AP)", "pos": { "x": 482, "y": 170 } },
     { "id": "etcd-1", "type": "consensus-member", "skin": "etcd", "name": "etcd-1", "parent": "az-a", "pos": { "x": 40, "y": 320 } },
-    { "id": "etcd-2", "type": "consensus-member", "skin": "etcd", "name": "etcd-2", "parent": "az-a", "pos": { "x": 140, "y": 320 } },
-    { "id": "etcd-3", "type": "consensus-member", "skin": "etcd", "name": "etcd-3", "parent": "az-b", "pos": { "x": 90, "y": 460 } },
-    { "id": "kv", "type": "kv-store", "skin": "cassandra", "name": "Cassandra ONE", "pos": { "x": 300, "y": 320 }, "config": { "members": 3, "replicationFactor": 3, "readConsistency": "one", "writeConsistency": "one" } }
+    { "id": "etcd-2", "type": "consensus-member", "skin": "etcd", "name": "etcd-2", "parent": "az-a", "pos": { "x": 210, "y": 320 } },
+    { "id": "etcd-3", "type": "consensus-member", "skin": "etcd", "name": "etcd-3", "parent": "az-b", "pos": { "x": 125, "y": 460 } },
+    { "id": "kv", "type": "kv-store", "skin": "cassandra", "name": "Cassandra ONE", "pos": { "x": 482, "y": 320 }, "config": { "members": 3, "replicationFactor": 3, "readConsistency": "one", "writeConsistency": "one" } }
   ],
   "edges": [
     { "id": "e1", "from": "web", "to": "api-cp", "config": { "ratio": 0.5, "timeoutMs": 5000 } },

@@ -9,7 +9,7 @@
       "type": "web-client",
       "name": "Users",
       "pos": {
-        "x": 195,
+        "x": 239,
         "y": 20
       },
       "config": {}
@@ -19,7 +19,7 @@
       "type": "cache",
       "name": "DAX",
       "pos": {
-        "x": 195,
+        "x": 239,
         "y": 100
       },
       "skin": "dynamodb-dax",
@@ -30,7 +30,7 @@
       "type": "dynamodb-router",
       "name": "request router",
       "pos": {
-        "x": 195,
+        "x": 239,
         "y": 200
       },
       "config": {
@@ -56,7 +56,7 @@
       "type": "dynamodb-storage",
       "name": "storage node 2",
       "pos": {
-        "x": 195,
+        "x": 239,
         "y": 330
       },
       "config": {}
@@ -66,7 +66,7 @@
       "type": "dynamodb-storage",
       "name": "storage node 3",
       "pos": {
-        "x": 320,
+        "x": 408,
         "y": 330
       },
       "config": {}
@@ -76,7 +76,7 @@
       "type": "dynamodb-gsi",
       "name": "index by-status",
       "pos": {
-        "x": 195,
+        "x": 239,
         "y": 450
       },
       "config": {

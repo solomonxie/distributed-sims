@@ -24,7 +24,7 @@
       "skin": "airflow-scheduler-std",
       "name": "Scheduler 2",
       "pos": {
-        "x": 195,
+        "x": 239,
         "y": 60
       },
       "config": {
@@ -38,7 +38,7 @@
       "skin": "airflow-mysql57-db",
       "name": "Metadata DB",
       "pos": {
-        "x": 320,
+        "x": 408,
         "y": 60
       },
       "config": {
@@ -51,7 +51,7 @@
       "skin": "airflow-celery-executor",
       "name": "CeleryExecutor",
       "pos": {
-        "x": 110,
+        "x": 124,
         "y": 200
       },
       "config": {}
@@ -62,7 +62,7 @@
       "skin": "airflow-worker-std",
       "name": "Worker 1",
       "pos": {
-        "x": 80,
+        "x": 84,
         "y": 340
       },
       "config": {
@@ -75,7 +75,7 @@
       "skin": "airflow-worker-std",
       "name": "Worker 2",
       "pos": {
-        "x": 310,
+        "x": 394,
         "y": 340
       },
       "config": {

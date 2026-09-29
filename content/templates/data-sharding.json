@@ -4,13 +4,13 @@
   "name": "Range vs hash sharding",
   "description": "Vitess routes auto-increment inserts by key range: every new row lands on the last range, one shard runs hot. Switch the shard map to hash to spread them; fire a rebalance to watch keys move with a dual-read window.",
   "nodes": [
-    { "id": "web", "type": "web-client", "name": "Users", "pos": { "x": 195, "y": 60 } },
-    { "id": "api", "type": "service", "name": "API", "pos": { "x": 195, "y": 180 } },
-    { "id": "router", "type": "shard-router", "skin": "vitess", "name": "vtgate", "pos": { "x": 195, "y": 300 }, "config": { "shardBy": "range", "keyPattern": "sequential" } },
+    { "id": "web", "type": "web-client", "name": "Users", "pos": { "x": 291, "y": 60 } },
+    { "id": "api", "type": "service", "name": "API", "pos": { "x": 291, "y": 180 } },
+    { "id": "router", "type": "shard-router", "skin": "vitess", "name": "vtgate", "pos": { "x": 291, "y": 300 }, "config": { "shardBy": "range", "keyPattern": "sequential" } },
     { "id": "s1", "type": "relational-db", "skin": "mysql", "name": "Shard 1", "pos": { "x": 35, "y": 440 }, "config": { "replicas": 0, "slots": 4 } },
-    { "id": "s2", "type": "relational-db", "skin": "mysql", "name": "Shard 2", "pos": { "x": 142, "y": 440 }, "config": { "replicas": 0, "slots": 4 } },
-    { "id": "s3", "type": "relational-db", "skin": "mysql", "name": "Shard 3", "pos": { "x": 248, "y": 440 }, "config": { "replicas": 0, "slots": 4 } },
-    { "id": "s4", "type": "relational-db", "skin": "mysql", "name": "Shard 4", "pos": { "x": 355, "y": 440 }, "config": { "replicas": 0, "slots": 4 } }
+    { "id": "s2", "type": "relational-db", "skin": "mysql", "name": "Shard 2", "pos": { "x": 206, "y": 440 }, "config": { "replicas": 0, "slots": 4 } },
+    { "id": "s3", "type": "relational-db", "skin": "mysql", "name": "Shard 3", "pos": { "x": 376, "y": 440 }, "config": { "replicas": 0, "slots": 4 } },
+    { "id": "s4", "type": "relational-db", "skin": "mysql", "name": "Shard 4", "pos": { "x": 547, "y": 440 }, "config": { "replicas": 0, "slots": 4 } }
   ],
   "edges": [
     { "id": "e1", "from": "web", "to": "api" },

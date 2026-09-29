@@ -9,7 +9,7 @@
       "type": "web-client",
       "name": "Users",
       "pos": {
-        "x": 100,
+        "x": 111,
         "y": 10
       },
       "config": {}
@@ -19,7 +19,7 @@
       "type": "web-client",
       "name": "Analysts",
       "pos": {
-        "x": 290,
+        "x": 367,
         "y": 10
       },
       "config": {}
@@ -29,7 +29,7 @@
       "type": "es-app",
       "name": "app (search)",
       "pos": {
-        "x": 100,
+        "x": 111,
         "y": 80
       },
       "config": {}
@@ -39,7 +39,7 @@
       "type": "es-app",
       "name": "Kibana dashboard",
       "pos": {
-        "x": 290,
+        "x": 367,
         "y": 80
       },
       "config": {
@@ -51,7 +51,7 @@
       "type": "es-coord",
       "name": "coordinating",
       "pos": {
-        "x": 195,
+        "x": 239,
         "y": 170
       },
       "config": {}
@@ -81,7 +81,7 @@
       "type": "es-data",
       "name": "data-2",
       "pos": {
-        "x": 195,
+        "x": 239,
         "y": 420
       },
       "config": {}
@@ -91,7 +91,7 @@
       "type": "es-data",
       "name": "data-3",
       "pos": {
-        "x": 320,
+        "x": 408,
         "y": 420
       },
       "config": {}

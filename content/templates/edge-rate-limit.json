@@ -45,7 +45,7 @@
       "type": "web-client",
       "name": "Users (shared)",
       "pos": {
-        "x": 265,
+        "x": 307,
         "y": 60
       }
     },
@@ -54,7 +54,7 @@
       "type": "rate-limiter",
       "name": "Limiter \u00d73 (Redis)",
       "pos": {
-        "x": 265,
+        "x": 307,
         "y": 200
       },
       "skin": "redis-rate-limiter",
@@ -70,7 +70,7 @@
       "type": "cache",
       "name": "Redis counters",
       "pos": {
-        "x": 335,
+        "x": 391,
         "y": 340
       }
     },
@@ -79,7 +79,7 @@
       "type": "service",
       "name": "API",
       "pos": {
-        "x": 195,
+        "x": 223,
         "y": 340
       },
       "config": {

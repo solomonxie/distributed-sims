@@ -9,7 +9,7 @@
       "type": "web-client",
       "name": "Clients",
       "pos": {
-        "x": 195,
+        "x": 223,
         "y": 40
       }
     },
@@ -18,7 +18,7 @@
       "type": "paxos-proposer",
       "name": "Proposer A",
       "pos": {
-        "x": 90,
+        "x": 97,
         "y": 170
       },
       "config": {
@@ -32,7 +32,7 @@
       "type": "paxos-proposer",
       "name": "Proposer B",
       "pos": {
-        "x": 300,
+        "x": 349,
         "y": 170
       },
       "config": {
@@ -55,7 +55,7 @@
       "type": "paxos-acceptor",
       "name": "Acceptor 2",
       "pos": {
-        "x": 195,
+        "x": 223,
         "y": 320
       }
     },
@@ -64,7 +64,7 @@
       "type": "paxos-acceptor",
       "name": "Acceptor 3",
       "pos": {
-        "x": 335,
+        "x": 391,
         "y": 320
       }
     }

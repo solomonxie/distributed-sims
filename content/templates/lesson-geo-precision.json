@@ -19,7 +19,7 @@
       "type": "mobile-client",
       "name": "Riders (p6)",
       "pos": {
-        "x": 195,
+        "x": 229,
         "y": 20
       },
       "skin": "ios-app"
@@ -29,7 +29,7 @@
       "type": "mobile-client",
       "name": "Riders (p7)",
       "pos": {
-        "x": 330,
+        "x": 398,
         "y": 20
       },
       "skin": "ios-app"
@@ -52,7 +52,7 @@
       "type": "geo-index",
       "name": "Geohash p6",
       "pos": {
-        "x": 195,
+        "x": 229,
         "y": 160
       },
       "skin": "redis-geo",
@@ -65,7 +65,7 @@
       "type": "geo-index",
       "name": "Geohash p7",
       "pos": {
-        "x": 330,
+        "x": 398,
         "y": 160
       },
       "skin": "redis-geo",

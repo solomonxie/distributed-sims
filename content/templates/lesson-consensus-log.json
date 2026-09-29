@@ -9,7 +9,7 @@
       "type": "web-client",
       "name": "Clients",
       "pos": {
-        "x": 195,
+        "x": 223,
         "y": 40
       }
     },
@@ -18,7 +18,7 @@
       "type": "service",
       "name": "Config API",
       "pos": {
-        "x": 195,
+        "x": 223,
         "y": 170
       },
       "config": {}
@@ -39,7 +39,7 @@
       "skin": "etcd",
       "name": "etcd-2",
       "pos": {
-        "x": 195,
+        "x": 223,
         "y": 320
       }
     },
@@ -49,7 +49,7 @@
       "skin": "etcd",
       "name": "etcd-3",
       "pos": {
-        "x": 335,
+        "x": 391,
         "y": 320
       }
     },
@@ -59,7 +59,7 @@
       "skin": "etcd",
       "name": "etcd-4",
       "pos": {
-        "x": 125,
+        "x": 139,
         "y": 480
       }
     },
@@ -69,7 +69,7 @@
       "skin": "etcd",
       "name": "etcd-5",
       "pos": {
-        "x": 265,
+        "x": 307,
         "y": 480
       }
     }

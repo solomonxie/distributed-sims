@@ -4,13 +4,13 @@
   "name": "Raft: 5-member etcd",
   "description": "An API writes and reads through 5 etcd members. Kill the leader at 20s and watch the election; at 40s Zone B is cut off: the minority can't commit, and after the heal it catches up. Open the sequence view to see RequestVote / AppendEntries.",
   "nodes": [
-    { "id": "web", "type": "web-client", "name": "Clients", "pos": { "x": 195, "y": 40 } },
-    { "id": "api", "type": "service", "name": "Config API", "pos": { "x": 195, "y": 170 }, "config": { "fanout": "one" } },
+    { "id": "web", "type": "web-client", "name": "Clients", "pos": { "x": 223, "y": 40 } },
+    { "id": "api", "type": "service", "name": "Config API", "pos": { "x": 223, "y": 170 }, "config": { "fanout": "one" } },
     { "id": "etcd-1", "type": "consensus-member", "skin": "etcd", "name": "etcd-1", "parent": "az-a", "pos": { "x": 55, "y": 320 } },
-    { "id": "etcd-2", "type": "consensus-member", "skin": "etcd", "name": "etcd-2", "parent": "az-a", "pos": { "x": 195, "y": 320 } },
-    { "id": "etcd-3", "type": "consensus-member", "skin": "etcd", "name": "etcd-3", "parent": "az-a", "pos": { "x": 335, "y": 320 } },
-    { "id": "etcd-4", "type": "consensus-member", "skin": "etcd", "name": "etcd-4", "parent": "az-b", "pos": { "x": 125, "y": 480 } },
-    { "id": "etcd-5", "type": "consensus-member", "skin": "etcd", "name": "etcd-5", "parent": "az-b", "pos": { "x": 265, "y": 480 } }
+    { "id": "etcd-2", "type": "consensus-member", "skin": "etcd", "name": "etcd-2", "parent": "az-a", "pos": { "x": 223, "y": 320 } },
+    { "id": "etcd-3", "type": "consensus-member", "skin": "etcd", "name": "etcd-3", "parent": "az-a", "pos": { "x": 391, "y": 320 } },
+    { "id": "etcd-4", "type": "consensus-member", "skin": "etcd", "name": "etcd-4", "parent": "az-b", "pos": { "x": 139, "y": 480 } },
+    { "id": "etcd-5", "type": "consensus-member", "skin": "etcd", "name": "etcd-5", "parent": "az-b", "pos": { "x": 307, "y": 480 } }
   ],
   "edges": [
     { "id": "e0", "from": "web", "to": "api", "config": { "timeoutMs": 5000 } },

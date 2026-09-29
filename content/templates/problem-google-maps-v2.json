@@ -10,7 +10,7 @@
       "skin": "ios-app",
       "name": "Map users",
       "pos": {
-        "x": 0,
+        "x": 50,
         "y": 0
       }
     },
@@ -20,7 +20,7 @@
       "skin": "cloudfront",
       "name": "Tile CDN",
       "pos": {
-        "x": -130,
+        "x": -420,
         "y": 110
       }
     },
@@ -30,7 +30,7 @@
       "skin": "s3",
       "name": "Tiles (pre-rendered)",
       "pos": {
-        "x": -130,
+        "x": -420,
         "y": 220
       }
     },
@@ -40,7 +40,7 @@
       "skin": "route53",
       "name": "DNS failover",
       "pos": {
-        "x": 50,
+        "x": 100,
         "y": 110
       },
       "config": {
@@ -58,7 +58,7 @@
       "name": "LB us-east",
       "parent": "us-east",
       "pos": {
-        "x": -20,
+        "x": -100,
         "y": 220
       }
     },
@@ -69,7 +69,7 @@
       "name": "Maps API",
       "parent": "us-east",
       "pos": {
-        "x": -20,
+        "x": -100,
         "y": 330
       },
       "config": {
@@ -84,7 +84,7 @@
       "name": "Routing (CH)",
       "parent": "us-east",
       "pos": {
-        "x": -135,
+        "x": -190,
         "y": 440
       },
       "config": {
@@ -99,7 +99,7 @@
       "name": "Location pings",
       "parent": "us-east",
       "pos": {
-        "x": -45,
+        "x": -10,
         "y": 440
       }
     },
@@ -110,7 +110,7 @@
       "name": "LB eu-west",
       "parent": "eu-west",
       "pos": {
-        "x": 110,
+        "x": 300,
         "y": 220
       }
     },
@@ -121,7 +121,7 @@
       "name": "Maps API",
       "parent": "eu-west",
       "pos": {
-        "x": 110,
+        "x": 300,
         "y": 330
       },
       "config": {
@@ -136,7 +136,7 @@
       "name": "Routing (CH)",
       "parent": "eu-west",
       "pos": {
-        "x": 45,
+        "x": 210,
         "y": 440
       },
       "config": {
@@ -151,7 +151,7 @@
       "name": "Location pings",
       "parent": "eu-west",
       "pos": {
-        "x": 135,
+        "x": 390,
         "y": 440
       }
     }

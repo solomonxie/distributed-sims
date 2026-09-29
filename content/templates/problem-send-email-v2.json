@@ -4,13 +4,13 @@
   "name": "Send email: outbox + queue + idempotent workers",
   "description": "The API writes the send and an outbox row in one DB transaction; a relay moves outbox rows to a FIFO queue keyed by recipient, so a queue outage only delays sends. Workers ack late and dedupe by message id: nothing is lost and nothing is sent twice.",
   "nodes": [
-    {"id":"users","type":"web-client","skin":"react-spa","name":"Users","pos":{"x":0,"y":0}},
-    {"id":"api","type":"service","skin":"node-service","name":"Notify API","pos":{"x":0,"y":110},"config":{"instances":2}},
+    {"id":"users","type":"web-client","skin":"react-spa","name":"Users","pos":{"x":8,"y":0}},
+    {"id":"api","type":"service","skin":"node-service","name":"Notify API","pos":{"x":8,"y":110},"config":{"instances":2}},
     {"id":"db","type":"relational-db","skin":"postgres","name":"Notifications DB","pos":{"x":-80,"y":220}},
-    {"id":"outbox","type":"outbox-relay","name":"Outbox relay","pos":{"x":80,"y":220},"config":{"pollMs":200}},
-    {"id":"sqs","type":"queue","skin":"sqs","name":"Send queue","pos":{"x":80,"y":330},"config":{"ordering":"fifo","visibilityMs":5000,"maxReceives":100}},
-    {"id":"workers","type":"worker","skin":"celery-worker","name":"Mail workers","pos":{"x":80,"y":440},"config":{"instances":4,"ackMode":"late","idempotent":true}},
-    {"id":"sendgrid","type":"external-api","skin":"sendgrid","name":"SendGrid","pos":{"x":80,"y":550}}
+    {"id":"outbox","type":"outbox-relay","name":"Outbox relay","pos":{"x":96,"y":220},"config":{"pollMs":200}},
+    {"id":"sqs","type":"queue","skin":"sqs","name":"Send queue","pos":{"x":96,"y":330},"config":{"ordering":"fifo","visibilityMs":5000,"maxReceives":100}},
+    {"id":"workers","type":"worker","skin":"celery-worker","name":"Mail workers","pos":{"x":96,"y":440},"config":{"instances":4,"ackMode":"late","idempotent":true}},
+    {"id":"sendgrid","type":"external-api","skin":"sendgrid","name":"SendGrid","pos":{"x":96,"y":550}}
   ],
   "edges": [
     {"id":"users-api","from":"users","to":"api","config":{"timeoutMs":5000}},
