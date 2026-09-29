@@ -45,7 +45,7 @@
       "type": "mobile-client",
       "name": "EU riders",
       "pos": {
-        "x": 290,
+        "x": 309,
         "y": 40
       },
       "skin": "android-app",
@@ -56,7 +56,7 @@
       "type": "service",
       "name": "Match EU",
       "pos": {
-        "x": 290,
+        "x": 309,
         "y": 170
       },
       "skin": "go-service",
@@ -67,7 +67,7 @@
       "type": "geo-index",
       "name": "Geo EU",
       "pos": {
-        "x": 290,
+        "x": 309,
         "y": 300
       },
       "skin": "redis-geo",

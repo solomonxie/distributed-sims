@@ -9,7 +9,7 @@
       "type": "web-client",
       "name": "Users",
       "pos": {
-        "x": 195,
+        "x": 229,
         "y": 20
       },
       "skin": "react-spa"
@@ -19,7 +19,7 @@
       "type": "service",
       "name": "Checkout",
       "pos": {
-        "x": 195,
+        "x": 229,
         "y": 130
       },
       "skin": "go-service"
@@ -29,7 +29,7 @@
       "type": "service-mesh-sidecar",
       "name": "Envoy sidecar",
       "pos": {
-        "x": 195,
+        "x": 229,
         "y": 240
       },
       "skin": "envoy-sidecar",
@@ -56,7 +56,7 @@
       "type": "service",
       "name": "Payments 2",
       "pos": {
-        "x": 195,
+        "x": 229,
         "y": 370
       },
       "skin": "go-service",
@@ -69,7 +69,7 @@
       "type": "service",
       "name": "Payments 3",
       "pos": {
-        "x": 330,
+        "x": 398,
         "y": 370
       },
       "skin": "go-service",

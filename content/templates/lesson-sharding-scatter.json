@@ -9,7 +9,7 @@
       "type": "web-client",
       "name": "Users",
       "pos": {
-        "x": 195,
+        "x": 391,
         "y": 60
       }
     },
@@ -19,7 +19,7 @@
       "skin": "citus",
       "name": "Coordinator (2 shards)",
       "pos": {
-        "x": 90,
+        "x": 139,
         "y": 190
       },
       "config": {
@@ -33,7 +33,7 @@
       "skin": "citus",
       "name": "Coordinator (6 shards)",
       "pos": {
-        "x": 300,
+        "x": 643,
         "y": 190
       },
       "config": {
@@ -63,7 +63,7 @@
       "skin": "mysql",
       "name": "A2",
       "pos": {
-        "x": 125,
+        "x": 223,
         "y": 385
       },
       "config": {
@@ -79,7 +79,7 @@
       "skin": "mysql",
       "name": "B1",
       "pos": {
-        "x": 230,
+        "x": 475,
         "y": 330
       },
       "config": {
@@ -95,7 +95,7 @@
       "skin": "mysql",
       "name": "B2",
       "pos": {
-        "x": 300,
+        "x": 643,
         "y": 330
       },
       "config": {
@@ -111,7 +111,7 @@
       "skin": "mysql",
       "name": "B3",
       "pos": {
-        "x": 370,
+        "x": 811,
         "y": 330
       },
       "config": {
@@ -127,7 +127,7 @@
       "skin": "mysql",
       "name": "B4",
       "pos": {
-        "x": 230,
+        "x": 475,
         "y": 440
       },
       "config": {
@@ -143,7 +143,7 @@
       "skin": "mysql",
       "name": "B5",
       "pos": {
-        "x": 300,
+        "x": 643,
         "y": 440
       },
       "config": {
@@ -159,7 +159,7 @@
       "skin": "mysql",
       "name": "B6",
       "pos": {
-        "x": 370,
+        "x": 811,
         "y": 440
       },
       "config": {

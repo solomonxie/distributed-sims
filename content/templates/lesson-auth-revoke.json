@@ -41,7 +41,7 @@
       "type": "identity-provider",
       "name": "IdP",
       "pos": {
-        "x": 195,
+        "x": 266,
         "y": 420
       },
       "skin": "keycloak",
@@ -55,7 +55,7 @@
       "type": "web-client",
       "name": "App",
       "pos": {
-        "x": 290,
+        "x": 433,
         "y": 20
       },
       "skin": "react-spa"
@@ -65,7 +65,7 @@
       "type": "auth-middleware",
       "name": "Gateway (JWT + denylist)",
       "pos": {
-        "x": 290,
+        "x": 433,
         "y": 150
       },
       "skin": "oauth2-proxy",
@@ -78,7 +78,7 @@
       "type": "service",
       "name": "API",
       "pos": {
-        "x": 290,
+        "x": 433,
         "y": 290
       }
     },
@@ -87,7 +87,7 @@
       "type": "identity-provider",
       "name": "IdP + denylist",
       "pos": {
-        "x": 290,
+        "x": 433,
         "y": 420
       },
       "skin": "keycloak",

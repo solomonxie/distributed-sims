@@ -4,13 +4,13 @@
   "name": "Temp email: ingest pipeline + TTL store",
   "description": "Inbound mail lands on a stateless SMTP tier and a Kafka log; workers write to Redis with a TTL, so mailboxes expire on their own and reads never touch the ingest path.",
   "nodes": [
-    {"id":"users","type":"web-client","skin":"react-spa","name":"Senders + readers","pos":{"x":0,"y":0}},
-    {"id":"lb","type":"load-balancer","skin":"aws-alb","name":"Load balancer","pos":{"x":0,"y":110}},
+    {"id":"users","type":"web-client","skin":"react-spa","name":"Senders + readers","pos":{"x":8,"y":0}},
+    {"id":"lb","type":"load-balancer","skin":"aws-alb","name":"Load balancer","pos":{"x":8,"y":110}},
     {"id":"smtp","type":"service","skin":"go-service","name":"SMTP ingest","pos":{"x":-80,"y":220},"config":{"instances":4}},
-    {"id":"api","type":"service","skin":"node-service","name":"Inbox API","pos":{"x":80,"y":220},"config":{"instances":4}},
+    {"id":"api","type":"service","skin":"node-service","name":"Inbox API","pos":{"x":96,"y":220},"config":{"instances":4}},
     {"id":"kafka","type":"log-stream","skin":"kafka","name":"Inbound log","pos":{"x":-80,"y":330}},
     {"id":"workers","type":"worker","name":"Parse + store","pos":{"x":-80,"y":440},"config":{"instances":4,"slots":8,"p50Ms":5,"p99Ms":20}},
-    {"id":"redis","type":"cache","skin":"redis","name":"Mailboxes (TTL 10m)","pos":{"x":80,"y":440},"config":{"ttlSec":600,"capacityKeys":1024}}
+    {"id":"redis","type":"cache","skin":"redis","name":"Mailboxes (TTL 10m)","pos":{"x":96,"y":440},"config":{"ttlSec":600,"capacityKeys":1024}}
   ],
   "edges": [
     {"id":"users-lb","from":"users","to":"lb","config":{"timeoutMs":5000}},

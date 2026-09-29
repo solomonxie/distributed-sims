@@ -9,7 +9,7 @@
       "type": "web-client",
       "name": "Clients",
       "pos": {
-        "x": 195,
+        "x": 229,
         "y": 20
       },
       "skin": "react-spa"
@@ -19,7 +19,7 @@
       "type": "api-gateway",
       "name": "Kong",
       "pos": {
-        "x": 195,
+        "x": 229,
         "y": 140
       },
       "skin": "kong",
@@ -32,7 +32,7 @@
       "type": "identity-provider",
       "name": "Auth0",
       "pos": {
-        "x": 330,
+        "x": 398,
         "y": 40
       },
       "skin": "auth0"
@@ -52,7 +52,7 @@
       "type": "service",
       "name": "Orders",
       "pos": {
-        "x": 195,
+        "x": 229,
         "y": 290
       },
       "skin": "java-service"
@@ -62,7 +62,7 @@
       "type": "service",
       "name": "Catalog",
       "pos": {
-        "x": 330,
+        "x": 398,
         "y": 290
       },
       "skin": "node-service"

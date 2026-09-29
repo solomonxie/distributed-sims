@@ -18,7 +18,7 @@
       "type": "monolith",
       "name": "Web controllers",
       "pos": {
-        "x": 195,
+        "x": 230,
         "y": 100
       },
       "skin": "rails-monolith",
@@ -32,7 +32,7 @@
       "type": "service",
       "name": "Order use cases",
       "pos": {
-        "x": 195,
+        "x": 230,
         "y": 240
       },
       "parent": "l1",
@@ -46,7 +46,7 @@
       "type": "service",
       "name": "Order domain",
       "pos": {
-        "x": 195,
+        "x": 230,
         "y": 380
       },
       "parent": "l2",
@@ -60,7 +60,7 @@
       "type": "service",
       "name": "Order repository",
       "pos": {
-        "x": 195,
+        "x": 230,
         "y": 520
       },
       "parent": "l3",
@@ -85,7 +85,7 @@
       "type": "cron",
       "name": "Invoice job",
       "pos": {
-        "x": 335,
+        "x": 405,
         "y": 520
       },
       "parent": "l3",

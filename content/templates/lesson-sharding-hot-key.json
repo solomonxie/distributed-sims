@@ -9,7 +9,7 @@
       "type": "web-client",
       "name": "Users",
       "pos": {
-        "x": 195,
+        "x": 440,
         "y": 60
       }
     },
@@ -19,7 +19,7 @@
       "skin": "vitess",
       "name": "vtgate A",
       "pos": {
-        "x": 90,
+        "x": 188,
         "y": 190
       },
       "config": {
@@ -32,7 +32,7 @@
       "skin": "vitess",
       "name": "vtgate B (replicas)",
       "pos": {
-        "x": 300,
+        "x": 692,
         "y": 190
       },
       "config": {
@@ -61,7 +61,7 @@
       "skin": "mysql",
       "name": "A2",
       "pos": {
-        "x": 90,
+        "x": 188,
         "y": 330
       },
       "config": {
@@ -77,7 +77,7 @@
       "skin": "mysql",
       "name": "A3",
       "pos": {
-        "x": 160,
+        "x": 356,
         "y": 330
       },
       "config": {
@@ -93,7 +93,7 @@
       "skin": "mysql",
       "name": "B1",
       "pos": {
-        "x": 230,
+        "x": 524,
         "y": 330
       },
       "config": {
@@ -110,7 +110,7 @@
       "skin": "mysql",
       "name": "B2",
       "pos": {
-        "x": 300,
+        "x": 692,
         "y": 330
       },
       "config": {
@@ -127,7 +127,7 @@
       "skin": "mysql",
       "name": "B3",
       "pos": {
-        "x": 370,
+        "x": 860,
         "y": 330
       },
       "config": {

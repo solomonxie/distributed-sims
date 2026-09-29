@@ -9,7 +9,7 @@
       "type": "web-client",
       "name": "Users",
       "pos": {
-        "x": 195,
+        "x": 276,
         "y": 40
       },
       "config": {}
@@ -20,7 +20,7 @@
       "skin": "kube-proxy-service",
       "name": "Service web",
       "pos": {
-        "x": 195,
+        "x": 276,
         "y": 150
       },
       "config": {}
@@ -43,7 +43,7 @@
       "skin": "kubelet-node",
       "name": "node-2",
       "pos": {
-        "x": 195,
+        "x": 276,
         "y": 280
       },
       "config": {},
@@ -55,7 +55,7 @@
       "skin": "kubelet-node",
       "name": "node-3",
       "pos": {
-        "x": 330,
+        "x": 492,
         "y": 280
       },
       "config": {},
@@ -79,7 +79,7 @@
       "skin": "kube-apiserver",
       "name": "API server",
       "pos": {
-        "x": 195,
+        "x": 276,
         "y": 420
       },
       "config": {},
@@ -91,7 +91,7 @@
       "skin": "kube-controller-manager",
       "name": "controllers",
       "pos": {
-        "x": 330,
+        "x": 492,
         "y": 420
       },
       "config": {
@@ -105,7 +105,7 @@
       "skin": "etcd",
       "name": "etcd-1",
       "pos": {
-        "x": 90,
+        "x": 108,
         "y": 550
       },
       "config": {
@@ -122,7 +122,7 @@
       "skin": "etcd",
       "name": "etcd-2",
       "pos": {
-        "x": 195,
+        "x": 276,
         "y": 550
       },
       "config": {
@@ -139,7 +139,7 @@
       "skin": "etcd",
       "name": "etcd-3",
       "pos": {
-        "x": 300,
+        "x": 444,
         "y": 550
       },
       "config": {

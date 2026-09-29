@@ -10,7 +10,7 @@
       "skin": "react-spa",
       "name": "Viewers",
       "pos": {
-        "x": 0,
+        "x": 36,
         "y": 0
       }
     },
@@ -50,7 +50,7 @@
       "skin": "aws-alb",
       "name": "Load balancer",
       "pos": {
-        "x": 90,
+        "x": 162,
         "y": 110
       }
     },
@@ -60,7 +60,7 @@
       "skin": "go-service",
       "name": "Chat API",
       "pos": {
-        "x": 90,
+        "x": 162,
         "y": 220
       },
       "config": {
@@ -73,7 +73,7 @@
       "skin": "kafka",
       "name": "Chat log (by channel)",
       "pos": {
-        "x": 90,
+        "x": 162,
         "y": 330
       },
       "config": {
@@ -85,7 +85,7 @@
       "type": "worker",
       "name": "Websocket edges",
       "pos": {
-        "x": 90,
+        "x": 162,
         "y": 440
       },
       "config": {
@@ -102,7 +102,7 @@
       "skin": "cassandra",
       "name": "Chat history",
       "pos": {
-        "x": -30,
+        "x": -6,
         "y": 330
       }
     }

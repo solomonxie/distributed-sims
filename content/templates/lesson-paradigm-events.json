@@ -9,7 +9,7 @@
       "type": "web-client",
       "name": "Users",
       "pos": {
-        "x": 195,
+        "x": 229,
         "y": 20
       },
       "skin": "react-spa"
@@ -19,7 +19,7 @@
       "type": "service",
       "name": "Orders",
       "pos": {
-        "x": 195,
+        "x": 229,
         "y": 130
       },
       "skin": "go-service"
@@ -39,7 +39,7 @@
       "type": "pub-sub",
       "name": "OrderPlaced",
       "pos": {
-        "x": 250,
+        "x": 298,
         "y": 240
       },
       "skin": "sns"
@@ -58,7 +58,7 @@
       "type": "worker",
       "name": "Billing",
       "pos": {
-        "x": 195,
+        "x": 229,
         "y": 380
       }
     },
@@ -67,7 +67,7 @@
       "type": "worker",
       "name": "Analytics",
       "pos": {
-        "x": 330,
+        "x": 398,
         "y": 380
       }
     }

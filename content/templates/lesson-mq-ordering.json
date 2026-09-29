@@ -9,7 +9,7 @@
       "type": "web-client",
       "name": "Accounts",
       "pos": {
-        "x": 195,
+        "x": 314,
         "y": 40
       }
     },
@@ -18,7 +18,7 @@
       "type": "service",
       "name": "Ledger API",
       "pos": {
-        "x": 195,
+        "x": 314,
         "y": 150
       }
     },
@@ -27,7 +27,7 @@
       "type": "log-stream",
       "name": "by key",
       "pos": {
-        "x": 75,
+        "x": 110,
         "y": 280
       },
       "skin": "kafka",
@@ -56,7 +56,7 @@
       "type": "worker",
       "name": "Consumer 2",
       "pos": {
-        "x": 125,
+        "x": 195,
         "y": 420
       },
       "config": {
@@ -70,7 +70,7 @@
       "type": "log-stream",
       "name": "round-robin",
       "pos": {
-        "x": 315,
+        "x": 518,
         "y": 280
       },
       "skin": "kafka",
@@ -85,7 +85,7 @@
       "type": "worker",
       "name": "Consumer 3",
       "pos": {
-        "x": 265,
+        "x": 433,
         "y": 420
       },
       "config": {
@@ -99,7 +99,7 @@
       "type": "worker",
       "name": "Consumer 4",
       "pos": {
-        "x": 365,
+        "x": 603,
         "y": 420
       },
       "config": {

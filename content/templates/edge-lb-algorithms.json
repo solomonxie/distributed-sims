@@ -9,7 +9,7 @@
       "type": "web-client",
       "name": "Users",
       "pos": {
-        "x": 195,
+        "x": 223,
         "y": 60
       }
     },
@@ -18,7 +18,7 @@
       "type": "load-balancer",
       "name": "Load balancer",
       "pos": {
-        "x": 195,
+        "x": 223,
         "y": 200
       },
       "skin": "envoy-lb",
@@ -41,7 +41,7 @@
       "type": "service",
       "name": "Backend B",
       "pos": {
-        "x": 195,
+        "x": 223,
         "y": 340
       }
     },
@@ -50,7 +50,7 @@
       "type": "service",
       "name": "Backend C (slow)",
       "pos": {
-        "x": 335,
+        "x": 391,
         "y": 340
       },
       "config": {

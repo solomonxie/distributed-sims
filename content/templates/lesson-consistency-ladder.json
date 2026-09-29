@@ -9,7 +9,7 @@
       "type": "web-client",
       "name": "Users",
       "pos": {
-        "x": 195,
+        "x": 296,
         "y": 60
       }
     },
@@ -38,7 +38,7 @@
       "skin": "postgres",
       "name": "Read-your-writes",
       "pos": {
-        "x": 142,
+        "x": 208,
         "y": 220
       },
       "config": {
@@ -57,7 +57,7 @@
       "skin": "postgres",
       "name": "Monotonic",
       "pos": {
-        "x": 248,
+        "x": 383,
         "y": 220
       },
       "config": {
@@ -76,7 +76,7 @@
       "skin": "postgres",
       "name": "Linearizable",
       "pos": {
-        "x": 350,
+        "x": 552,
         "y": 220
       },
       "config": {

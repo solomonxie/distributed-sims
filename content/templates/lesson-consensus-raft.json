@@ -9,7 +9,7 @@
       "type": "web-client",
       "name": "Clients",
       "pos": {
-        "x": 195,
+        "x": 223,
         "y": 40
       }
     },
@@ -18,7 +18,7 @@
       "type": "service",
       "name": "Config API",
       "pos": {
-        "x": 195,
+        "x": 223,
         "y": 170
       },
       "config": {
@@ -43,7 +43,7 @@
       "name": "etcd-2",
       "parent": "az-a",
       "pos": {
-        "x": 195,
+        "x": 223,
         "y": 320
       }
     },
@@ -54,7 +54,7 @@
       "name": "etcd-3",
       "parent": "az-a",
       "pos": {
-        "x": 335,
+        "x": 391,
         "y": 320
       }
     },
@@ -65,7 +65,7 @@
       "name": "etcd-4",
       "parent": "az-b",
       "pos": {
-        "x": 125,
+        "x": 139,
         "y": 480
       },
       "config": {
@@ -80,7 +80,7 @@
       "name": "etcd-5",
       "parent": "az-b",
       "pos": {
-        "x": 265,
+        "x": 307,
         "y": 480
       },
       "config": {

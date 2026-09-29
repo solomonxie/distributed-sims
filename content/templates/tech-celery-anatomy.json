@@ -9,7 +9,7 @@
       "type": "web-client",
       "name": "Users",
       "pos": {
-        "x": 195,
+        "x": 219,
         "y": 40
       }
     },
@@ -19,7 +19,7 @@
       "skin": "celery-app",
       "name": "app (.delay)",
       "pos": {
-        "x": 195,
+        "x": 219,
         "y": 150
       },
       "config": {
@@ -33,7 +33,7 @@
       "skin": "celery-beat-scheduler",
       "name": "beat",
       "pos": {
-        "x": 330,
+        "x": 388,
         "y": 150
       },
       "config": {
@@ -46,7 +46,7 @@
       "skin": "celery-redis-broker",
       "name": "broker",
       "pos": {
-        "x": 195,
+        "x": 219,
         "y": 280
       },
       "config": {}
@@ -68,7 +68,7 @@
       "skin": "celery-prefork",
       "name": "worker-2",
       "pos": {
-        "x": 290,
+        "x": 338,
         "y": 410
       },
       "config": {}
@@ -79,7 +79,7 @@
       "skin": "celery-redis-results",
       "name": "result backend",
       "pos": {
-        "x": 195,
+        "x": 219,
         "y": 540
       },
       "config": {}

@@ -9,7 +9,7 @@
       "type": "web-client",
       "name": "Users",
       "pos": {
-        "x": 195,
+        "x": 229,
         "y": 20
       },
       "skin": "react-spa"
@@ -19,7 +19,7 @@
       "type": "service",
       "name": "Listings API",
       "pos": {
-        "x": 195,
+        "x": 229,
         "y": 120
       },
       "skin": "go-service"
@@ -39,7 +39,7 @@
       "type": "outbox-relay",
       "name": "Debezium",
       "pos": {
-        "x": 195,
+        "x": 229,
         "y": 240
       },
       "skin": "debezium",
@@ -52,7 +52,7 @@
       "type": "log-stream",
       "name": "Kafka",
       "pos": {
-        "x": 195,
+        "x": 229,
         "y": 350
       },
       "skin": "kafka"
@@ -62,7 +62,7 @@
       "type": "worker",
       "name": "Indexer",
       "pos": {
-        "x": 195,
+        "x": 229,
         "y": 460
       },
       "config": {
@@ -78,7 +78,7 @@
       "type": "search-index",
       "name": "Elasticsearch",
       "pos": {
-        "x": 330,
+        "x": 398,
         "y": 240
       },
       "skin": "elasticsearch"

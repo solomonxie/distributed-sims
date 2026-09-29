@@ -19,7 +19,7 @@
       "skin": "oauth2-proxy",
       "name": "Session check",
       "pos": {
-        "x": 195,
+        "x": 223,
         "y": 60
       },
       "config": {
@@ -31,7 +31,7 @@
       "type": "service",
       "name": "API",
       "pos": {
-        "x": 335,
+        "x": 391,
         "y": 60
       }
     },
@@ -41,7 +41,7 @@
       "skin": "keycloak",
       "name": "Keycloak",
       "pos": {
-        "x": 195,
+        "x": 223,
         "y": 200
       },
       "config": {
@@ -64,7 +64,7 @@
       "skin": "oauth2-proxy",
       "name": "JWT check",
       "pos": {
-        "x": 195,
+        "x": 223,
         "y": 340
       },
       "config": {
@@ -76,7 +76,7 @@
       "type": "service",
       "name": "API",
       "pos": {
-        "x": 335,
+        "x": 391,
         "y": 340
       }
     }

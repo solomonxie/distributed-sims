@@ -9,7 +9,7 @@
       "type": "web-client",
       "name": "Users",
       "pos": {
-        "x": 195,
+        "x": 223,
         "y": 60
       }
     },
@@ -18,7 +18,7 @@
       "type": "service",
       "name": "API",
       "pos": {
-        "x": 195,
+        "x": 223,
         "y": 170
       }
     },
@@ -28,7 +28,7 @@
       "skin": "vitess",
       "name": "Directory router",
       "pos": {
-        "x": 195,
+        "x": 223,
         "y": 280
       },
       "config": {
@@ -56,7 +56,7 @@
       "skin": "mysql",
       "name": "Shard 2",
       "pos": {
-        "x": 195,
+        "x": 223,
         "y": 410
       },
       "config": {
@@ -70,7 +70,7 @@
       "skin": "mysql",
       "name": "Shard 3",
       "pos": {
-        "x": 335,
+        "x": 391,
         "y": 410
       },
       "config": {

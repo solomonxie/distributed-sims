@@ -9,7 +9,7 @@
       "type": "web-client",
       "name": "Product services",
       "pos": {
-        "x": 0,
+        "x": 48,
         "y": 0
       }
     },
@@ -19,7 +19,7 @@
       "skin": "go-service",
       "name": "Notification API",
       "pos": {
-        "x": 0,
+        "x": 48,
         "y": 110
       },
       "config": {
@@ -32,7 +32,7 @@
       "skin": "postgres",
       "name": "Notification log",
       "pos": {
-        "x": 120,
+        "x": 216,
         "y": 110
       }
     },
@@ -52,7 +52,7 @@
       "skin": "twilio",
       "name": "Twilio SMS",
       "pos": {
-        "x": 0,
+        "x": 48,
         "y": 220
       }
     },
@@ -62,7 +62,7 @@
       "skin": "sendgrid",
       "name": "SendGrid",
       "pos": {
-        "x": 120,
+        "x": 216,
         "y": 220
       }
     }

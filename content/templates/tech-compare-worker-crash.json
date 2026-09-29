@@ -9,7 +9,7 @@
       "type": "web-client",
       "name": "Orders",
       "pos": {
-        "x": 0,
+        "x": 65,
         "y": 0
       }
     },
@@ -77,7 +77,7 @@
       "name": "Scheduler",
       "parent": "ctx-airflow",
       "pos": {
-        "x": 0,
+        "x": 65,
         "y": 120
       },
       "config": {
@@ -94,7 +94,7 @@
       "name": "Metadata DB",
       "parent": "ctx-airflow",
       "pos": {
-        "x": 0,
+        "x": 65,
         "y": 230
       },
       "config": {}
@@ -106,7 +106,7 @@
       "name": "CeleryExecutor",
       "parent": "ctx-airflow",
       "pos": {
-        "x": 0,
+        "x": 65,
         "y": 340
       },
       "config": {}
@@ -118,7 +118,7 @@
       "name": "airflow w1",
       "parent": "ctx-airflow",
       "pos": {
-        "x": 0,
+        "x": 65,
         "y": 450
       },
       "config": {
@@ -132,7 +132,7 @@
       "name": "airflow w2",
       "parent": "ctx-airflow",
       "pos": {
-        "x": 0,
+        "x": 65,
         "y": 560
       },
       "config": {
@@ -145,7 +145,7 @@
       "name": "Frontend",
       "parent": "ctx-temporal",
       "pos": {
-        "x": 130,
+        "x": 260,
         "y": 120
       },
       "config": {}
@@ -156,7 +156,7 @@
       "name": "History",
       "parent": "ctx-temporal",
       "pos": {
-        "x": 130,
+        "x": 260,
         "y": 230
       },
       "config": {}
@@ -167,7 +167,7 @@
       "name": "Matching",
       "parent": "ctx-temporal",
       "pos": {
-        "x": 130,
+        "x": 260,
         "y": 340
       },
       "config": {}
@@ -179,7 +179,7 @@
       "name": "Persistence",
       "parent": "ctx-temporal",
       "pos": {
-        "x": 130,
+        "x": 260,
         "y": 450
       },
       "config": {}
@@ -190,7 +190,7 @@
       "name": "temporal w1",
       "parent": "ctx-temporal",
       "pos": {
-        "x": 130,
+        "x": 260,
         "y": 560
       },
       "config": {
@@ -206,7 +206,7 @@
       "name": "temporal w2",
       "parent": "ctx-temporal",
       "pos": {
-        "x": 130,
+        "x": 260,
         "y": 670
       },
       "config": {

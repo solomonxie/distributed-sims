@@ -9,7 +9,7 @@
       "type": "web-client",
       "name": "Users",
       "pos": {
-        "x": 195,
+        "x": 239,
         "y": 20
       },
       "skin": "react-spa"
@@ -19,7 +19,7 @@
       "type": "service",
       "name": "API",
       "pos": {
-        "x": 195,
+        "x": 239,
         "y": 110
       },
       "skin": "go-service"
@@ -52,7 +52,7 @@
       "type": "log-stream",
       "name": "Changes",
       "pos": {
-        "x": 195,
+        "x": 239,
         "y": 320
       },
       "skin": "kafka"
@@ -62,7 +62,7 @@
       "type": "worker",
       "name": "Projector",
       "pos": {
-        "x": 195,
+        "x": 239,
         "y": 430
       },
       "config": {
@@ -77,7 +77,7 @@
       "type": "service",
       "name": "Query service",
       "pos": {
-        "x": 320,
+        "x": 408,
         "y": 210
       },
       "skin": "go-service"
@@ -87,7 +87,7 @@
       "type": "document-db",
       "name": "Read store",
       "pos": {
-        "x": 320,
+        "x": 408,
         "y": 430
       },
       "skin": "mongodb"

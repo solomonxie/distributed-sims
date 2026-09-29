@@ -37,7 +37,7 @@
       "skin": "redis",
       "name": "Redis counters",
       "pos": {
-        "x": 120,
+        "x": 168,
         "y": 220
       }
     },

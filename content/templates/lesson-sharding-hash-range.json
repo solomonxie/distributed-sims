@@ -9,7 +9,7 @@
       "type": "web-client",
       "name": "Users",
       "pos": {
-        "x": 195,
+        "x": 440,
         "y": 60
       }
     },
@@ -19,7 +19,7 @@
       "skin": "vitess",
       "name": "vtgate (range)",
       "pos": {
-        "x": 90,
+        "x": 188,
         "y": 190
       },
       "config": {
@@ -33,7 +33,7 @@
       "skin": "vitess",
       "name": "vtgate (hash)",
       "pos": {
-        "x": 300,
+        "x": 692,
         "y": 190
       },
       "config": {
@@ -61,7 +61,7 @@
       "skin": "mysql",
       "name": "Range 2",
       "pos": {
-        "x": 90,
+        "x": 188,
         "y": 330
       },
       "config": {
@@ -75,7 +75,7 @@
       "skin": "mysql",
       "name": "Range 3",
       "pos": {
-        "x": 160,
+        "x": 356,
         "y": 330
       },
       "config": {
@@ -89,7 +89,7 @@
       "skin": "mysql",
       "name": "Hash 1",
       "pos": {
-        "x": 230,
+        "x": 524,
         "y": 330
       },
       "config": {
@@ -103,7 +103,7 @@
       "skin": "mysql",
       "name": "Hash 2",
       "pos": {
-        "x": 300,
+        "x": 692,
         "y": 330
       },
       "config": {
@@ -117,7 +117,7 @@
       "skin": "mysql",
       "name": "Hash 3",
       "pos": {
-        "x": 370,
+        "x": 860,
         "y": 330
       },
       "config": {

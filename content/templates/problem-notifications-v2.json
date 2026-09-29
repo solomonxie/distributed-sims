@@ -9,7 +9,7 @@
       "type": "web-client",
       "name": "Product services",
       "pos": {
-        "x": 0,
+        "x": 48,
         "y": 0
       }
     },
@@ -19,7 +19,7 @@
       "skin": "go-service",
       "name": "Notification API",
       "pos": {
-        "x": 0,
+        "x": 48,
         "y": 110
       },
       "config": {
@@ -32,7 +32,7 @@
       "skin": "redis",
       "name": "Dedupe keys",
       "pos": {
-        "x": 120,
+        "x": 216,
         "y": 110
       },
       "config": {
@@ -59,7 +59,7 @@
       "skin": "sqs",
       "name": "SMS queue",
       "pos": {
-        "x": 0,
+        "x": 48,
         "y": 220
       },
       "config": {
@@ -72,7 +72,7 @@
       "skin": "sqs",
       "name": "Email queue",
       "pos": {
-        "x": 120,
+        "x": 216,
         "y": 220
       },
       "config": {
@@ -100,7 +100,7 @@
       "type": "worker",
       "name": "SMS workers",
       "pos": {
-        "x": 0,
+        "x": 48,
         "y": 330
       },
       "config": {
@@ -116,7 +116,7 @@
       "type": "worker",
       "name": "Email workers",
       "pos": {
-        "x": 120,
+        "x": 216,
         "y": 330
       },
       "config": {
@@ -143,7 +143,7 @@
       "skin": "twilio",
       "name": "Twilio SMS",
       "pos": {
-        "x": 0,
+        "x": 48,
         "y": 440
       }
     },
@@ -153,7 +153,7 @@
       "skin": "sendgrid",
       "name": "SendGrid",
       "pos": {
-        "x": 120,
+        "x": 216,
         "y": 440
       }
     }

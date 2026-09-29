@@ -7,7 +7,7 @@
     {"id":"users","type":"web-client","skin":"react-spa","name":"Senders + readers","pos":{"x":0,"y":0}},
     {"id":"app","type":"service","skin":"node-service","name":"Mail app","pos":{"x":0,"y":110},"config":{"instances":1}},
     {"id":"db","type":"relational-db","skin":"postgres","name":"Mailboxes DB","pos":{"x":0,"y":220}},
-    {"id":"cleanup","type":"cron","skin":"k8s-cronjob","name":"Expiry cleanup","pos":{"x":120,"y":110},"config":{"scheduleSec":10,"batch":500,"op":"write","p50Ms":0.05,"p99Ms":0.2}}
+    {"id":"cleanup","type":"cron","skin":"k8s-cronjob","name":"Expiry cleanup","pos":{"x":168,"y":110},"config":{"scheduleSec":10,"batch":500,"op":"write","p50Ms":0.05,"p99Ms":0.2}}
   ],
   "edges": [
     {"id":"users-app","from":"users","to":"app","config":{"timeoutMs":5000}},

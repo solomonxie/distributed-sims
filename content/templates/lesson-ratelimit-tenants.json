@@ -18,7 +18,7 @@
       "type": "web-client",
       "name": "Noisy Co",
       "pos": {
-        "x": 125,
+        "x": 195,
         "y": 60
       }
     },
@@ -27,7 +27,7 @@
       "type": "rate-limiter",
       "name": "Global limit",
       "pos": {
-        "x": 75,
+        "x": 110,
         "y": 200
       },
       "config": {
@@ -42,7 +42,7 @@
       "type": "web-client",
       "name": "Acme",
       "pos": {
-        "x": 265,
+        "x": 433,
         "y": 60
       }
     },
@@ -51,7 +51,7 @@
       "type": "web-client",
       "name": "Noisy Co",
       "pos": {
-        "x": 365,
+        "x": 603,
         "y": 60
       }
     },
@@ -60,7 +60,7 @@
       "type": "rate-limiter",
       "name": "Per-tenant limit",
       "pos": {
-        "x": 315,
+        "x": 518,
         "y": 200
       },
       "config": {
@@ -75,7 +75,7 @@
       "type": "service",
       "name": "API",
       "pos": {
-        "x": 195,
+        "x": 314,
         "y": 340
       },
       "config": {

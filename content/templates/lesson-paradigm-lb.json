@@ -32,7 +32,7 @@
       "type": "service",
       "name": "API 1",
       "pos": {
-        "x": 40,
+        "x": 0,
         "y": 260
       }
     },
@@ -41,8 +41,8 @@
       "type": "service",
       "name": "API 2",
       "pos": {
-        "x": 110,
-        "y": 330
+        "x": 100,
+        "y": 360
       }
     },
     {
@@ -50,7 +50,7 @@
       "type": "service",
       "name": "API 3 (slow)",
       "pos": {
-        "x": 170,
+        "x": 200,
         "y": 260
       },
       "config": {
@@ -63,7 +63,7 @@
       "type": "web-client",
       "name": "Users",
       "pos": {
-        "x": 290,
+        "x": 480,
         "y": 20
       },
       "skin": "react-spa"
@@ -73,7 +73,7 @@
       "type": "load-balancer",
       "name": "LB P2C",
       "pos": {
-        "x": 290,
+        "x": 480,
         "y": 130
       },
       "skin": "envoy-lb",
@@ -86,7 +86,7 @@
       "type": "service",
       "name": "API 1",
       "pos": {
-        "x": 230,
+        "x": 380,
         "y": 260
       }
     },
@@ -95,8 +95,8 @@
       "type": "service",
       "name": "API 2",
       "pos": {
-        "x": 290,
-        "y": 330
+        "x": 480,
+        "y": 360
       }
     },
     {
@@ -104,7 +104,7 @@
       "type": "service",
       "name": "API 3 (slow)",
       "pos": {
-        "x": 350,
+        "x": 580,
         "y": 260
       },
       "config": {

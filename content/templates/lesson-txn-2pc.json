@@ -9,7 +9,7 @@
       "type": "web-client",
       "name": "Checkout",
       "pos": {
-        "x": 195,
+        "x": 223,
         "y": 60
       }
     },
@@ -19,7 +19,7 @@
       "skin": "2pc-coordinator",
       "name": "Coordinator",
       "pos": {
-        "x": 195,
+        "x": 223,
         "y": 200
       }
     },
@@ -39,7 +39,7 @@
       "skin": "postgres",
       "name": "Payments DB",
       "pos": {
-        "x": 195,
+        "x": 223,
         "y": 340
       }
     },
@@ -49,7 +49,7 @@
       "skin": "postgres",
       "name": "Stock DB",
       "pos": {
-        "x": 335,
+        "x": 391,
         "y": 340
       }
     }

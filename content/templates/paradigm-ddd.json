@@ -9,7 +9,7 @@
       "type": "web-client",
       "name": "Shop",
       "pos": {
-        "x": 195,
+        "x": 251,
         "y": 20
       }
     },
@@ -18,7 +18,7 @@
       "type": "api-gateway",
       "name": "API Gateway",
       "pos": {
-        "x": 195,
+        "x": 251,
         "y": 120
       }
     },
@@ -48,7 +48,7 @@
       "type": "pub-sub",
       "name": "Domain events",
       "pos": {
-        "x": 195,
+        "x": 251,
         "y": 260
       }
     },
@@ -57,7 +57,7 @@
       "type": "service",
       "name": "Billing service",
       "pos": {
-        "x": 195,
+        "x": 251,
         "y": 400
       },
       "parent": "billing"
@@ -67,7 +67,7 @@
       "type": "relational-db",
       "name": "Billing DB",
       "pos": {
-        "x": 195,
+        "x": 251,
         "y": 540
       },
       "skin": "postgres",
@@ -78,7 +78,7 @@
       "type": "service",
       "name": "Shipping service",
       "pos": {
-        "x": 335,
+        "x": 447,
         "y": 400
       },
       "parent": "shipping"
@@ -88,7 +88,7 @@
       "type": "document-db",
       "name": "Shipments",
       "pos": {
-        "x": 335,
+        "x": 447,
         "y": 540
       },
       "parent": "shipping"
@@ -98,7 +98,7 @@
       "type": "anti-corruption-layer",
       "name": "Carrier ACL",
       "pos": {
-        "x": 335,
+        "x": 447,
         "y": 260
       },
       "parent": "shipping"
@@ -108,7 +108,7 @@
       "type": "external-api",
       "name": "Carrier API",
       "pos": {
-        "x": 335,
+        "x": 447,
         "y": 120
       },
       "config": {

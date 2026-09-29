@@ -9,7 +9,7 @@
       "type": "web-client",
       "name": "EU users",
       "pos": {
-        "x": 25,
+        "x": 0,
         "y": 40
       },
       "parent": "eu"
@@ -19,7 +19,7 @@
       "type": "web-client",
       "name": "Asia users",
       "pos": {
-        "x": 125,
+        "x": 420,
         "y": 40
       },
       "parent": "ap"
@@ -29,8 +29,8 @@
       "type": "web-client",
       "name": "EU users",
       "pos": {
-        "x": 265,
-        "y": 40
+        "x": 0,
+        "y": 150
       },
       "parent": "eu"
     },
@@ -39,8 +39,8 @@
       "type": "web-client",
       "name": "Asia users",
       "pos": {
-        "x": 365,
-        "y": 40
+        "x": 420,
+        "y": 150
       },
       "parent": "ap"
     },
@@ -49,8 +49,8 @@
       "type": "dns",
       "name": "Geo DNS",
       "pos": {
-        "x": 315,
-        "y": 170
+        "x": 210,
+        "y": 110
       },
       "skin": "route53",
       "config": {
@@ -65,7 +65,7 @@
       "type": "service",
       "name": "App us-east-1",
       "pos": {
-        "x": 75,
+        "x": 210,
         "y": 320
       },
       "parent": "us",
@@ -78,7 +78,7 @@
       "type": "service",
       "name": "App eu-west-1",
       "pos": {
-        "x": 215,
+        "x": 0,
         "y": 320
       },
       "parent": "eu"
@@ -88,7 +88,7 @@
       "type": "service",
       "name": "App ap-southeast-1",
       "pos": {
-        "x": 345,
+        "x": 420,
         "y": 320
       },
       "parent": "ap"

@@ -34,7 +34,7 @@
       "skin": "rabbitmq-direct-exchange",
       "name": "jobs (direct)",
       "pos": {
-        "x": 195,
+        "x": 366,
         "y": 140
       },
       "config": {}
@@ -45,7 +45,7 @@
       "skin": "rabbitmq-broker-node",
       "name": "rmq-1",
       "pos": {
-        "x": 195,
+        "x": 366,
         "y": 30
       },
       "config": {}
@@ -56,7 +56,7 @@
       "skin": "rabbitmq-broker-node",
       "name": "rmq-2",
       "pos": {
-        "x": 275,
+        "x": 534,
         "y": 30
       },
       "config": {}
@@ -67,7 +67,7 @@
       "skin": "rabbitmq-broker-node",
       "name": "rmq-3",
       "pos": {
-        "x": 355,
+        "x": 702,
         "y": 30
       },
       "config": {}
@@ -78,7 +78,7 @@
       "skin": "rabbitmq-quorum-queue",
       "name": "jobs",
       "pos": {
-        "x": 195,
+        "x": 366,
         "y": 260
       },
       "config": {
@@ -95,7 +95,7 @@
       "skin": "rabbitmq-quorum-queue",
       "name": "jobs.dlq",
       "pos": {
-        "x": 335,
+        "x": 660,
         "y": 260
       },
       "config": {
@@ -109,7 +109,7 @@
       "skin": "rabbitmq-worker",
       "name": "worker-1",
       "pos": {
-        "x": 110,
+        "x": 187,
         "y": 380
       },
       "config": {}
@@ -120,7 +120,7 @@
       "skin": "rabbitmq-worker",
       "name": "worker-2",
       "pos": {
-        "x": 280,
+        "x": 544,
         "y": 380
       },
       "config": {}

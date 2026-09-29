@@ -9,7 +9,7 @@
       "type": "mobile-client",
       "name": "Mobile",
       "pos": {
-        "x": 100,
+        "x": 110,
         "y": 20
       },
       "skin": "ios-app"
@@ -19,7 +19,7 @@
       "type": "web-client",
       "name": "Web",
       "pos": {
-        "x": 290,
+        "x": 348,
         "y": 20
       },
       "skin": "react-spa"
@@ -29,7 +29,7 @@
       "type": "service",
       "name": "Mobile BFF",
       "pos": {
-        "x": 100,
+        "x": 110,
         "y": 140
       },
       "skin": "node-service"
@@ -39,7 +39,7 @@
       "type": "service",
       "name": "Web BFF",
       "pos": {
-        "x": 290,
+        "x": 348,
         "y": 140
       },
       "skin": "node-service"
@@ -59,7 +59,7 @@
       "type": "service",
       "name": "Feed",
       "pos": {
-        "x": 195,
+        "x": 229,
         "y": 290
       },
       "skin": "go-service"
@@ -69,7 +69,7 @@
       "type": "service",
       "name": "Recommendations",
       "pos": {
-        "x": 330,
+        "x": 398,
         "y": 290
       },
       "skin": "java-service"

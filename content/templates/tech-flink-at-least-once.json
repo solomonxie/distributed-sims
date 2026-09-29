@@ -10,7 +10,7 @@
       "skin": "react-spa",
       "name": "app events",
       "pos": {
-        "x": 195,
+        "x": 223,
         "y": 30
       },
       "config": {}
@@ -21,7 +21,7 @@
       "skin": "flink-kafka-topic",
       "name": "events (Kafka)",
       "pos": {
-        "x": 195,
+        "x": 223,
         "y": 130
       },
       "config": {}
@@ -32,7 +32,7 @@
       "skin": "flink-jobmanager-std",
       "name": "JobManager",
       "pos": {
-        "x": 335,
+        "x": 391,
         "y": 130
       },
       "config": {}
@@ -54,7 +54,7 @@
       "skin": "flink-taskmanager-std",
       "name": "tm-2",
       "pos": {
-        "x": 195,
+        "x": 223,
         "y": 250
       },
       "config": {}
@@ -65,7 +65,7 @@
       "skin": "flink-taskmanager-std",
       "name": "tm-3",
       "pos": {
-        "x": 335,
+        "x": 391,
         "y": 250
       },
       "config": {}
@@ -76,7 +76,7 @@
       "skin": "flink-es-sink",
       "name": "results (Elasticsearch)",
       "pos": {
-        "x": 110,
+        "x": 121,
         "y": 370
       },
       "config": {}
@@ -87,7 +87,7 @@
       "skin": "flink-s3-checkpoints",
       "name": "checkpoints (S3)",
       "pos": {
-        "x": 290,
+        "x": 337,
         "y": 370
       },
       "config": {}

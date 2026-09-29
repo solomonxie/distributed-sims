@@ -10,7 +10,7 @@
       "skin": "spark-driver-std",
       "name": "Driver",
       "pos": {
-        "x": 195,
+        "x": 223,
         "y": 60
       },
       "config": {
@@ -34,7 +34,7 @@
       "skin": "spark-executor-std",
       "name": "Executor 2",
       "pos": {
-        "x": 195,
+        "x": 223,
         "y": 220
       },
       "config": {}
@@ -45,7 +45,7 @@
       "skin": "spark-executor-std",
       "name": "Executor 3",
       "pos": {
-        "x": 335,
+        "x": 391,
         "y": 220
       },
       "config": {}

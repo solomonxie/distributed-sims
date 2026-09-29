@@ -9,7 +9,7 @@
       "type": "web-client",
       "name": "Users",
       "pos": {
-        "x": 195,
+        "x": 243,
         "y": 60
       }
     },
@@ -18,7 +18,7 @@
       "type": "load-balancer",
       "name": "Load balancer",
       "pos": {
-        "x": 195,
+        "x": 243,
         "y": 200
       },
       "skin": "aws-alb",
@@ -41,7 +41,7 @@
       "type": "service",
       "name": "orders-2",
       "pos": {
-        "x": 195,
+        "x": 243,
         "y": 350
       }
     },
@@ -50,7 +50,7 @@
       "type": "service",
       "name": "orders-3",
       "pos": {
-        "x": 315,
+        "x": 411,
         "y": 350
       }
     }
