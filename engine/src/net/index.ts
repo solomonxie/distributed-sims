@@ -3,5 +3,6 @@ import './stack';
 import './tcp';
 import './app';
 import './edge';
+import './wire';
 
 export * from './lib';

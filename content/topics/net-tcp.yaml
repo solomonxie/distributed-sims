@@ -5,8 +5,35 @@ icon: arrow-left-right
 order: 5
 summary: Handshakes, sequence numbers, retransmission, congestion and flow control, Nagle, TIME_WAIT and resets.
 info: TCP turns a lossy packet network into a reliable, ordered byte stream. It pays for that with a handshake per connection, timers and retransmissions when packets are lost, and a congestion window that starts small and backs off on loss. Most latency mysteries in production (40 ms stalls, p99 spikes, connection storms, TIME_WAIT pile-ups) are TCP behaving exactly as designed.
-algos: [nw-tcp-conn, nw-tcp-loss, nw-cwnd, nw-flow]
+algos: [nw-wire-tcp, nw-tcp-conn, nw-tcp-loss, nw-cwnd, nw-flow]
 lessons:
+  - id: wire
+    title: Two machines, packet by packet
+    minutes: 6
+    algo: nw-wire-tcp
+    steps:
+      - title: Handshake on the wire
+        body: connect() on the laptop, and each segment's full trip through kernel, NIC, switch, router and the internet to the server kernel and back.
+        watch: The server kernel's SYN queue and accept queue, and the seq/ack in the envelope.
+        input: handshake
+        check: { metric: manual }
+      - title: Sending data
+        body: write() copies 120 bytes into the send buffer; the kernel cuts a PSH segment; the server queues it, nginx reads it, and the ACK frees the client's buffer.
+        input: data
+        check: { metric: manual }
+      - title: Closing
+        body: FIN and ACK in each direction, with FIN_WAIT, CLOSE_WAIT, LAST_ACK and TIME_WAIT on the right machine.
+        input: close
+        check: { metric: manual }
+      - title: A lost SYN
+        body: The router drops the first SYN; only the client's 1 s retransmission timer notices.
+        input: loss
+        check: { metric: manual }
+      - title: Nothing listening
+        body: A SYN to a closed port gets an RST back, and connect() fails at once with ECONNREFUSED.
+        input: rst
+        check: { metric: manual }
+
   - id: handshake
     title: Three-way handshake
     minutes: 4

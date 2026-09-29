@@ -5,8 +5,31 @@ icon: layers
 order: 2
 summary: How bytes become segments, packets and frames, and what every header byte means.
 info: "Networking is layered so each layer solves one problem: the link moves frames between neighbours, IP moves packets across networks, TCP and UDP deliver to processes, and applications speak their own protocols. Each layer wraps the one above in its own header. Knowing the layers tells you what an \"L4 load balancer\" can see, why MTU problems look like hangs, and how to read a packet capture."
-algos: [nw-encap, nw-headers]
+algos: [nw-wire-layers, nw-encap, nw-headers]
 lessons:
+  - id: onion
+    title: Peeling the onion
+    minutes: 6
+    algo: nw-wire-layers
+    steps:
+      - title: Down the sender
+        body: Each layer of the laptop wraps the bytes in its own header, from the app down to the NIC hardware and the cable.
+        watch: The packet size in the panel grows at every step.
+        input: send
+        check: { metric: manual }
+      - title: Switch and router
+        body: The switch reads only the MAC and changes nothing. The router peels Ethernet off, drops TTL, and wraps a new Ethernet header for the next link.
+        input: path
+        check: { metric: manual }
+      - title: Up the receiver
+        body: The server peels one header per layer, NIC to driver to IP to TCP, until nginx reads exactly the bytes curl wrote.
+        input: receive
+        check: { metric: manual }
+      - title: End to end
+        body: The whole journey in one run. Tap any header to see its real bytes.
+        input: full
+        check: { metric: manual }
+
   - id: model
     title: The layer model
     minutes: 3
