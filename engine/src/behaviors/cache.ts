@@ -26,7 +26,7 @@ function cache(n: SimNode): NodeLogic {
   const jitter = n.num('ttlJitterPct', 0) / 100;
   let entries = new Map<number, Entry>();
   const inflight = new Map<number, Req[]>();
-  let dirty = new Map<number, { value: number; w: number }>();
+  let dirty = new Map<number, { value: number; w: number; traceId?: number }>();
   let hits = 0;
   let misses = 0;
   let lastRatio = 0;
@@ -120,7 +120,7 @@ function cache(n: SimNode): NodeLogic {
     const value = req.msg.value ?? 0;
     if (strategy === 'write-behind') {
       const d = dirty.get(k);
-      dirty.set(k, { value, w: (d?.w ?? 0) + req.msg.weight });
+      dirty.set(k, { value, w: (d?.w ?? 0) + req.msg.weight, traceId: req.msg.traceId ?? d?.traceId });
       set(k, value, PENDING);
       return req.reply({ ok: true });
     }
@@ -144,7 +144,7 @@ function cache(n: SimNode): NodeLogic {
     const batch = dirty;
     dirty = new Map();
     for (const [k, d] of batch) {
-      const msg = n.world.newMsg({ from: n.id, to: e.to, op: 'write', key: k, value: d.value, weight: d.w });
+      const msg = n.world.newMsg({ from: n.id, to: e.to, op: 'write', key: k, value: d.value, weight: d.w, traceId: d.traceId });
       n.call(e, msg, r => {
         const cur = entries.get(k);
         if (!r.ok) {

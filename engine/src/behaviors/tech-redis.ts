@@ -20,6 +20,9 @@ export function redisServer(n: SimNode): NodeLogic {
   const role = () => roleNow;
   const isPrimary = (x: SimNode) => x.up && (x.logic as any).isPrimary?.();
   let offset = 0; // replication offset = writes applied
+  /** offsets of writes by traced requests, and what each replica was last sent */
+  const tracedOff: { off: number; id: number }[] = [];
+  const shipped = new Map<string, number>();
   let lastFsync = 0;
   let unsynced = 0;
   let sinceSnapshot = 0;
@@ -29,7 +32,7 @@ export function redisServer(n: SimNode): NodeLogic {
   let diskX = 1;
   let blockedMs = 0;
   let opsW = 0;
-  let slowCmd: { every: number; ms: number; label: string } | undefined;
+  let slowCmd: { every: number; ms: number; label: string; why?: string } | undefined;
   let primaryDown = 0;
   let replDelayMs = 0;
   let hist: [number, number][] = [];
@@ -98,6 +101,10 @@ export function redisServer(n: SimNode): NodeLogic {
       opsW += m.weight;
       if (op === 'write') {
         offset += m.weight;
+        if (m.traceId !== undefined) {
+          tracedOff.push({ off: offset, id: m.traceId });
+          if (tracedOff.length > 50) tracedOff.shift();
+        }
         unsynced += m.weight;
         sinceSnapshot += m.weight;
         if (n.num('saveEverySec', 0) > 0 && sinceSnapshot > 0 && n.now - snapshotUntil > n.num('saveEverySec', 0) * 1000) bgsave('save policy');
@@ -159,7 +166,13 @@ export function redisServer(n: SimNode): NodeLogic {
         hist.push([n.now, offset]);
         while (hist.length > 1 && hist[1][0] <= n.now - replDelayMs) hist.shift();
         const sent = replDelayMs ? hist[0][1] : offset;
-        for (const r of peers()) if (r.up) n.send(r.id, { kind: 'redis.REPLCONF', data: { offset: sent } });
+        for (const r of peers()) {
+          if (!r.up) continue;
+          const from = shipped.get(r.id) ?? 0;
+          shipped.set(r.id, sent);
+          const traceId = tracedOff.find(x => x.off > from && x.off <= sent)?.id;
+          n.send(r.id, { kind: 'redis.REPLCONF', traceId, data: { offset: sent } });
+        }
       });
       // Sentinel: replica promotes itself when the primary is gone for failoverMs
       n.every(500, () => {
@@ -225,11 +238,11 @@ export function redisServer(n: SimNode): NodeLogic {
           return true;
         }
         const ms = Number(p.ms ?? (n.num('keys', 10_000_000) * 0.1) / 1000);
-        slowCmd = { every: Number(p.everySec ?? 5) * 1000, ms, label: String(p.command ?? 'KEYS *') };
+        slowCmd = { every: Number(p.everySec ?? 5) * 1000, ms, label: String(p.command ?? 'KEYS *'), why: p.why ? String(p.why) : undefined };
         const me = slowCmd;
         const fire = () => {
           if (slowCmd !== me) return;
-          block(me.ms, `${me.label} walks ${(n.num('keys', 10_000_000) / 1e6).toFixed(0)}M keys — every client waits`);
+          block(me.ms, me.why ?? `${me.label} walks ${(n.num('keys', 10_000_000) / 1e6).toFixed(0)}M keys — every client waits`);
           n.timer(me.every, fire);
         };
         fire();

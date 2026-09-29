@@ -138,7 +138,7 @@ export function sparkDriver(n: SimNode): NodeLogic {
     const ms = mb * n.num('msPerMb', 10) + n.num('taskOverheadMs', 50);
     const from = s > 0 ? [...new Set(j.out[s - 1].filter((e): e is string => !!e))] : [];
     const data = { job: j.id, stage: s, part: p, mb: Math.round(mb), ms, from, result: s === j.stages - 1, spec };
-    n.rpc(x, { kind: 'spark.task', data }, 600_000, r => taskEnded(t, r));
+    n.rpc(x, { kind: 'spark.task', traceId: j.req?.msg.traceId, data }, 600_000, r => taskEnded(t, r));
   }
 
   function release(t: Task) {
@@ -387,7 +387,7 @@ export function sparkExecutor(n: SimNode): NodeLogic {
       let left = peers.length;
       let failed: string | undefined;
       for (const x of peers)
-        n.rpc(x, { kind: 'spark.shuffle.fetch', data: { job: d.job, stage: d.stage } }, n.num('fetchTimeoutMs', 1500), r => {
+        n.rpc(x, { kind: 'spark.shuffle.fetch', traceId: req.msg.traceId, data: { job: d.job, stage: d.stage } }, n.num('fetchTimeoutMs', 1500), r => {
           if (!r.ok) failed ??= x;
           if (--left) return;
           if (failed) {

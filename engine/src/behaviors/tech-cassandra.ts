@@ -436,7 +436,7 @@ register('cassandra-node', n => {
         storeHint(r, k, h);
         continue;
       }
-      n.rpc(r, { kind: 'cassandra.mutation', weight: w, data: { k, rec, del, trace } }, timeout, res => {
+      n.rpc(r, { kind: 'cassandra.mutation', weight: w, traceId: req.msg.traceId, data: { k, rec, del, trace } }, timeout, res => {
         if (!res.ok) return storeHint(r, k, h);
         acked.push(r);
         if (enough(n, cl, reps, acked, localDc)) finish(true);
@@ -478,7 +478,7 @@ register('cassandra-node', n => {
       if (stale.length && best.version > 0) {
         const rec: Rec = { value: best.value ?? 0, version: best.version, writer: n.id, ts: n.now };
         readRepairs += stale.length;
-        for (const id of stale) n.send(id, { kind: 'cassandra.repair', data: { k, rec } });
+        for (const id of stale) n.send(id, { kind: 'cassandra.repair', traceId: req.msg.traceId, data: { k, rec } });
         throttledLog(cc.logAt, n, `rr:${n.id}`, 2000, 'protocol', `read repair: ${stale.map(x => n.world.nodeName(x)).join(', ')} had stale key ${k} (v${Math.max(0, ...stale.map(id => answers.get(id)!.version))} < v${best.version}) → fixed by ${n.name}`);
       }
       const isStale = cc.truth.checkRead(n, k, best.version, w);
@@ -487,7 +487,7 @@ register('cassandra-node', n => {
     };
     const ask = (r: Id) => {
       asked.add(r);
-      n.rpc(r, { kind: 'cassandra.read', weight: w, data: { k } }, n.num('readTimeoutMs', 1000), res => {
+      n.rpc(r, { kind: 'cassandra.read', weight: w, traceId: req.msg.traceId, data: { k } }, n.num('readTimeoutMs', 1000), res => {
         if (done || !res.ok) return;
         answers.set(r, { version: res.version ?? 0, value: res.value });
         if (enough(n, cl, reps, [...answers.keys()], localDc)) finish();

@@ -16,6 +16,8 @@ interface Entry {
   deliveries: number;
   poison?: boolean;
   trace?: boolean;
+  /** the traced request that published it */
+  traceId?: number;
   /** broker nodes holding a copy */
   have: string[];
 }
@@ -276,7 +278,7 @@ register('rabbitmq-queue', n => {
         inflight.set(c.id, (inflight.get(c.id) ?? 0) + 1);
       }
       if (e.trace) n.log('protocol', `Queue ${n.name} delivers to ${c.name} (${auto ? 'autoAck: forgotten on send' : `unacked ${inflight.get(c.id)}/${c.num('prefetch', 10) || '∞'} prefetch`})`);
-      n.send(c.id, { kind: 'rmq.deliver', data: { tag: t, e, auto } });
+      n.send(c.id, { kind: 'rmq.deliver', traceId: e.traceId, data: { tag: t, e, auto } });
     }
   }
 
@@ -284,7 +286,7 @@ register('rabbitmq-queue', n => {
     e.have = upMembers();
     ready.push(e);
     published += e.w;
-    if (qtype() !== 'classic') for (const m of e.have) if (m !== leader) n.send(m, { kind: 'rmq.append', data: { q: n.name, id: e.id } });
+    if (qtype() !== 'classic') for (const m of e.have) if (m !== leader) n.send(m, { kind: 'rmq.append', traceId: e.traceId, data: { q: n.name, id: e.id } });
     pump();
   }
 
@@ -292,7 +294,7 @@ register('rabbitmq-queue', n => {
     const to = ref(n, n.str('deadLetter', ''));
     dead += e.w;
     if (dead <= e.w || dead % 50 < e.w) n.log('info', `Queue ${n.name}: message dead-lettered (${why})${to ? ` → ${n.world.nodeName(to)}` : ' and dropped (no DLX)'}`);
-    if (to) n.rpc(to, { kind: 'rmq.dead', weight: e.w, data: { e: { ...e, deliveries: 0, trace: false } } }, 5000, () => {});
+    if (to) n.rpc(to, { kind: 'rmq.dead', weight: e.w, traceId: e.traceId, data: { e: { ...e, deliveries: 0, trace: false } } }, 5000, () => {});
   }
 
   function requeue(e: Entry) {
@@ -411,7 +413,7 @@ register('rabbitmq-queue', n => {
           enqueue({ ...(d.e as Entry), id: ++ledger(n.world).seq, born: n.now });
           return req.reply({ ok: true });
         }
-        const e: Entry = { id: ++ledger(n.world).seq, rk: d.rk ?? '', w: m.weight, born: n.now, deliveries: 0, have: [], trace: d.trace, poison: poisonShare > 0 && n.rng.chance(poisonShare) };
+        const e: Entry = { id: ++ledger(n.world).seq, rk: d.rk ?? '', w: m.weight, born: n.now, deliveries: 0, have: [], trace: d.trace, traceId: m.traceId, poison: poisonShare > 0 && n.rng.chance(poisonShare) };
         e.have = upMembers();
         if (d.trace)
           n.log(
@@ -508,11 +510,11 @@ register('rabbitmq-consumer', n => {
     inHand += e.w;
     n.process(1, n.serviceTime('p50Ms', 'p99Ms', 10, 40), ok => {
       inHand -= e.w;
-      if (!ok) return auto ? undefined : n.send(queue, { kind: 'rmq.nack', data: { tag, requeue: true } });
+      if (!ok) return auto ? undefined : n.send(queue, { kind: 'rmq.nack', traceId: e.traceId, data: { tag, requeue: true } });
       if (e.poison) {
         failed++;
         if (failed <= 2) n.log('info', `${n.name}: handler threw on a poison message (delivery #${e.deliveries}) → basic.nack requeue=${n.bool('requeueOnError', true)}`);
-        if (!auto) n.send(queue, { kind: 'rmq.nack', data: { tag, requeue: n.bool('requeueOnError', true) } });
+        if (!auto) n.send(queue, { kind: 'rmq.nack', traceId: e.traceId, data: { tag, requeue: n.bool('requeueOnError', true) } });
         return;
       }
       const l = ledger(n.world);
@@ -522,7 +524,7 @@ register('rabbitmq-consumer', n => {
       done += e.w;
       n.series.cur.okW += e.w;
       if (e.trace) n.log('protocol', `${n.name} processed the message${auto ? ' (autoAck: broker already forgot it)' : forget ? ' but never acks it' : ' → basic.ack'}`);
-      if (!auto && !forget) n.send(queue, { kind: 'rmq.ack', data: { tag } });
+      if (!auto && !forget) n.send(queue, { kind: 'rmq.ack', traceId: e.traceId, data: { tag } });
     });
   };
   return {

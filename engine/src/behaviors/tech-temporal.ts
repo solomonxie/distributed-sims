@@ -1,7 +1,7 @@
 // Temporal internals: frontend, history (event history, timers, timeouts), matching (task queues,
 // sticky), persistence (the source of truth) and workers (deterministic replay of workflow code).
 import type { NodeLogic, Req, SimNode } from '../node';
-import type { Badge, Id, Msg } from '../types';
+import type { Badge, Id, Msg, Reply } from '../types';
 import { hashString } from '../rng';
 import { register } from './registry';
 
@@ -66,7 +66,7 @@ function frontend(n: SimNode): NodeLogic {
   const relay = (req: Req, type: string, timeout: number) => {
     const to = find(n, type);
     if (!to) return req.reply({ ok: false, err: 'unavailable' });
-    n.rpc(to.id, { kind: req.msg.kind, data: req.msg.data }, timeout, r => req.reply(r));
+    n.rpc(to.id, { kind: req.msg.kind, traceId: req.msg.traceId, data: req.msg.data }, timeout, r => req.reply(r));
   };
   return {
     handles: isTemporal,
@@ -144,12 +144,16 @@ function history(n: SimNode): NodeLogic {
   const rec = (wf: string) => store()?.get(wf);
 
   /** Append events durably (retries until persistence acks), then continue. */
+  /** workflow id → the traced request that started or signalled it */
+  const wfTrace = new Map<string, number>();
+  const traceOf = (wf: WfRec | string) => wfTrace.get(typeof wf === 'string' ? wf : wf.id);
   const persist = (wf: WfRec | string, events: Ev[], then: () => void) => {
     const p = find(n, 'temporal-persistence');
     pendingWrites++;
+    const traceId = traceOf(wf);
     const attempt = () => {
       if (!p) return;
-      n.rpc(p.id, { kind: 'temporal.persist', data: { wf, events } }, 3000, r => {
+      n.rpc(p.id, { kind: 'temporal.persist', traceId, data: { wf, events } }, 3000, r => {
         if (!r.ok) return void n.timer(500, attempt);
         pendingWrites--;
         then();
@@ -161,7 +165,8 @@ function history(n: SimNode): NodeLogic {
   const matching = () => find(n, 'temporal-matching');
   const addTask = (task: Record<string, unknown>) => {
     const m = matching();
-    if (m) n.send(m.id, { kind: task.act !== undefined ? 'temporal.AddActivityTask' : 'temporal.AddWorkflowTask', data: task });
+    const traceId = traceOf(task.wf as string);
+    if (m) n.send(m.id, { kind: task.act !== undefined ? 'temporal.AddActivityTask' : 'temporal.AddWorkflowTask', traceId, data: { ...task, traceId } });
   };
 
   const scheduleWfTask = (wf: string) => {
@@ -349,6 +354,7 @@ function history(n: SimNode): NodeLogic {
       const k = req.msg.kind;
       if (k === 'temporal.StartWorkflowExecution') {
         const wf = (req.msg.data as { wf: string }).wf;
+        if (req.msg.traceId !== undefined) wfTrace.set(wf, req.msg.traceId);
         const w: WfRec = { id: wf, shard: hashString(wf) % shards(), events: [], status: 'running', nextAid: 1 };
         rt.set(wf, { needWf: false, acts: new Map(), firing: new Set() });
         persist(w, [{ t: 'WorkflowExecutionStarted' }], () => {
@@ -358,6 +364,7 @@ function history(n: SimNode): NodeLogic {
       } else if (k === 'temporal.SignalWorkflowExecution') {
         const w = [...rt.keys()].map(rec).find(x => x && !x.events.some(e => e.t === 'WorkflowExecutionSignaled'));
         if (!w) return req.reply({ ok: true });
+        if (req.msg.traceId !== undefined) wfTrace.set(w.id, req.msg.traceId);
         persist(w.id, [{ t: 'WorkflowExecutionSignaled' }], () => {
           req.reply({ ok: true });
           scheduleWfTask(w.id);
@@ -388,6 +395,8 @@ interface Task {
   name?: string;
   sticky?: Id;
   stickyUntil: number;
+  /** the traced request behind this workflow */
+  traceId?: number;
 }
 interface Poll {
   wfQ: boolean;
@@ -407,8 +416,9 @@ function matching(n: SimNode): NodeLogic {
   const give = (p: Poll, t: Task) => {
     const h = find(n, 'temporal-history');
     if (!h) return p.req.reply({ ok: true });
-    n.rpc(h.id, { kind: 'temporal.RecordTaskStarted', data: { ...t, worker: p.worker } }, 3000, r =>
-      p.req.reply(r.ok ? { ok: true, data: { task: t, ...(r.data ?? {}) } } : { ok: true }),
+    // the poll was parked before the task existed: its answer belongs to the task's trace
+    n.rpc(h.id, { kind: 'temporal.RecordTaskStarted', traceId: t.traceId, data: { ...t, worker: p.worker } }, 3000, r =>
+      p.req.reply((r.ok ? { ok: true, data: { task: t, ...(r.data ?? {}) }, traceId: t.traceId } : { ok: true }) as Reply),
     );
   };
   const match = () => {
@@ -519,9 +529,9 @@ function worker(n: SimNode): NodeLogic {
   };
 
   const fe = () => find(n, 'temporal-frontend');
-  const call = (kind: string, data: unknown) => {
+  const call = (kind: string, data: unknown, traceId?: number) => {
     const f = fe();
-    if (f) n.rpc(f.id, { kind, data }, 5000, () => {});
+    if (f) n.rpc(f.id, { kind, traceId, data }, 5000, () => {});
   };
 
   const runWfTask = (task: Task, events: Ev[], next: () => void) => {
@@ -531,7 +541,7 @@ function worker(n: SimNode): NodeLogic {
     n.process(1, (hit ? 3 : 3 + events.length * 0.3) * n.mods.slowX, () => {
       if ('error' in res) {
         cache.delete(task.wf);
-        call('temporal.RespondWorkflowTaskFailed', { wf: task.wf, tok: task.tok, worker: n.id, error: res.error });
+        call('temporal.RespondWorkflowTaskFailed', { wf: task.wf, tok: task.tok, worker: n.id, error: res.error }, task.traceId);
         return next();
       }
       if (full) {
@@ -540,7 +550,7 @@ function worker(n: SimNode): NodeLogic {
       }
       cache.set(task.wf, events.length);
       if (res.commands.some(c => c.type === 'complete')) cache.delete(task.wf);
-      call('temporal.RespondWorkflowTaskCompleted', { wf: task.wf, tok: task.tok, worker: n.id, commands: res.commands, replayed: full ? 1 : 0 });
+      call('temporal.RespondWorkflowTaskCompleted', { wf: task.wf, tok: task.tok, worker: n.id, commands: res.commands, replayed: full ? 1 : 0 }, task.traceId);
       next();
     });
   };
@@ -552,7 +562,7 @@ function worker(n: SimNode): NodeLogic {
     if (o.hbMs > 0) {
       const beat = () => {
         if (!running) return;
-        call('temporal.RecordActivityTaskHeartbeat', base);
+        call('temporal.RecordActivityTaskHeartbeat', base, task.traceId);
         n.timer(o.hbMs * 0.4, beat);
       };
       n.timer(o.hbMs * 0.4, beat);
@@ -560,7 +570,7 @@ function worker(n: SimNode): NodeLogic {
     const finish = (ok: boolean) => {
       running = false;
       if (epoch !== n.epoch) return;
-      call(ok ? 'temporal.RespondActivityTaskCompleted' : 'temporal.RespondActivityTaskFailed', base);
+      call(ok ? 'temporal.RespondActivityTaskCompleted' : 'temporal.RespondActivityTaskFailed', base, task.traceId);
       next();
     };
     const ms = n.serviceTime('actP50Ms', 'actP99Ms', 800, 2500);
@@ -570,7 +580,7 @@ function worker(n: SimNode): NodeLogic {
       const name = (task.name ?? '').replace(/^undo-/, '');
       const e = n.syncOut().find(x => x.cfg.route === name);
       if (!e) return finish(true);
-      n.call(e, n.world.newMsg({ from: n.id, to: e.to, op: 'write', key: task.act }), r => finish(r.ok));
+      n.call(e, n.world.newMsg({ from: n.id, to: e.to, op: 'write', key: task.act, traceId: task.traceId }), r => finish(r.ok));
     });
   };
 

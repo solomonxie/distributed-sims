@@ -40,6 +40,8 @@ register('pg-primary', n => {
   let active = 0;
   let warm = 1;
   let lsn = 0;
+  /** WAL positions of writes by traced requests, to tag the stream that carries them */
+  const tracedLsn: { lsn: number; id: number }[] = [];
   let flushed = 0;
   let walWait: Waiter[] = [];
   let unflushedAcked = 0;
@@ -125,8 +127,10 @@ register('pg-primary', n => {
     const need = n.num('syncReplicas', 0);
     rs.forEach((r, i) => {
       if (syncOnly && i >= need) return;
-      if ((standby.get(r.id)?.flush ?? -1) >= lsn) return;
-      n.send(r.id, { kind: 'pg.wal', data: { lsn } });
+      const has = standby.get(r.id)?.flush ?? -1;
+      if (has >= lsn) return;
+      const traceId = tracedLsn.find(x => x.lsn > has && x.lsn <= lsn)?.id;
+      n.send(r.id, { kind: 'pg.wal', traceId, data: { lsn } });
     });
   };
 
@@ -214,6 +218,10 @@ register('pg-primary', n => {
     }
     lsn += w;
     const my = lsn;
+    if (m.traceId !== undefined) {
+      tracedLsn.push({ lsn: my, id: m.traceId });
+      if (tracedLsn.length > 50) tracedLsn.shift();
+    }
     st.lastWrite[(m.key ?? 0) % 1024] = my;
     // MVCC: an UPDATE leaves the old row version behind
     dead.push({ t: n.now, w });
@@ -364,7 +372,7 @@ register('pg-replica', n => {
         samples.push({ t: n.now, lsn: received });
       }
       // synchronous standby: acknowledge the flush right away
-      n.send(m.from, { kind: 'pg.ack', data: { flush: received, replay: replayed } });
+      n.send(m.from, { kind: 'pg.ack', traceId: m.traceId, data: { flush: received, replay: replayed } });
     },
     onRequest(req: Req) {
       if (req.msg.op === 'write') {

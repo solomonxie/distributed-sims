@@ -124,7 +124,7 @@ export class Run {
     const w = this.world;
     const c = w.nodes.get(clientId);
     if (!c) return undefined;
-    const traceId = w.newTrace(clientId);
+    const traceId = w.newTrace(clientId, true);
     const msg = w.newMsg({ from: clientId, to: clientId, weight: 1, op, key: w.rng.int(1024), traceId });
     if (op === 'write') msg.value = w.rng.int(1e9);
     w.deliver(msg, r => {

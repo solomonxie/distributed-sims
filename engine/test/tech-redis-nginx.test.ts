@@ -51,6 +51,15 @@ describe('redis-server', () => {
     expect(logged(r, 'KEYS *')).toBeGreaterThan(0);
   });
 
+  test('a long Lua script blocks like any slow command', () => {
+    const r = redis();
+    r.step(3000, 1e9);
+    r.fire({ kind: 'slow-command', target: 'r1', durationSec: 20, params: { command: 'EVAL', why: 'EVAL loops over 10M members' } });
+    r.step(5000, 1e9);
+    expect(r.snapshot().nodes.r1.p99).toBeGreaterThan(500);
+    expect(logged(r, 'EVAL loops')).toBeGreaterThan(0);
+  });
+
   test('BGSAVE on a big dataset: fork() stalls the loop, COW copies pages', () => {
     const r = redis({ datasetGb: 50 }, { read: 0.5 });
     r.step(3000, 1e9);

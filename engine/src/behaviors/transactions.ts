@@ -212,7 +212,7 @@ function txnCoordinator(n: SimNode): NodeLogic {
   };
 
   const deliverDecision = (t: TxnRecord, p: Id) => {
-    n.rpc(p, { kind: 'txn.' + t.decision, data: { txn: t.id } }, timeoutMs(), r => {
+    n.rpc(p, { kind: 'txn.' + t.decision, traceId: t.req?.msg.traceId, data: { txn: t.id } }, timeoutMs(), r => {
       if (!r.ok) return void n.timer(retryMs(), () => deliverDecision(t, p));
       t.acked.add(p);
       if (t.acked.size >= t.parts.length) log.delete(t.id);
@@ -234,7 +234,7 @@ function txnCoordinator(n: SimNode): NodeLogic {
     let pending = t.parts.length;
     let settled = false;
     for (const p of t.parts) {
-      n.rpc(p, { kind, data: { txn: t.id, keys: t.keys, proto: protocol(), waitMs: n.num('participantTimeoutMs', 1500) } }, timeoutMs(), r => {
+      n.rpc(p, { kind, traceId: t.req?.msg.traceId, data: { txn: t.id, keys: t.keys, proto: protocol(), waitMs: n.num('participantTimeoutMs', 1500) } }, timeoutMs(), r => {
         if (settled) return;
         if (!r.ok) {
           settled = true;
@@ -271,7 +271,7 @@ function txnCoordinator(n: SimNode): NodeLogic {
       return finish(t, { ok: false, err: 'conflict' });
     }
     phase = 'compensate';
-    n.rpc(t.done[j], { kind: 'saga.compensate', data: { saga: t.id, step: j }, weight: t.w }, timeoutMs(), r => {
+    n.rpc(t.done[j], { kind: 'saga.compensate', traceId: t.req?.msg.traceId, data: { saga: t.id, step: j }, weight: t.w }, timeoutMs(), r => {
       if (!r.ok) return void n.timer(retryMs(), () => compensate(t, j));
       stats.compensations += t.w;
       compensate(t, j - 1);
@@ -288,7 +288,7 @@ function txnCoordinator(n: SimNode): NodeLogic {
     }
     phase = `step ${i + 1}/${t.parts.length}`;
     const p = t.parts[i];
-    n.rpc(p, { kind: 'saga.step', data: { saga: t.id, step: i }, weight: t.w }, timeoutMs(), r => {
+    n.rpc(p, { kind: 'saga.step', traceId: t.req?.msg.traceId, data: { saga: t.id, step: i }, weight: t.w }, timeoutMs(), r => {
       if (r.ok || r.err === 'timeout') t.done.push(p); // a timed-out step may have run: compensate it too
       if (r.ok) return sagaStep(t, i + 1);
       t.decision = 'abort';

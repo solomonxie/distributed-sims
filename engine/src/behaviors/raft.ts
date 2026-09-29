@@ -44,6 +44,8 @@ export interface Entry {
   key?: number;
   value?: number;
   noop?: boolean;
+  /** the traced request that wrote it */
+  traceId?: number;
 }
 
 interface RaftMsg extends Msg {
@@ -227,6 +229,7 @@ export function consensusMember(n: SimNode): NodeLogic {
     sentUpTo.set(to, prev + entries.length);
     n.send(to, {
       kind: 'raft.AppendEntries',
+      traceId: entries.find(e => e.traceId !== undefined)?.traceId,
       data: { term, prev, n: entries.length, commit, pt: log[prev].term, round },
       entries,
     } as Partial<RaftMsg>);
@@ -360,7 +363,7 @@ export function consensusMember(n: SimNode): NodeLogic {
           commit = Math.max(commit, Math.min(d.commit, lastNew));
           apply();
         }
-        n.send(msg.from, { kind: 'raft.AppendEntriesReply', data: { term, ok: true, match: lastNew, round: d.round } });
+        n.send(msg.from, { kind: 'raft.AppendEntriesReply', traceId: msg.traceId, data: { term, ok: true, match: lastNew, round: d.round } });
         return;
       }
       case 'raft.AppendEntriesReply': {
@@ -404,7 +407,7 @@ export function consensusMember(n: SimNode): NodeLogic {
     };
     if (m.op === 'write') {
       if (role !== 'leader') return forward(req);
-      log.push({ term, w: m.weight, key: m.key ?? 0, value: m.value ?? m.id });
+      log.push({ term, w: m.weight, key: m.key ?? 0, value: m.value ?? m.id, traceId: m.traceId });
       const idx = lastIdx();
       const list = waitingWrites.get(idx) ?? [];
       list.push(pend());

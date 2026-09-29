@@ -33,15 +33,15 @@ export function paxosAcceptor(n: SimNode): NodeLogic {
         if (msg.kind === 'paxos.Prepare') {
           if (d.b > st.promised) {
             st.promised = d.b;
-            n.send(msg.from, { kind: 'paxos.Promise', data: { slot: d.slot, b: d.b, an: st.an, av: st.av } });
-          } else n.send(msg.from, { kind: 'paxos.Nack', data: { slot: d.slot, b: d.b, promised: st.promised } });
+            n.send(msg.from, { kind: 'paxos.Promise', traceId: msg.traceId, data: { slot: d.slot, b: d.b, an: st.an, av: st.av } });
+          } else n.send(msg.from, { kind: 'paxos.Nack', traceId: msg.traceId, data: { slot: d.slot, b: d.b, promised: st.promised } });
         } else if (msg.kind === 'paxos.Accept') {
           if (d.b >= st.promised) {
             st.promised = st.an = d.b;
             st.av = d.v;
             last = `${d.v}@${ballotText(d.b)}`;
-            n.send(msg.from, { kind: 'paxos.Accepted', data: { slot: d.slot, b: d.b, v: d.v } });
-          } else n.send(msg.from, { kind: 'paxos.Nack', data: { slot: d.slot, b: d.b, promised: st.promised } });
+            n.send(msg.from, { kind: 'paxos.Accepted', traceId: msg.traceId, data: { slot: d.slot, b: d.b, v: d.v } });
+          } else n.send(msg.from, { kind: 'paxos.Nack', traceId: msg.traceId, data: { slot: d.slot, b: d.b, promised: st.promised } });
         }
       });
     },
@@ -67,9 +67,11 @@ export function paxosProposer(n: SimNode): NodeLogic {
     accepted: Set<Id>;
     done: (chosen: string) => void;
     tries: number;
+    /** the traced client request this proposal serves */
+    traceId?: number;
   }
   let cur: Attempt | undefined;
-  const queue: { value: string; done: (ok: boolean) => void }[] = [];
+  const queue: { value: string; done: (ok: boolean) => void; traceId?: number }[] = [];
 
   function nextSlot() {
     let s = 1;
@@ -81,7 +83,7 @@ export function paxosProposer(n: SimNode): NodeLogic {
     maxRound++;
     const at: Attempt = { ...a, b: maxRound * 1000 + myIdx(), phase: 1, promises: new Map(), accepted: new Set() };
     cur = at;
-    for (const acc of acceptors) n.send(acc.id, { kind: 'paxos.Prepare', data: { slot: at.slot, b: at.b } });
+    for (const acc of acceptors) n.send(acc.id, { kind: 'paxos.Prepare', traceId: at.traceId, data: { slot: at.slot, b: at.b } });
     n.timer(n.num('phaseTimeoutMs', 300), () => cur === at && retry(at));
   }
 
@@ -94,17 +96,18 @@ export function paxosProposer(n: SimNode): NodeLogic {
     n.timer(backoff, () => awake(n, () => begin({ ...a, tries: a.tries + 1 })));
   }
 
-  function propose(value: string, done: (ok: boolean) => void) {
-    if (cur) return queue.push({ value, done });
+  function propose(value: string, done: (ok: boolean) => void, traceId?: number) {
+    if (cur) return queue.push({ value, done, traceId });
     const slot = nextSlot();
     begin({
       slot,
       value,
       tries: 0,
+      traceId,
       done: chosen => {
         done(chosen === value);
         const q = queue.shift();
-        if (q) propose(q.value, q.done);
+        if (q) propose(q.value, q.done, q.traceId);
       },
     });
   }
@@ -130,7 +133,7 @@ export function paxosProposer(n: SimNode): NodeLogic {
     onRequest(req) {
       n.process(req.msg.weight, n.serviceTime('p50Ms', 'p99Ms', 1, 5), ok => {
         if (!ok) return req.reply({ ok: false, err: '503' });
-        propose(`${n.name}#${req.msg.id}`, won => req.reply(won ? { ok: true } : { ok: false, err: 'conflict' }));
+        propose(`${n.name}#${req.msg.id}`, won => req.reply(won ? { ok: true } : { ok: false, err: 'conflict' }), req.msg.traceId);
       });
     },
     onMessage(msg) {
@@ -147,7 +150,7 @@ export function paxosProposer(n: SimNode): NodeLogic {
           for (const p of a.promises.values()) if (p.an > best.an) best = p;
           const v = best.av ?? a.value;
           a.phase = 2;
-          for (const acc of acceptors) n.send(acc.id, { kind: 'paxos.Accept', data: { slot: a.slot, b: a.b, v } });
+          for (const acc of acceptors) n.send(acc.id, { kind: 'paxos.Accept', traceId: a.traceId, data: { slot: a.slot, b: a.b, v } });
         } else if (msg.kind === 'paxos.Accepted' && a.phase === 2) {
           a.accepted.add(msg.from);
           if (a.accepted.size >= majority()) chosenNow(a, d.v);
@@ -263,7 +266,7 @@ export function lockClient(n: SimNode): NodeLogic {
   const lockEdge = () => n.outEdges(e => n.world.nodes.get(e.to)?.type === 'lock-service')[0];
   const storeEdge = () => n.outEdges(e => n.world.nodes.get(e.to)?.type !== 'lock-service')[0];
 
-  function cycle(done: (ok: boolean) => void) {
+  function cycle(done: (ok: boolean) => void, traceId?: number) {
     const le = lockEdge();
     if (!le || busy) return done(false);
     busy = true;
@@ -273,7 +276,7 @@ export function lockClient(n: SimNode): NodeLogic {
       holding = undefined;
       done(ok);
     };
-    n.rpc(le.to, { kind: 'lock.acquire', data: { resource } }, 1000, r => {
+    n.rpc(le.to, { kind: 'lock.acquire', traceId, data: { resource } }, 1000, r => {
       if (!r.ok) return finish(false);
       const { token, fence } = r.data ?? {};
       holding = { token, fence };
@@ -281,11 +284,11 @@ export function lockClient(n: SimNode): NodeLogic {
         awake(n, () => {
           const se = storeEdge();
           const release = (ok: boolean) => {
-            n.rpc(le.to, { kind: 'lock.release', data: { resource, token } }, 1000, () => {});
+            n.rpc(le.to, { kind: 'lock.release', traceId, data: { resource, token } }, 1000, () => {});
             finish(ok);
           };
           if (!se) return release(true);
-          n.rpc(se.to, { kind: 'fenced.write', op: 'write', data: { resource, token, fence, lock: le.to } }, 1000, w => release(w.ok));
+          n.rpc(se.to, { kind: 'fenced.write', op: 'write', traceId, data: { resource, token, fence, lock: le.to } }, 1000, w => release(w.ok));
         }),
       );
     });
@@ -297,7 +300,7 @@ export function lockClient(n: SimNode): NodeLogic {
       if (every > 0) n.every(every, () => awake(n, () => cycle(() => {})), 0.3);
     },
     onRequest(req: Req) {
-      cycle(ok => req.reply(ok ? { ok: true } : { ok: false, err: 'conflict' }));
+      cycle(ok => req.reply(ok ? { ok: true } : { ok: false, err: 'conflict' }), req.msg.traceId);
     },
     view: () => ({ badges: holding ? [{ text: `🔑${holding.token}`, tone: 'accent' }] : [] }),
   };
