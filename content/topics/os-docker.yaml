@@ -1,0 +1,125 @@
+id: os-docker
+title: Docker in depth
+group: machine
+icon: package
+order: 15
+summary: Builds and the layer cache, multi-stage images, what push and pull move, where -p 8080:80 really goes, which storage survives what, compose networking by name, and what docker stop sends.
+info: Namespaces & containers showed what a container is. This is the tooling around it. A Dockerfile becomes content-addressed layers whose cache keys decide how long builds take; a registry stores those layers by digest under mutable tags; the daemon wires containers with veth pairs, a bridge and iptables; and volumes, not the writable layer, are where state belongs. Tap a box for the commands.
+algos: [os-docker-build, os-docker-runtime]
+lessons:
+  - id: build
+    title: docker build, step by step
+    minutes: 4
+    algo: os-docker-build
+    steps:
+      - title: Context first
+        body: The build directory is tarred and sent to the daemon. .dockerignore keeps it small.
+        input: build
+        check: { metric: manual }
+      - title: Layers from steps
+        body: Each COPY and RUN runs in a throwaway container and its filesystem diff becomes a read-only layer.
+        check: { metric: manual }
+      - title: Config-only instructions
+        body: WORKDIR, ENV, EXPOSE and CMD change the config JSON and add no layer.
+        check: { metric: manual }
+
+  - id: cache
+    title: The layer cache
+    minutes: 5
+    algo: os-docker-build
+    steps:
+      - title: Cache keys
+        body: RUN is keyed on its text and parent layer; COPY on the checksum of the files.
+        input: cache
+        check: { metric: manual }
+      - title: One miss, everything after reruns
+        body: Editing main.go misses at COPY . . and every later step rebuilds.
+        watch: The steps below the miss turn amber.
+        check: { metric: manual }
+      - title: Order matters
+        body: Copy dependency manifests and install before copying source. In CI, export the cache to a registry.
+        check: { metric: manual }
+
+  - id: multistage
+    title: Multi-stage builds
+    minutes: 3
+    algo: os-docker-build
+    steps:
+      - title: Build stage, runtime stage
+        body: Compile in a full toolchain image, then COPY --from into distroless. Only the last stage ships.
+        input: multistage
+        check: { metric: manual }
+      - title: Why it matters
+        body: 900 MB becomes 12 MB, with no shell or package manager to attack or patch.
+        check: { metric: manual }
+
+  - id: registry
+    title: Push, pull, tags and digests
+    minutes: 4
+    algo: os-docker-build
+    steps:
+      - title: Blobs by digest
+        body: push uploads only the layers the registry lacks, then the manifest, then points the tag at it.
+        input: registry
+        check: { metric: manual }
+      - title: Tags move
+        body: latest is a mutable pointer. Deploy by digest; keep tags for humans. One tag can cover several CPU architectures.
+        check: { metric: manual }
+
+  - id: bridge
+    title: "Networking: -p 8080:80"
+    minutes: 5
+    algo: os-docker-runtime
+    steps:
+      - title: veth and bridge
+        body: The container's eth0 is one end of a veth pair; the other end plugs into docker0.
+        input: bridge
+        check: { metric: manual }
+      - title: NAT both ways
+        body: Outbound is MASQUERADEd to the host IP; -p adds a DNAT rule from the host port to the container.
+        check: { metric: manual }
+      - title: Names need a user-defined network
+        body: The default bridge has no DNS. docker network create gives names and an embedded resolver at 127.0.0.11.
+        check: { metric: manual }
+
+  - id: volumes
+    title: Where data lives
+    minutes: 4
+    algo: os-docker-runtime
+    steps:
+      - title: The writable layer dies
+        body: docker rm deletes it, and copy-up makes it slow for databases.
+        input: volumes
+        check: { metric: manual }
+      - title: Volumes, bind mounts, tmpfs
+        body: Named volumes for state, bind mounts for source code in development, tmpfs for secrets and scratch.
+        check: { metric: manual }
+
+  - id: compose
+    title: docker compose
+    minutes: 4
+    algo: os-docker-runtime
+    steps:
+      - title: A network per project
+        body: compose creates proj_default and its volumes, then starts services in depends_on order.
+        input: compose
+        check: { metric: manual }
+      - title: Services by name
+        body: api reaches postgres://db:5432 through the embedded DNS. Only published ports are reachable from the host.
+        check: { metric: manual }
+
+  - id: lifecycle
+    title: Start, stop and exit codes
+    minutes: 4
+    algo: os-docker-runtime
+    steps:
+      - title: create, start, shim
+        body: The containerd-shim stays as the parent, so dockerd can restart without killing your app.
+        input: lifecycle
+        check: { metric: manual }
+      - title: What stop sends
+        body: "SIGTERM to pid 1, ten seconds, then SIGKILL. Exit 143 means handled; 137 means killed or OOM."
+        check: { metric: manual }
+      - title: Be pid 1
+        body: Exec-form ENTRYPOINT or tini so signals reach your app; --restart=unless-stopped for crashes.
+        check: { metric: manual }
