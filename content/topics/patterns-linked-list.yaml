@@ -1,0 +1,76 @@
+id: patterns-linked-list
+title: "Linked list tricks"
+group: patterns
+icon: link
+order: 7
+summary: "Pointer rewiring, fast/slow runners and dummy heads, in O(1) extra space."
+info: "Most list problems reduce to three moves: rewire next pointers carefully (save before you overwrite), run two pointers at different speeds or with a fixed gap, and start from a dummy node so the head is not a special case."
+algos: [lc-linked-list]
+lessons:
+  - id: reverse
+    title: "LC 206 · Reverse Linked List"
+    minutes: 4
+    algo: lc-linked-list
+    steps:
+      - title: "The problem"
+        body: "Reverse a singly linked list."
+        input: "reverse"
+        check: { metric: manual }
+      - title: "The pattern"
+        body: "prev, cur, next: save next, point cur back, advance."
+        watch: "Each arrow flips once."
+        check: { metric: manual }
+      - title: "Cost"
+        body: "O(n) time, O(1) space."
+        check: { metric: manual }
+
+  - id: cycle
+    title: "LC 141 · Linked List Cycle"
+    minutes: 4
+    algo: lc-linked-list
+    steps:
+      - title: "The problem"
+        body: "Does the list loop?"
+        input: "cycle"
+        check: { metric: manual }
+      - title: "The pattern"
+        body: "Slow moves one, fast moves two; in a loop they must meet."
+        watch: "The gap shrinks by one per step inside the loop."
+        check: { metric: manual }
+      - title: "Cost"
+        body: "O(n) time, O(1) space."
+        check: { metric: manual }
+
+  - id: merge-two
+    title: "LC 21 · Merge Two Sorted Lists"
+    minutes: 4
+    algo: lc-linked-list
+    steps:
+      - title: "The problem"
+        body: "Merge two sorted lists."
+        input: "merge"
+        check: { metric: manual }
+      - title: "The pattern"
+        body: "A dummy head and a tail pointer; always take the smaller head."
+        watch: "No special case for the first node."
+        check: { metric: manual }
+      - title: "Cost"
+        body: "O(n + m)."
+        check: { metric: manual }
+
+  - id: nth-from-end
+    title: "LC 19 · Remove Nth Node From End"
+    minutes: 4
+    algo: lc-linked-list
+    steps:
+      - title: "The problem"
+        body: "Remove the n-th node from the end in one pass."
+        input: "nth"
+        check: { metric: manual }
+      - title: "The pattern"
+        body: "Put fast n nodes ahead, then move both until fast ends."
+        watch: "slow stops right before the node to remove."
+        check: { metric: manual }
+      - title: "Cost"
+        body: "One pass, O(1) space."
+        check: { metric: manual }

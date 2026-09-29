@@ -1,0 +1,76 @@
+id: patterns-greedy
+title: "Greedy & intervals"
+group: patterns
+icon: calendar-range
+order: 13
+summary: "Take the locally best choice when an exchange argument proves it safe."
+info: "Greedy algorithms commit to a choice and never revisit it, so they need a proof: usually that swapping any optimal solution’s choice for the greedy one can’t make it worse. Interval problems are the classic case: sort by start to merge, by end to schedule the most."
+algos: [lc-greedy]
+lessons:
+  - id: merge-intervals
+    title: "LC 56 · Merge Intervals"
+    minutes: 4
+    algo: lc-greedy
+    steps:
+      - title: "The problem"
+        body: "Merge overlapping intervals."
+        input: "merge"
+        check: { metric: manual }
+      - title: "The pattern"
+        body: "Sort by start; each interval extends the last merged one or starts a new one."
+        watch: "After sorting, overlaps are only with the last interval."
+        check: { metric: manual }
+      - title: "Cost"
+        body: "O(n log n)."
+        check: { metric: manual }
+
+  - id: non-overlapping
+    title: "LC 435 · Non-overlapping Intervals"
+    minutes: 4
+    algo: lc-greedy
+    steps:
+      - title: "The problem"
+        body: "Fewest removals so no intervals overlap."
+        input: "erase"
+        check: { metric: manual }
+      - title: "The pattern"
+        body: "Sort by end and keep the one that finishes first."
+        watch: "Finishing early leaves the most room."
+        check: { metric: manual }
+      - title: "Cost"
+        body: "O(n log n)."
+        check: { metric: manual }
+
+  - id: jump-game
+    title: "LC 55 · Jump Game"
+    minutes: 4
+    algo: lc-greedy
+    steps:
+      - title: "The problem"
+        body: "Can you reach the last index?"
+        input: "jump"
+        check: { metric: manual }
+      - title: "The pattern"
+        body: "Track the furthest reachable index; fail if you step beyond it."
+        watch: "The reach only grows."
+        check: { metric: manual }
+      - title: "Cost"
+        body: "O(n)."
+        check: { metric: manual }
+
+  - id: meeting-rooms
+    title: "LC 253 · Meeting Rooms II"
+    minutes: 4
+    algo: lc-greedy
+    steps:
+      - title: "The problem"
+        body: "Minimum rooms for all meetings."
+        input: "rooms"
+        check: { metric: manual }
+      - title: "The pattern"
+        body: "Sweep sorted starts and ends: the peak overlap is the answer."
+        watch: "A room is reused whenever the earliest end has passed."
+        check: { metric: manual }
+      - title: "Cost"
+        body: "O(n log n)."
+        check: { metric: manual }

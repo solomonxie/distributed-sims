@@ -1,0 +1,76 @@
+id: patterns-prefix-hash
+title: "Prefix sums & hashing"
+group: patterns
+icon: hash
+order: 4
+summary: "Remember what you have seen, or running totals, to answer range questions in one pass."
+info: "A hash map from value (or prefix sum) to index/count turns \"is there an earlier element that…\" into an O(1) lookup. Prefix sums turn any subarray sum into a difference of two numbers, which also works with negative values where sliding windows fail."
+algos: [lc-prefix-hash]
+lessons:
+  - id: two-sum
+    title: "LC 1 · Two Sum"
+    minutes: 4
+    algo: lc-prefix-hash
+    steps:
+      - title: "The problem"
+        body: "Two indices whose values add to a target."
+        input: "twosum"
+        check: { metric: manual }
+      - title: "The pattern"
+        body: "For each x, look up target − x among values already seen."
+        watch: "The map grows as the scan moves right."
+        check: { metric: manual }
+      - title: "Cost"
+        body: "O(n) time, O(n) space."
+        check: { metric: manual }
+
+  - id: subarray-k
+    title: "LC 560 · Subarray Sum Equals K"
+    minutes: 5
+    algo: lc-prefix-hash
+    steps:
+      - title: "The problem"
+        body: "Count subarrays that sum to k, negatives allowed."
+        input: "subarray"
+        check: { metric: manual }
+      - title: "The pattern"
+        body: "prefix[j] − prefix[i] = k, so count earlier prefixes equal to prefix − k."
+        watch: "The count map starts with {0: 1} for subarrays from the start."
+        check: { metric: manual }
+      - title: "Cost"
+        body: "O(n)."
+        check: { metric: manual }
+
+  - id: product
+    title: "LC 238 · Product of Array Except Self"
+    minutes: 4
+    algo: lc-prefix-hash
+    steps:
+      - title: "The problem"
+        body: "Product of all other elements, without division."
+        input: "product"
+        check: { metric: manual }
+      - title: "The pattern"
+        body: "A left prefix product pass, then a right suffix product pass."
+        watch: "out[i] ends as left[i] × right[i]."
+        check: { metric: manual }
+      - title: "Cost"
+        body: "O(n) time, O(1) extra besides the output."
+        check: { metric: manual }
+
+  - id: anagrams
+    title: "LC 49 · Group Anagrams"
+    minutes: 4
+    algo: lc-prefix-hash
+    steps:
+      - title: "The problem"
+        body: "Group words that are anagrams of each other."
+        input: "anagrams"
+        check: { metric: manual }
+      - title: "The pattern"
+        body: "Map each word to a canonical key: its sorted letters."
+        watch: "Words with the same key land in the same bucket."
+        check: { metric: manual }
+      - title: "Cost"
+        body: "O(n · k log k) for n words of length k."
+        check: { metric: manual }

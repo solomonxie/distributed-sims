@@ -1,0 +1,76 @@
+id: patterns-binary-search
+title: "Binary search"
+group: patterns
+icon: search
+order: 3
+summary: "Halve a sorted range, or a monotonic answer space, every step."
+info: "Binary search works whenever a yes/no question flips exactly once across the range. That covers sorted arrays, rotated arrays (one half is always sorted) and \"search on the answer\" problems where you test a candidate value. Pick one interval convention and stick to it."
+algos: [lc-binary-search]
+lessons:
+  - id: classic
+    title: "LC 704 · Binary Search"
+    minutes: 4
+    algo: lc-binary-search
+    steps:
+      - title: "The problem"
+        body: "Find a target in a sorted array."
+        input: "basic"
+        check: { metric: manual }
+      - title: "The pattern"
+        body: "Closed interval [lo, hi]: compare the middle and discard a half."
+        watch: "The range halves every step."
+        check: { metric: manual }
+      - title: "Cost"
+        body: "O(log n)."
+        check: { metric: manual }
+
+  - id: bounds
+    title: "LC 34 · First and Last Position"
+    minutes: 4
+    algo: lc-binary-search
+    steps:
+      - title: "The problem"
+        body: "First and last index of a target in a sorted array with duplicates."
+        input: "range"
+        check: { metric: manual }
+      - title: "The pattern"
+        body: "Two lower-bound searches: the first index ≥ target, and the first index ≥ target + 1."
+        watch: "Half-open [lo, hi) never needs a special case."
+        check: { metric: manual }
+      - title: "Cost"
+        body: "Two O(log n) searches."
+        check: { metric: manual }
+
+  - id: rotated
+    title: "LC 33 · Search in Rotated Sorted Array"
+    minutes: 4
+    algo: lc-binary-search
+    steps:
+      - title: "The problem"
+        body: "Search a sorted array that was rotated at an unknown pivot."
+        input: "rotated"
+        check: { metric: manual }
+      - title: "The pattern"
+        body: "One half around mid is always sorted; check if the target falls inside it."
+        watch: "The sorted half is identified every step."
+        check: { metric: manual }
+      - title: "Cost"
+        body: "Still O(log n)."
+        check: { metric: manual }
+
+  - id: on-answer
+    title: "LC 875 · Koko Eating Bananas"
+    minutes: 5
+    algo: lc-binary-search
+    steps:
+      - title: "The problem"
+        body: "Slowest eating speed that finishes all piles in h hours."
+        input: "answer"
+        check: { metric: manual }
+      - title: "The pattern"
+        body: "If speed k works, every faster speed works: binary search the speed itself."
+        watch: "The hours row is recomputed for each candidate speed."
+        check: { metric: manual }
+      - title: "Cost"
+        body: "O(n log max) instead of trying every speed."
+        check: { metric: manual }

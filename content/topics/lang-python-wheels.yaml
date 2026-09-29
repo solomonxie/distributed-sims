@@ -1,0 +1,75 @@
+id: py-wheels
+title: "Reinvented wheels"
+group: languages
+language: python
+icon: cog
+order: 7
+summary: "How the libraries you rely on work inside: a Redis rate limiter, gateway authentication, and a WSGI/ASGI web framework."
+info: "Rebuilding a library from scratch is the fastest way to understand it. These lessons follow python-references: a production-style rate limiter (fixed buckets, tiers, scopes, escalation), an auth gateway (bearer, session, JWT, magic link, chain), and the one-callable contract every Python web framework sits on."
+algos: [py-ratelimit, py-auth, py-webframework]
+lessons:
+  - id: rate-limiter
+    title: "A Redis rate limiter"
+    minutes: 5
+    algo: py-ratelimit
+    steps:
+      - title: "Rolling window from buckets"
+        body: "INCR the current 10-second bucket, sum the last six: an approximate 60-second window, one round trip."
+        input: "window"
+        check: { metric: manual }
+      - title: "Weighted and tiered"
+        body: "Expensive endpoints charge more units; the limit is looked up from the plan."
+        input: "tiered"
+        check: { metric: manual }
+      - title: "Who is counted"
+        body: "By user id when logged in, by IP when anonymous; whitelisted callers skip it."
+        input: "scope"
+        check: { metric: manual }
+      - title: "Escalation"
+        body: "Repeat offenders go from a TTL block to a permanent one."
+        input: "escalate"
+        check: { metric: manual }
+
+  - id: auth
+    title: "Authentication in a gateway"
+    minutes: 5
+    algo: py-auth
+    steps:
+      - title: "Opaque bearer tokens"
+        body: "Verified by a remote identity service, cached briefly."
+        input: "bearer"
+        check: { metric: manual }
+      - title: "Sessions"
+        body: "A cookie holds only an id; revocation is one Redis DEL."
+        input: "session"
+        check: { metric: manual }
+      - title: "JWT"
+        body: "Self-contained signed claims: no lookup, harder to revoke."
+        input: "jwt"
+        check: { metric: manual }
+      - title: "Magic links"
+        body: "Single-use via GETDEL; no passwords at all."
+        input: "magic"
+        check: { metric: manual }
+      - title: "Chain them"
+        body: "First authenticator that returns a user wins."
+        input: "chain"
+        check: { metric: manual }
+
+  - id: web-framework
+    title: "A web framework from one callable"
+    minutes: 4
+    algo: py-webframework
+    steps:
+      - title: "WSGI"
+        body: "A framework is app(environ, start_response) plus routing sugar."
+        input: "wsgi"
+        check: { metric: manual }
+      - title: "Middleware"
+        body: "Apps wrapping apps, like layers of an onion."
+        input: "middleware"
+        check: { metric: manual }
+      - title: "ASGI"
+        body: "Coroutines let one worker serve many requests, until something blocks."
+        input: "asgi"
+        check: { metric: manual }

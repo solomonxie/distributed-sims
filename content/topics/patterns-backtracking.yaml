@@ -1,0 +1,76 @@
+id: patterns-backtracking
+title: "Backtracking"
+group: patterns
+icon: undo-2
+order: 11
+summary: "Build a candidate step by step and undo choices that lead nowhere."
+info: "Backtracking is DFS over a tree of partial solutions: choose, explore, un-choose. The art is in the order of choices (to avoid duplicates) and in pruning early, which is what separates an exponential search that finishes from one that does not."
+algos: [lc-backtracking]
+lessons:
+  - id: subsets
+    title: "LC 78 · Subsets"
+    minutes: 4
+    algo: lc-backtracking
+    steps:
+      - title: "The problem"
+        body: "All subsets of distinct numbers."
+        input: "subsets"
+        check: { metric: manual }
+      - title: "The pattern"
+        body: "Every node of the recursion tree is a subset; start the loop at i to avoid repeats."
+        watch: "The tree has 2^n nodes."
+        check: { metric: manual }
+      - title: "Cost"
+        body: "O(n · 2^n)."
+        check: { metric: manual }
+
+  - id: permutations
+    title: "LC 46 · Permutations"
+    minutes: 4
+    algo: lc-backtracking
+    steps:
+      - title: "The problem"
+        body: "All orderings of distinct numbers."
+        input: "perm"
+        check: { metric: manual }
+      - title: "The pattern"
+        body: "Any unused number may come next; leaves at full length are answers."
+        watch: "Used flags are set and unset around each recursive call."
+        check: { metric: manual }
+      - title: "Cost"
+        body: "O(n · n!)."
+        check: { metric: manual }
+
+  - id: combination-sum
+    title: "LC 39 · Combination Sum"
+    minutes: 4
+    algo: lc-backtracking
+    steps:
+      - title: "The problem"
+        body: "Combinations (with reuse) that sum to a target."
+        input: "combo"
+        check: { metric: manual }
+      - title: "The pattern"
+        body: "Pass the remaining target down; stop the loop when a candidate is too big."
+        watch: "Sorting makes the prune a break, not a continue."
+        check: { metric: manual }
+      - title: "Cost"
+        body: "Exponential, but pruning cuts most branches."
+        check: { metric: manual }
+
+  - id: n-queens
+    title: "LC 51 · N-Queens"
+    minutes: 5
+    algo: lc-backtracking
+    steps:
+      - title: "The problem"
+        body: "Place n queens so none attack each other."
+        input: "queens"
+        check: { metric: manual }
+      - title: "The pattern"
+        body: "One queen per row; check column and both diagonals before placing."
+        watch: "Dead ends backtrack to the previous row."
+        check: { metric: manual }
+      - title: "Cost"
+        body: "O(n!) worst case, far less with sets for checks."
+        check: { metric: manual }

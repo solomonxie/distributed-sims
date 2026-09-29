@@ -1,0 +1,76 @@
+id: patterns-design
+title: "Object design"
+group: patterns
+icon: box
+order: 15
+summary: "Compose data structures behind small APIs, and model objects with clear responsibilities."
+info: "Design questions come in two flavours: data-structure design (LRU cache, min stack, O(1) randomized set), where you combine a hash map with a list or array to make every operation O(1); and object-oriented design (parking lot, elevator, vending machine), graded on clear classes, responsibilities and extension points."
+algos: [lc-design]
+lessons:
+  - id: lru
+    title: "LC 146 · LRU Cache"
+    minutes: 5
+    algo: lc-design
+    steps:
+      - title: "The problem"
+        body: "get and put in O(1) with least-recently-used eviction."
+        input: "lru"
+        check: { metric: manual }
+      - title: "The pattern"
+        body: "A hash map to find nodes plus a doubly linked list for recency."
+        watch: "Every access moves a node to the front; eviction takes the tail."
+        check: { metric: manual }
+      - title: "Cost"
+        body: "O(1) per operation."
+        check: { metric: manual }
+
+  - id: min-stack
+    title: "LC 155 · Min Stack"
+    minutes: 4
+    algo: lc-design
+    steps:
+      - title: "The problem"
+        body: "A stack with O(1) getMin."
+        input: "minstack"
+        check: { metric: manual }
+      - title: "The pattern"
+        body: "Store the minimum so far alongside every pushed value."
+        watch: "Popping removes the value and its minimum together."
+        check: { metric: manual }
+      - title: "Cost"
+        body: "O(1) per operation, O(n) space."
+        check: { metric: manual }
+
+  - id: randomized-set
+    title: "LC 380 · Insert Delete GetRandom O(1)"
+    minutes: 4
+    algo: lc-design
+    steps:
+      - title: "The problem"
+        body: "A set with O(1) insert, delete and random pick."
+        input: "randset"
+        check: { metric: manual }
+      - title: "The pattern"
+        body: "An array for random access plus a value→index map; delete by swapping with the last."
+        watch: "The array stays dense so random.choice works."
+        check: { metric: manual }
+      - title: "Cost"
+        body: "O(1) average per operation."
+        check: { metric: manual }
+
+  - id: parking-lot
+    title: "OOD · Parking Lot"
+    minutes: 5
+    algo: lc-design
+    steps:
+      - title: "The problem"
+        body: "Design a parking lot system."
+        input: "parking"
+        check: { metric: manual }
+      - title: "The pattern"
+        body: "Nouns become classes, verbs become methods; composition for has-a."
+        watch: "park() walks levels for a fitting spot and issues a ticket."
+        check: { metric: manual }
+      - title: "Cost"
+        body: "Graded on responsibilities and extensibility, not class count."
+        check: { metric: manual }

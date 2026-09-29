@@ -1,0 +1,76 @@
+id: patterns-trees
+title: "Trees: BFS & DFS"
+group: patterns
+icon: git-branch
+order: 8
+summary: "Level order with a queue, and recursive DFS that passes bounds down or answers up."
+info: "Pick BFS when the question is about levels or shortest distance, DFS otherwise. In DFS, decide whether information flows down (pre-order, like BST bounds) or up (post-order, like depth or subtree sums). Most tree problems are a ten-line recursion once that is clear."
+algos: [lc-trees]
+lessons:
+  - id: level-order
+    title: "LC 102 · Level Order Traversal"
+    minutes: 4
+    algo: lc-trees
+    steps:
+      - title: "The problem"
+        body: "Values of a binary tree, level by level."
+        input: "level"
+        check: { metric: manual }
+      - title: "The pattern"
+        body: "BFS where the queue length at the start of a round is the level size."
+        watch: "Each level is processed as one batch."
+        check: { metric: manual }
+      - title: "Cost"
+        body: "O(n)."
+        check: { metric: manual }
+
+  - id: max-depth
+    title: "LC 104 · Maximum Depth"
+    minutes: 4
+    algo: lc-trees
+    steps:
+      - title: "The problem"
+        body: "Height of a binary tree."
+        input: "depth"
+        check: { metric: manual }
+      - title: "The pattern"
+        body: "Post-order DFS: 1 + max of the children."
+        watch: "Answers flow up from the leaves."
+        check: { metric: manual }
+      - title: "Cost"
+        body: "O(n), recursion depth O(h)."
+        check: { metric: manual }
+
+  - id: valid-bst
+    title: "LC 98 · Validate Binary Search Tree"
+    minutes: 4
+    algo: lc-trees
+    steps:
+      - title: "The problem"
+        body: "Is this a valid BST?"
+        input: "bst"
+        check: { metric: manual }
+      - title: "The pattern"
+        body: "Pass (low, high) bounds down; every node must respect all ancestors."
+        watch: "A parent-child check alone would miss deeper violations."
+        check: { metric: manual }
+      - title: "Cost"
+        body: "O(n)."
+        check: { metric: manual }
+
+  - id: lca
+    title: "LC 236 · Lowest Common Ancestor"
+    minutes: 5
+    algo: lc-trees
+    steps:
+      - title: "The problem"
+        body: "Lowest node with both p and q below it."
+        input: "lca"
+        check: { metric: manual }
+      - title: "The pattern"
+        body: "Return found nodes upward; a node receiving both is the LCA."
+        watch: "Hits bubble up until they meet."
+        check: { metric: manual }
+      - title: "Cost"
+        body: "O(n)."
+        check: { metric: manual }

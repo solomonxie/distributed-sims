@@ -740,3 +740,246 @@ boardDemo(
   PIP_DETAILS,
 );
 
+
+// ---------------- reinvented wheels: rate limiter, auth, web framework ----------------
+/** Fixed-bucket rolling window (python-references/rate-limit/01): per-bucket counters summed over the window. */
+export function windowCount(hits: number[], bucketSec: number, windowSec: number, now: number) {
+  const buckets = new Map<number, number>();
+  for (const t of hits) buckets.set(Math.floor(t / bucketSec), (buckets.get(Math.floor(t / bucketSec)) ?? 0) + 1);
+  const cur = Math.floor(now / bucketSec);
+  const n = Math.ceil(windowSec / bucketSec);
+  let total = 0;
+  for (let b = cur - n + 1; b <= cur; b++) total += buckets.get(b) ?? 0;
+  return total;
+}
+
+const RL_DETAILS: Record<string, Detail> = {
+  client: D('Caller', 'Identified by user id when logged in, by IP when anonymous.', 'curl -H "Authorization: Bearer $T" \\\n  https://api.example.com/search'),
+  'rule chain': D('Rule chain middleware', 'Checks run in order and each returns ALLOW, REJECT or CONTINUE. Cheap checks (whitelist) go first.', 'async def rate_limit(req, call_next):\n    for rule in (whitelist, blacklist, frequency):\n        verdict = await rule(req)\n        if verdict == ALLOW: break\n        if verdict == REJECT:\n            return JSONResponse(status_code=429)\n    return await call_next(req)'),
+  whitelist: D('Whitelist', 'Trusted callers (internal services, partners) bypass the limiter entirely.', 'if req.client.host in TRUSTED_IPS:\n    return ALLOW'),
+  blacklist: D('Blacklist', 'A key in Redis with a TTL is a temporary block; no TTL means permanent.', 'if r.exists(f"block:{scope}"):\n    return REJECT'),
+  'Redis buckets': D('Fixed buckets in Redis', 'One INCR per request on the current bucket key, which auto-expires. The window total is the sum of the last few buckets.', 'bucket = int(time.time()) // BUCKET\nkey = f"rl:{scope}:{bucket}"\npipe = r.pipeline()\npipe.incrby(key, cost)\npipe.expire(key, WINDOW + BUCKET)\npipe.execute()\nkeys = [f"rl:{scope}:{bucket - i}" for i in range(N)]\ntotal = sum(int(v or 0) for v in r.mget(keys))'),
+  handler: D('The endpoint', 'Only reached when every rule allowed or continued.', '@app.get("/search")\nasync def search(q: str):\n    return {"results": find(q)}'),
+};
+const RL_NODES = [
+  N('cl', 40, 60, 280, 110, 'client', 'user 42 / 1.2.3.4'),
+  N('mw', 360, 60, 280, 110, 'rule chain', 'ALLOW · REJECT · CONTINUE'),
+  N('wl', 40, 300, 280, 110, 'whitelist'),
+  N('bl', 360, 300, 280, 110, 'blacklist'),
+  N('rd', 680, 300, 280, 110, 'Redis buckets', 'rl:user42:…'),
+  N('h', 680, 60, 280, 110, 'handler', '/search'),
+];
+const RL_EDGES = ['cl>mw', 'mw>wl', 'mw>bl', 'mw>rd', 'mw>h'];
+boardDemo(
+  G,
+  'py-ratelimit',
+  'Build a rate limiter',
+  'The mechanisms of a production Redis-backed limiter: fixed-bucket rolling windows, weighted and tiered quotas, user vs IP scope, blacklist escalation.',
+  {
+    window: ['Rolling window', { panel: 'Limiter', nodes: RL_NODES, edges: RL_EDGES, beats: [
+      { note: 'Each request runs through a chain of rules before the handler.', hot: { cl: 'current', 'cl>mw': 'accent' }, rows: [['limit', '100 / 60 s']] },
+      { note: 'Six 10-second buckets make a 60-second window. The request INCRs the current bucket, which expires on its own.', hot: { rd: 'current', 'mw>rd': 'accent' }, sub: { rd: 'INCR rl:u42:172 → 37' }, rows: [['buckets', '12 · 20 · 9 · 14 · 8 · 37'], ['window total', 100]] },
+      { note: 'The window total is the sum of the last six buckets: 100, right at the limit.', hot: { rd: 'warn' }, sub: { rd: 'MGET 6 keys → 100' }, rows: [['window total', 100, 'warn']] },
+      { note: 'One more is 101 > 100: REJECT with 429 and a Retry-After header.', hot: { mw: 'fail', 'mw>h': 'fail' }, sub: { mw: '429 Too Many Requests' }, rows: [['verdict', 'REJECT', 'fail']] },
+      { note: 'Buckets approximate a true sliding window: cheap and good enough for abuse control, off by at most one bucket at the edges.', hot: { rd: 'ok' }, rows: [['cost', '1 INCR + 1 MGET']] },
+    ] }],
+    tiered: ['Weighted & tiered', { panel: 'Limiter', nodes: RL_NODES, edges: RL_EDGES, beats: [
+      { note: 'Not every request costs the same: an export charges 10 units, a lookup 1.', hot: { cl: 'current' }, sub: { cl: 'GET /export (cost 10)' }, rows: [['cost', 10]] },
+      { note: 'INCRBY adds the cost to the bucket instead of 1.', hot: { rd: 'current', 'mw>rd': 'accent' }, sub: { rd: 'INCRBY … 10' }, rows: [['window total', 95]] },
+      { note: 'The threshold depends on the plan: free 100, pro 1000, enterprise 10000 per window.', hot: { mw: 'current' }, sub: { mw: 'tier = pro → 1000' }, rows: [['free', 100], ['pro', 1000, 'ok'], ['enterprise', 10000]] },
+      { note: 'Same counters, different limits: tiers are a lookup, not separate limiters.', hot: { h: 'ok', 'mw>h': 'ok' }, rows: [['verdict', 'ALLOW', 'ok']] },
+    ] }],
+    scope: ['User vs IP scope', { panel: 'Limiter', nodes: RL_NODES, edges: RL_EDGES, beats: [
+      { note: 'Logged-in callers are counted by user id, so one user on many IPs shares one budget.', hot: { cl: 'current', rd: 'read' }, sub: { rd: 'rl:user42:…' }, rows: [['scope', 'user']] },
+      { note: 'Anonymous callers are counted by IP, so a whole office NAT shares one budget.', hot: { cl: 'warn', rd: 'read' }, sub: { cl: 'anonymous 1.2.3.4', rd: 'rl:ip1.2.3.4:…' }, rows: [['scope', 'ip', 'warn']] },
+      { note: 'Trusted callers match the whitelist first and skip counting entirely.', hot: { wl: 'ok', 'mw>wl': 'ok' }, sub: { cl: 'internal 10.0.0.7' }, rows: [['verdict', 'ALLOW (whitelist)', 'ok']] },
+    ] }],
+    escalate: ['Blacklist escalation', { panel: 'Limiter', nodes: RL_NODES, edges: RL_EDGES, beats: [
+      { note: 'A caller over the limit gets a short temporary block: SET block:ip EX 300.', hot: { bl: 'warn', 'mw>bl': 'accent' }, sub: { bl: 'block:1.2.3.4 (5 min)' }, rows: [['strikes', 1]] },
+      { note: 'While the key exists, the blacklist rule rejects before any counting happens.', hot: { bl: 'fail', mw: 'fail' }, rows: [['verdict', 'REJECT', 'fail']] },
+      { note: 'Each new strike is counted too; after three, the block is set with no TTL.', hot: { bl: 'fail' }, sub: { bl: 'block:1.2.3.4 (permanent)' }, rows: [['strikes', 3, 'fail']] },
+      { note: 'Escalation separates bursts from abuse without human review of every spike.', hot: { bl: 'ok' }, rows: [['levels', 'temp → permanent']] },
+    ] }],
+  },
+  RL_DETAILS,
+);
+
+const AUTH_DETAILS: Record<string, Detail> = {
+  request: D('Incoming request', 'Carries a credential somewhere: an Authorization header, a cookie, a link token, or just its source IP.', 'GET /me\nAuthorization: Bearer 9f2c…\nCookie: sid=a81b…'),
+  gateway: D('Auth chain', 'Try each authenticator in order; the first that returns a user wins, else 401.', 'AUTHENTICATORS = [ip_whitelist, bearer, session, jwt_auth]\nasync def authenticate(req):\n    for auth in AUTHENTICATORS:\n        user = await auth(req)\n        if user:\n            return user\n    raise HTTPException(401)'),
+  'auth service': D('Remote verify', 'Opaque tokens mean nothing on their own: ask the identity service, and cache the answer briefly.', 'cache = TTLCache(maxsize=10_000, ttl=60)\ndef verify(token):\n    if token in cache:\n        return cache[token]\n    user = httpx.get(AUTH_URL, headers={\n        "Authorization": f"Bearer {token}"}).json()\n    cache[token] = user\n    return user'),
+  'Redis sessions': D('Server-side sessions', 'The cookie is only an id; the data lives in Redis, so logout is one DEL.', 'sid = secrets.token_urlsafe(32)\nr.setex(f"session:{sid}", 86400, user_id)\nresp.set_cookie("sid", sid, httponly=True,\n                secure=True, samesite="lax")'),
+  JWT: D('JSON Web Token', 'header.payload.signature: the claims travel inside the token and the signature proves nobody changed them. No lookup, but no easy revoke either.', 'token = jwt.encode({"sub": "42",\n    "exp": time() + 900}, SECRET, "HS256")\nclaims = jwt.decode(token, SECRET,\n    algorithms=["HS256"])'),
+  handler: D('Protected endpoint', 'Receives an authenticated user or never runs.', '@app.get("/me")\nasync def me(user = Depends(authenticate)):\n    return user'),
+};
+const AUTH_NODES = [
+  N('req', 40, 60, 280, 110, 'request'),
+  N('gw', 360, 60, 280, 110, 'gateway', 'auth chain'),
+  N('h', 680, 60, 280, 110, 'handler', '/me'),
+  N('as', 40, 320, 280, 110, 'auth service', 'token → user'),
+  N('rs', 360, 320, 280, 110, 'Redis sessions', 'session:<sid>'),
+  N('jw', 680, 320, 280, 110, 'JWT', 'signed claims'),
+];
+const AUTH_EDGES = ['req>gw', 'gw>h', 'gw>as', 'gw>rs', 'gw>jw'];
+boardDemo(
+  G,
+  'py-auth',
+  'Build authentication',
+  'Bearer tokens verified remotely with a cache, server-side sessions, JWTs, magic links and an auth chain, as in a real API gateway.',
+  {
+    bearer: ['Bearer + remote verify', { panel: 'Auth', nodes: AUTH_NODES, edges: AUTH_EDGES, beats: [
+      { note: 'The request carries an opaque bearer token.', hot: { req: 'current', 'req>gw': 'accent' }, sub: { req: 'Bearer 9f2c…' } },
+      { note: 'The gateway asks the identity service who owns it.', hot: { as: 'current', 'gw>as': 'accent' }, rows: [['round trip', '~20 ms']] },
+      { note: 'The answer is cached for 60 seconds, so the next requests skip the round trip.', hot: { as: 'ok', gw: 'current' }, sub: { gw: 'cache hit' }, rows: [['cache ttl', '60 s', 'ok']] },
+      { note: 'Tradeoff: a revoked token keeps working until its cache entry expires.', hot: { h: 'ok', 'gw>h': 'ok' }, rows: [['revocation delay', '≤ 60 s', 'warn']] },
+    ] }],
+    session: ['Session cookie', { panel: 'Auth', nodes: AUTH_NODES, edges: AUTH_EDGES, beats: [
+      { note: 'Login stores the user under a random session id in Redis and sets it as an HttpOnly cookie.', hot: { rs: 'write', 'gw>rs': 'accent' }, sub: { rs: 'SETEX session:a81b 86400' } },
+      { note: 'Every request looks the id up: one GET per request.', hot: { rs: 'current', req: 'current' }, sub: { req: 'Cookie: sid=a81b…' } },
+      { note: 'Logout or a compromised account is one DEL, effective immediately.', hot: { rs: 'ok' }, sub: { rs: 'DEL session:a81b' }, rows: [['revocation', 'instant', 'ok']] },
+    ] }],
+    jwt: ['JWT', { panel: 'Auth', nodes: AUTH_NODES, edges: AUTH_EDGES, beats: [
+      { note: 'The token holds its own claims (sub, exp) and an HMAC or RSA signature.', hot: { jw: 'current', 'gw>jw': 'accent' }, sub: { req: 'Bearer eyJhbGci…' } },
+      { note: 'Verification is local: check the signature and expiry, no network call.', hot: { gw: 'ok' }, rows: [['lookups', 0, 'ok']] },
+      { note: 'The catch is revocation: keep tokens short-lived and refresh them, or keep a denylist.', hot: { jw: 'warn' }, rows: [['exp', '15 min', 'warn']] },
+    ] }],
+    magic: ['Magic link', { panel: 'Auth', nodes: AUTH_NODES, edges: AUTH_EDGES, beats: [
+      { note: 'The user enters an email; the server stores a random token with a 15 minute TTL and mails a link.', hot: { rs: 'write' }, sub: { rs: 'SETEX magic:tok 900' } },
+      { note: 'Clicking the link does GETDEL: the token works exactly once, even if clicked twice.', hot: { rs: 'current', req: 'current' }, sub: { rs: 'GETDEL magic:tok' } },
+      { note: 'Then a normal session is created. No password ever exists to leak.', hot: { rs: 'ok', h: 'ok' }, rows: [['passwords stored', 0, 'ok']] },
+    ] }],
+    chain: ['Auth chain', { panel: 'Auth', nodes: AUTH_NODES, edges: AUTH_EDGES, beats: [
+      { note: 'The gateway tries IP whitelist, bearer, session, then JWT, in order.', hot: { gw: 'current' }, sub: { gw: 'ip → bearer → session → jwt' } },
+      { note: 'No bearer header, so the bearer authenticator returns None and the chain continues.', hot: { as: 'visited' } },
+      { note: 'The session cookie resolves to user 42: the chain stops at the first success.', hot: { rs: 'ok', 'gw>rs': 'ok', h: 'ok', 'gw>h': 'ok' }, rows: [['user', 42, 'ok']] },
+      { note: 'Adding a new method is one more function in the list; the handlers never change.', hot: { gw: 'ok' } },
+    ] }],
+  },
+  AUTH_DETAILS,
+);
+
+const WEB_DETAILS: Record<string, Detail> = {
+  'server (gunicorn)': D('WSGI server', 'Owns sockets and worker processes; calls the app once per request.', 'gunicorn -w 4 app:app\n# uvicorn app:app  (ASGI)'),
+  'app(environ, start_response)': D('The WSGI contract', 'A framework is, at bottom, one callable. Everything else is sugar on top.', 'def app(environ, start_response):\n    status = "200 OK"\n    start_response(status, [("Content-Type", "text/plain")])\n    return [b"hello"]'),
+  router: D('Router', 'Maps method + path to a handler, extracting path parameters.', 'routes = {}\ndef route(path):\n    def deco(fn):\n        routes[path] = fn\n        return fn\n    return deco\n\n@route("/hello")\ndef hello(req): return "hi"'),
+  middleware: D('Middleware', 'An app that wraps another app: runs code before and after it.', 'def timing(app):\n    def wrapped(environ, start_response):\n        t = time.perf_counter()\n        res = app(environ, start_response)\n        log(time.perf_counter() - t)\n        return res\n    return wrapped'),
+  handler: D('Handler', 'Your function: request in, response out.', '@app.get("/items/{id}")\nasync def get_item(id: int):\n    return {"id": id}'),
+  'event loop': D('ASGI and the event loop', 'ASGI apps are coroutines, so one worker interleaves many requests while they await I/O.', 'async def app(scope, receive, send):\n    await send({"type": "http.response.start",\n                "status": 200, "headers": []})\n    await send({"type": "http.response.body",\n                "body": b"hello"})'),
+};
+const WEB_NODES = [
+  N('srv', 40, 60, 280, 110, 'server (gunicorn)', 'sockets, workers'),
+  N('app', 360, 60, 600, 110, 'app(environ, start_response)', 'the one callable'),
+  N('mw', 360, 260, 280, 110, 'middleware', 'wraps the app'),
+  N('rt', 680, 260, 280, 110, 'router', 'path → function'),
+  N('h', 680, 460, 280, 110, 'handler'),
+  N('ev', 40, 460, 280, 110, 'event loop', 'ASGI'),
+];
+const WEB_EDGES = ['srv>app', 'app>mw', 'mw>rt', 'rt>h'];
+boardDemo(
+  G,
+  'py-webframework',
+  'How a web framework works',
+  'WSGI and ASGI: a server calls one app callable; middleware wraps it, a router dispatches to your handler.',
+  {
+    wsgi: ['WSGI call', { panel: 'Framework', nodes: WEB_NODES, edges: WEB_EDGES, beats: [
+      { note: 'The server parses HTTP into an environ dict and calls the app.', hot: { srv: 'current', 'srv>app': 'accent' }, hide: ['ev'] },
+      { note: 'The router matches PATH_INFO and method to a registered function.', hot: { rt: 'current', 'mw>rt': 'accent' }, hide: ['ev'], sub: { rt: 'GET /items/7 → get_item' } },
+      { note: 'The handler returns data; the framework turns it into status, headers and body bytes.', hot: { h: 'ok', 'rt>h': 'ok' }, hide: ['ev'], rows: [['status', '200 OK', 'ok']] },
+    ] }],
+    middleware: ['Middleware', { panel: 'Framework', nodes: WEB_NODES, edges: WEB_EDGES, beats: [
+      { note: 'Middleware is an app wrapping an app: code before the call, code after it.', hot: { mw: 'current', 'app>mw': 'accent' }, hide: ['ev'] },
+      { note: 'Stacked middleware forms an onion: auth, then rate limit, then timing, then the router.', hot: { mw: 'current' }, sub: { mw: 'auth ▸ limit ▸ timing' }, hide: ['ev'] },
+      { note: 'On the way out each layer can edit the response, like adding headers.', hot: { mw: 'ok' }, sub: { mw: '+ X-Response-Time' }, hide: ['ev'] },
+    ] }],
+    asgi: ['ASGI & async', { panel: 'Framework', nodes: WEB_NODES, edges: [...WEB_EDGES, 'ev>app'], beats: [
+      { note: 'ASGI apps are coroutines: async def app(scope, receive, send).', hot: { ev: 'current', 'ev>app': 'accent' } },
+      { note: 'While one request awaits the database, the loop runs others on the same thread.', hot: { ev: 'ok', h: 'current' }, sub: { h: 'await db.fetch()' }, rows: [['requests in flight', 200]] },
+      { note: 'One blocking call (time.sleep, a sync driver) stalls every request on that worker.', hot: { ev: 'fail' }, sub: { h: 'requests.get() blocks' }, rows: [['in flight', 'all stalled', 'fail']] },
+    ] }],
+  },
+  WEB_DETAILS,
+);
+
+// ---------------- RabbitMQ & OpenTelemetry from Python ----------------
+const MQ_DETAILS: Record<string, Detail> = {
+  producer: D('Producer (pika)', 'Publishes a task message and records its status as QUEUED.', 'ch = pika.BlockingConnection(params).channel()\nch.queue_declare("tasks", durable=True)\nch.basic_publish(exchange="", routing_key="tasks",\n    body=json.dumps(task),\n    properties=pika.BasicProperties(delivery_mode=2))'),
+  exchange: D('Exchange', 'Routes messages to queues by binding rules. The default exchange routes by queue name.', 'ch.exchange_declare("orders", "topic")\nch.queue_bind("emails", "orders", "order.*")'),
+  'queue: tasks': D('Durable queue', 'Stores messages until a consumer acks them. Durable + persistent survives a broker restart.', 'ch.queue_declare("tasks", durable=True,\n    arguments={"x-message-ttl": 600_000,\n               "x-dead-letter-exchange": "dlx"})'),
+  worker: D('Consumer', 'Processes one message, then acks. prefetch_count limits unacked messages per worker.', 'ch.basic_qos(prefetch_count=1)\ndef on_msg(ch, method, props, body):\n    process(json.loads(body))\n    ch.basic_ack(method.delivery_tag)\nch.basic_consume("tasks", on_msg)\nch.start_consuming()'),
+  'Redis status': D('Task status', 'QUEUED → WIP → DONE / FAILED, with a TTL, so callers can poll progress.', 'r.setex(f"task:{tid}", 86400, "WIP")'),
+  'dead letters': D('Dead-letter queue', 'Rejected or expired messages go here instead of vanishing.', 'ch.basic_nack(tag, requeue=False)  # → DLX'),
+};
+const MQ_NODES = [
+  N('p', 40, 80, 280, 110, 'producer', 'basic_publish'),
+  N('x', 360, 80, 280, 110, 'exchange', 'default'),
+  N('q', 680, 80, 280, 110, 'queue: tasks', 'durable'),
+  N('w', 680, 340, 280, 110, 'worker', 'prefetch 1'),
+  N('r', 360, 340, 280, 110, 'Redis status'),
+  N('d', 680, 600, 280, 110, 'dead letters'),
+];
+const MQ_EDGES = ['p>x', 'x>q', 'q>w', 'w>r', 'p>r', 'q>d'];
+boardDemo(
+  G,
+  'py-rabbitmq',
+  'RabbitMQ from Python',
+  'Publish with pika, consume with manual acks and prefetch, track status in Redis, dead-letter failures.',
+  {
+    publish: ['Publish & consume', { panel: 'Queue', nodes: MQ_NODES, edges: MQ_EDGES, beats: [
+      { note: 'The producer publishes a persistent message and marks the task QUEUED.', hot: { p: 'current', 'p>x': 'accent', 'p>r': 'accent' }, sub: { r: 'task:17 = QUEUED' }, hide: ['d'] },
+      { note: 'The default exchange routes by name into the durable tasks queue.', hot: { x: 'current', q: 'write', 'x>q': 'accent' }, sub: { q: '1 ready' }, hide: ['d'] },
+      { note: 'A worker receives it and marks it WIP.', hot: { w: 'current', 'q>w': 'accent' }, sub: { q: '1 unacked', r: 'task:17 = WIP' }, hide: ['d'] },
+      { note: 'After processing, basic_ack removes it from the queue for good.', hot: { w: 'ok', q: 'ok', r: 'ok' }, sub: { q: '0 ready', r: 'task:17 = DONE' }, hide: ['d'], rows: [['delivery', 'at least once', 'ok']] },
+    ] }],
+    ack: ['Crash before ack', { panel: 'Queue', nodes: MQ_NODES, edges: MQ_EDGES, beats: [
+      { note: 'A worker takes the message but crashes before acking.', hot: { w: 'fail' }, sub: { q: '1 unacked' }, hide: ['d'] },
+      { note: 'The broker sees the channel close and requeues the message.', hot: { q: 'warn' }, sub: { q: '1 ready (redelivered)' }, hide: ['d'] },
+      { note: 'Another worker processes it again, so handlers must be idempotent.', hot: { w: 'ok' }, sub: { w: 'worker 2' }, hide: ['d'], rows: [['duplicates', 'possible', 'warn']] },
+    ] }],
+    prefetch: ['Prefetch & DLX', { panel: 'Queue', nodes: MQ_NODES, edges: MQ_EDGES, beats: [
+      { note: 'prefetch_count=1: a worker gets a new message only after acking the last, so slow tasks don’t pile up on one worker.', hot: { w: 'current' }, rows: [['prefetch', 1]] },
+      { note: 'A poison message fails every time; nack with requeue=False sends it to the dead-letter exchange.', hot: { d: 'warn', 'q>d': 'accent' }, sub: { d: '1 message' }, rows: [['retries', 3]] },
+      { note: 'Messages older than the queue TTL expire there too, and the status key says FAILED or EXPIRED.', hot: { d: 'ok', r: 'current' }, sub: { r: 'task:23 = EXPIRED' } },
+    ] }],
+  },
+  MQ_DETAILS,
+);
+
+const OT_DETAILS: Record<string, Detail> = {
+  'Flask app': D('Instrumented app', 'Auto-instrumentation creates a server span per request; you add custom spans and metrics.', 'tracer = trace.get_tracer("diceroller")\nmeter = metrics.get_meter("diceroller")\nrolls = meter.create_counter("dice.rolls")\n\n@app.route("/rolldice")\ndef roll():\n    with tracer.start_as_current_span("roll") as sp:\n        v = randint(1, 6)\n        sp.set_attribute("roll.value", v)\n        rolls.add(1, {"roll.value": v})\n        return str(v)'),
+  'downstream API': D('Context propagation', 'The outgoing request carries a traceparent header, so the next service joins the same trace.', 'traceparent: 00-4bf92f35…-00f067aa…-01\n#            version-trace_id-parent_span-flags'),
+  'OTLP exporter': D('Exporter', 'Batches spans and metrics and ships them over OTLP (gRPC or HTTP).', 'opentelemetry-instrument \\\n  --traces_exporter otlp \\\n  --metrics_exporter otlp \\\n  flask --app app run'),
+  collector: D('OpenTelemetry Collector', 'Receives, batches, samples and forwards to any backend.', 'receivers: { otlp: { protocols: { grpc: {} } } }\nexporters: { otlp/jaeger: { endpoint: jaeger:4317 } }\nservice:\n  pipelines:\n    traces: { receivers: [otlp],\n              exporters: [otlp/jaeger] }'),
+  'Jaeger / Grafana': D('Backends', 'Where you search traces and chart metrics.', '# Jaeger UI: http://localhost:16686'),
+};
+const OT_NODES = [
+  N('app', 40, 80, 280, 120, 'Flask app', 'spans + counter'),
+  N('api', 40, 360, 280, 110, 'downstream API'),
+  N('ex', 360, 80, 280, 120, 'OTLP exporter', 'batch'),
+  N('col', 680, 80, 280, 120, 'collector'),
+  N('be', 680, 360, 280, 110, 'Jaeger / Grafana'),
+];
+const OT_EDGES = ['app>api', 'app>ex', 'ex>col', 'col>be'];
+boardDemo(
+  G,
+  'py-otel',
+  'OpenTelemetry in Python',
+  'Spans and metrics from a Flask app, trace context propagated to downstream calls, exported via OTLP to a collector.',
+  {
+    spans: ['Spans & metrics', { panel: 'Telemetry', nodes: OT_NODES, edges: OT_EDGES, beats: [
+      { note: 'A request arrives; auto-instrumentation opens a server span GET /rolldice.', hot: { app: 'current' }, sub: { app: 'span: GET /rolldice' } },
+      { note: 'Your code opens a child span roll and sets roll.value as an attribute.', hot: { app: 'write' }, sub: { app: 'span: roll (child)' }, rows: [['spans', 2]] },
+      { note: 'The counter dice.rolls increments with the value as a label.', hot: { app: 'ok' }, sub: { app: 'dice.rolls +1' }, rows: [['metrics', 'dice.rolls']] },
+    ] }],
+    propagate: ['Propagation', { panel: 'Telemetry', nodes: OT_NODES, edges: OT_EDGES, beats: [
+      { note: 'The app calls another service; the instrumented HTTP client injects a traceparent header.', hot: { app: 'current', 'app>api': 'accent' }, sub: { api: 'traceparent: 00-4bf9…' } },
+      { note: 'The downstream service extracts it and its spans join the same trace id.', hot: { api: 'ok' }, sub: { api: 'same trace_id' }, rows: [['trace', 'one, across services', 'ok']] },
+      { note: 'Without propagation you get two unrelated traces and no end-to-end view.', hot: { api: 'warn' } },
+    ] }],
+    export: ['Export pipeline', { panel: 'Telemetry', nodes: OT_NODES, edges: OT_EDGES, beats: [
+      { note: 'Spans are buffered and exported in batches, off the request path.', hot: { ex: 'current', 'app>ex': 'accent' }, rows: [['batch', '512 spans / 5 s']] },
+      { note: 'The collector can sample (keep errors and slow traces) before forwarding.', hot: { col: 'current', 'ex>col': 'accent' }, sub: { col: 'tail sampling' } },
+      { note: 'Backends store and query: Jaeger for traces, Prometheus/Grafana for metrics.', hot: { be: 'ok', 'col>be': 'ok' } },
+    ] }],
+  },
+  OT_DETAILS,
+);

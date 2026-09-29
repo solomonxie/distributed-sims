@@ -417,3 +417,34 @@ demo('go-modules', 'Modules & dependencies', 'go.mod requirements, minimal versi
     },
   ],
 });
+
+// ---------------- net/http server internals (go-references/hello-http) ----------------
+const HTTP_NODES = [
+  N('ln', 40, 60, 280, 110, 'net.Listener', ':8080', { detail: D('Listener', 'ListenAndServe opens a TCP listener and loops on Accept.', 'srv := &http.Server{Addr: ":8080", Handler: mux}\nlog.Fatal(srv.ListenAndServe())') }),
+  N('acc', 360, 60, 280, 110, 'accept loop', 'srv.Serve', { detail: D('Serve loop', 'For every accepted connection, net/http starts a goroutine. Goroutines are cheap, so this simple model scales far.', '// inside net/http, simplified\nfor {\n    rw, err := l.Accept()\n    if err != nil { return err }\n    c := srv.newConn(rw)\n    go c.serve(ctx)\n}') }),
+  N('g1', 680, 60, 280, 110, 'goroutine per conn', 'c.serve', { detail: D('Connection goroutine', 'Reads requests off one connection (keep-alive), calls the handler for each, writes responses.', 'func (c *conn) serve(ctx context.Context) {\n    for {\n        w, err := c.readRequest(ctx)\n        if err != nil { return }\n        serverHandler{c.server}.ServeHTTP(w, w.req)\n    }\n}') }),
+  N('mw', 360, 300, 280, 110, 'middleware', 'logging(next)', { detail: D('Middleware', 'A Handler that wraps a Handler. No framework needed.', 'func logging(next http.Handler) http.Handler {\n    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {\n        start := time.Now()\n        next.ServeHTTP(w, r)\n        log.Printf("%s %s %v", r.Method, r.URL.Path,\n            time.Since(start))\n    })\n}') }),
+  N('mux', 680, 300, 280, 110, 'ServeMux', 'pattern → handler', { detail: D('ServeMux', 'Go 1.22 patterns include the method and path wildcards.', 'mux := http.NewServeMux()\nmux.HandleFunc("GET /items/{id}", getItem)\n\nfunc getItem(w http.ResponseWriter, r *http.Request) {\n    id := r.PathValue("id")\n    json.NewEncoder(w).Encode(map[string]string{"id": id})\n}') }),
+  N('h', 680, 540, 280, 110, 'handler', 'ServeHTTP(w, r)', { detail: D('Handler', 'Anything with ServeHTTP(ResponseWriter, *Request). Write the header before the body.', 'w.Header().Set("Content-Type", "application/json")\nw.WriteHeader(http.StatusCreated)\njson.NewEncoder(w).Encode(item)') }),
+  N('sig', 40, 540, 280, 110, 'SIGINT / SIGTERM', undefined, { detail: D('Graceful shutdown', 'Shutdown stops accepting, then waits for in-flight requests until the context deadline.', 'stop := make(chan os.Signal, 1)\nsignal.Notify(stop, os.Interrupt, syscall.SIGTERM)\n<-stop\nctx, cancel := context.WithTimeout(\n    context.Background(), 5*time.Second)\ndefer cancel()\nsrv.Shutdown(ctx)') }),
+];
+const HTTP_EDGES = ['ln>acc', 'acc>g1', 'g1>mw', 'mw>mux', 'mux>h', 'sig>ln'];
+demo('go-http', 'net/http server internals', 'ListenAndServe → accept loop → a goroutine per connection → middleware → ServeMux → handler; graceful Shutdown.', {
+  server: ['Request path', { panel: 'net/http', nodes: HTTP_NODES, edges: HTTP_EDGES, beats: [
+    { note: 'ListenAndServe opens a TCP listener and loops on Accept.', hot: { ln: 'current', 'ln>acc': 'accent' }, hide: ['sig'] },
+    { note: 'Each accepted connection gets its own goroutine: go c.serve(ctx).', hot: { acc: 'current', g1: 'write', 'acc>g1': 'accent' }, hide: ['sig'], rows: [['goroutines', '1 per connection']] },
+    { note: 'That goroutine reads requests in a loop (keep-alive) and calls the root handler for each.', hot: { g1: 'current', 'g1>mw': 'accent' }, hide: ['sig'] },
+    { note: 'ServeMux matches GET /items/{id} and your handler writes the response.', hot: { mux: 'current', h: 'ok', 'mux>h': 'ok' }, hide: ['sig'], sub: { mux: 'GET /items/{id}' }, rows: [['status', 200, 'ok']] },
+  ] }],
+  middleware: ['Middleware', { panel: 'net/http', nodes: HTTP_NODES, edges: HTTP_EDGES, beats: [
+    { note: 'The server’s handler is logging(mux): a wrapper around the mux.', hot: { mw: 'current', 'g1>mw': 'accent' }, hide: ['sig'] },
+    { note: 'It records the start time, then calls next.ServeHTTP.', hot: { mw: 'write', 'mw>mux': 'accent' }, hide: ['sig'] },
+    { note: 'After the handler returns, it logs method, path and duration. Stack wrappers for auth, recovery, CORS.', hot: { mw: 'ok' }, sub: { mw: 'GET /items/7 312µs' }, hide: ['sig'] },
+  ] }],
+  shutdown: ['Graceful shutdown', { panel: 'net/http', nodes: HTTP_NODES, edges: HTTP_EDGES, beats: [
+    { note: 'A signal arrives while two requests are in flight.', hot: { sig: 'warn', g1: 'current' }, sub: { g1: '2 in flight' } },
+    { note: 'srv.Shutdown closes the listener first: no new connections.', hot: { ln: 'fail', 'sig>ln': 'accent' }, sub: { ln: 'closed' } },
+    { note: 'It waits for in-flight requests to finish, up to the 5 second context deadline.', hot: { g1: 'ok', h: 'ok' }, sub: { g1: '0 in flight' }, rows: [['deadline', '5 s']] },
+    { note: 'ListenAndServe returns http.ErrServerClosed, which is the expected, clean exit.', hot: { acc: 'ok' }, rows: [['exit', 'clean', 'ok']] },
+  ] }],
+});

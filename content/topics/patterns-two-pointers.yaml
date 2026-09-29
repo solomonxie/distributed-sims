@@ -1,0 +1,76 @@
+id: patterns-two-pointers
+title: "Two pointers"
+group: patterns
+icon: move-horizontal
+order: 1
+summary: "Two indices moving toward each other or in step, turning O(n²) pair searches into one pass."
+info: "When the input is sorted (or you only care about order), a pair of indices can discard candidates for good at every step: move the left one to grow a sum, the right one to shrink it. The same idea powers 3Sum, container problems and in-place partitioning."
+algos: [lc-two-pointers]
+lessons:
+  - id: two-sum-ii
+    title: "LC 167 · Two Sum II"
+    minutes: 4
+    algo: lc-two-pointers
+    steps:
+      - title: "The problem"
+        body: "Find two numbers in a sorted array that add up to a target."
+        input: "twosum"
+        check: { metric: manual }
+      - title: "The pattern"
+        body: "Start at both ends. Too small moves l right, too big moves r left."
+        watch: "Each step removes one index from consideration."
+        check: { metric: manual }
+      - title: "Cost"
+        body: "O(n) time, O(1) space."
+        check: { metric: manual }
+
+  - id: container
+    title: "LC 11 · Container With Most Water"
+    minutes: 4
+    algo: lc-two-pointers
+    steps:
+      - title: "The problem"
+        body: "Pick two walls that hold the most water."
+        input: "water"
+        check: { metric: manual }
+      - title: "The pattern"
+        body: "Move the shorter wall inward; the taller one can never do better with less width."
+        watch: "The window only shrinks from the short side."
+        check: { metric: manual }
+      - title: "Cost"
+        body: "O(n) instead of checking all pairs."
+        check: { metric: manual }
+
+  - id: three-sum
+    title: "LC 15 · 3Sum"
+    minutes: 4
+    algo: lc-two-pointers
+    steps:
+      - title: "The problem"
+        body: "Find all unique triplets that sum to zero."
+        input: "3sum"
+        check: { metric: manual }
+      - title: "The pattern"
+        body: "Sort, fix one number, run two pointers on the rest; skip equal neighbours."
+        watch: "Duplicates are skipped at every level."
+        check: { metric: manual }
+      - title: "Cost"
+        body: "O(n²) time; the O(n log n) sort is minor next to it."
+        check: { metric: manual }
+
+  - id: trapping-rain
+    title: "LC 42 · Trapping Rain Water"
+    minutes: 5
+    algo: lc-two-pointers
+    steps:
+      - title: "The problem"
+        body: "How much rain is trapped between bars?"
+        input: "trap"
+        check: { metric: manual }
+      - title: "The pattern"
+        body: "The lower side is the bottleneck, so its running max decides the water there."
+        watch: "The water row fills in from both ends."
+        check: { metric: manual }
+      - title: "Cost"
+        body: "O(n) time, O(1) space, versus O(n) extra for prefix max arrays."
+        check: { metric: manual }
