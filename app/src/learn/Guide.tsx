@@ -40,7 +40,7 @@ function LessonLayer({ guide, top }: { guide: GuideSpec; top: number }) {
   const step = steps[i];
 
   useEffect(() => {
-    if (topic && lesson) useProgress.getState().setLast(topic.id, lesson.id);
+    if (topic && lesson) useProgress.getState().visit({ kind: 'lesson', topic: topic.id, lesson: lesson.id });
   }, [topic, lesson]);
 
   useEffect(() => {
@@ -57,6 +57,7 @@ function LessonLayer({ guide, top }: { guide: GuideSpec; top: number }) {
   const manual = !step.check || (step.check as Check).metric === 'manual';
   const canNext = passed || manual;
   const next = () => {
+    useProgress.getState().played({ kind: 'lesson', topic: topic.id, lesson: lesson.id });
     if (i + 1 < steps.length) {
       setI(i + 1);
       setPassed(false);
