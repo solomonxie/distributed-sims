@@ -1,0 +1,76 @@
+id: patterns-graphs
+title: "Graphs: traversal, ordering, connectivity"
+group: patterns
+icon: share-2
+order: 9
+summary: "Flood fill, topological sort, union-find and shortest paths."
+info: "Represent the graph (adjacency list, or the grid itself), then choose the tool: DFS/BFS to explore, Kahn’s algorithm to order dependencies and detect cycles, union-find for incremental connectivity, Dijkstra for weighted shortest paths."
+algos: [lc-graphs, dijkstra]
+lessons:
+  - id: islands
+    title: "LC 200 · Number of Islands"
+    minutes: 4
+    algo: lc-graphs
+    steps:
+      - title: "The problem"
+        body: "Count connected groups of land cells."
+        input: "islands"
+        check: { metric: manual }
+      - title: "The pattern"
+        body: "Each unvisited land cell starts an island; DFS sinks everything connected."
+        watch: "Sunk cells are never counted again."
+        check: { metric: manual }
+      - title: "Cost"
+        body: "O(rows × cols)."
+        check: { metric: manual }
+
+  - id: course-schedule
+    title: "LC 207/210 · Course Schedule"
+    minutes: 5
+    algo: lc-graphs
+    steps:
+      - title: "The problem"
+        body: "Can all courses be finished, and in what order?"
+        input: "topo"
+        check: { metric: manual }
+      - title: "The pattern"
+        body: "Kahn’s algorithm: repeatedly take courses with no unmet prerequisites."
+        watch: "In-degrees drop as prerequisites are taken."
+        check: { metric: manual }
+      - title: "Cost"
+        body: "O(V + E); leftover nodes mean a cycle."
+        check: { metric: manual }
+
+  - id: union-find
+    title: "LC 684 · Redundant Connection"
+    minutes: 4
+    algo: lc-graphs
+    steps:
+      - title: "The problem"
+        body: "Which edge turns a tree into a graph with a cycle?"
+        input: "uf"
+        check: { metric: manual }
+      - title: "The pattern"
+        body: "Union-find: an edge whose ends already share a root closes a cycle."
+        watch: "Roots merge as edges arrive."
+        check: { metric: manual }
+      - title: "Cost"
+        body: "Nearly O(1) per edge with path compression."
+        check: { metric: manual }
+
+  - id: dijkstra
+    title: "LC 743 · Network Delay Time"
+    minutes: 5
+    algo: dijkstra
+    steps:
+      - title: "The problem"
+        body: "How long until a signal from one node reaches every node? That is the largest shortest-path distance."
+        input: "small"
+        check: { metric: manual }
+      - title: "Dijkstra"
+        body: "Pop the closest unsettled node from a min-heap and relax its edges. Weights must be non-negative."
+        watch: "Settled nodes never change again."
+        check: { metric: manual }
+      - title: "Cost"
+        body: "O((V + E) log V) with a binary heap."
+        check: { metric: manual }

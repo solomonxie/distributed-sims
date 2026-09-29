@@ -1,0 +1,76 @@
+id: patterns-stack
+title: "Stack & monotonic stack"
+group: patterns
+icon: layers
+order: 5
+summary: "Last in, first out: matching, expression evaluation, and next-greater problems in O(n)."
+info: "A plain stack handles nesting (brackets, undo, expression evaluation). A monotonic stack keeps its values sorted: when a new value breaks the order, everything it pops has just found its next greater (or smaller) element. That turns quadratic scans into one pass."
+algos: [lc-stack]
+lessons:
+  - id: parentheses
+    title: "LC 20 · Valid Parentheses"
+    minutes: 4
+    algo: lc-stack
+    steps:
+      - title: "The problem"
+        body: "Are the brackets balanced and correctly nested?"
+        input: "parens"
+        check: { metric: manual }
+      - title: "The pattern"
+        body: "Push openers; each closer must match the top."
+        watch: "The mismatch appears as soon as it happens."
+        check: { metric: manual }
+      - title: "Cost"
+        body: "O(n)."
+        check: { metric: manual }
+
+  - id: temperatures
+    title: "LC 739 · Daily Temperatures"
+    minutes: 4
+    algo: lc-stack
+    steps:
+      - title: "The problem"
+        body: "Days until a warmer temperature, for each day."
+        input: "temps"
+        check: { metric: manual }
+      - title: "The pattern"
+        body: "A decreasing stack of waiting days; a warm day resolves them all."
+        watch: "Each day is pushed and popped once."
+        check: { metric: manual }
+      - title: "Cost"
+        body: "O(n) versus O(n²) scanning forward."
+        check: { metric: manual }
+
+  - id: histogram
+    title: "LC 84 · Largest Rectangle in Histogram"
+    minutes: 5
+    algo: lc-stack
+    steps:
+      - title: "The problem"
+        body: "Largest rectangle under a histogram."
+        input: "rect"
+        check: { metric: manual }
+      - title: "The pattern"
+        body: "An increasing stack: a shorter bar fixes the right edge of every taller bar it pops."
+        watch: "The new stack top is the popped bar’s left edge."
+        check: { metric: manual }
+      - title: "Cost"
+        body: "O(n)."
+        check: { metric: manual }
+
+  - id: rpn
+    title: "LC 150 · Evaluate Reverse Polish Notation"
+    minutes: 4
+    algo: lc-stack
+    steps:
+      - title: "The problem"
+        body: "Evaluate a postfix expression."
+        input: "rpn"
+        check: { metric: manual }
+      - title: "The pattern"
+        body: "Numbers push; operators pop two and push the result."
+        watch: "Compilers and calculators use this same stack."
+        check: { metric: manual }
+      - title: "Cost"
+        body: "O(n)."
+        check: { metric: manual }

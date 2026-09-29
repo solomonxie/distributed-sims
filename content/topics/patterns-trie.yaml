@@ -1,0 +1,59 @@
+id: patterns-trie
+title: "Trie (prefix tree)"
+group: patterns
+icon: list-tree
+order: 10
+summary: "A tree of characters where shared prefixes share a path."
+info: "Tries answer prefix questions in time proportional to the word, not the dictionary size: autocomplete, spell checking, word search on a board, IP routing tables. Each node is a dict of children plus an end-of-word flag."
+algos: [lc-trie]
+lessons:
+  - id: implement
+    title: "LC 208 · Implement Trie"
+    minutes: 4
+    algo: lc-trie
+    steps:
+      - title: "The problem"
+        body: "insert, search and startsWith."
+        input: "build"
+        check: { metric: manual }
+      - title: "The pattern"
+        body: "Walk one node per character, creating missing ones on insert."
+        watch: "A word end is a flag, not a leaf."
+        check: { metric: manual }
+      - title: "Cost"
+        body: "O(length) per operation."
+        check: { metric: manual }
+
+  - id: wildcards
+    title: "LC 211 · Add and Search Words"
+    minutes: 4
+    algo: lc-trie
+    steps:
+      - title: "The problem"
+        body: "Search with '.' matching any letter."
+        input: "dots"
+        check: { metric: manual }
+      - title: "The pattern"
+        body: "DFS: a '.' tries every child at that level."
+        watch: "Only branches that exist are explored."
+        check: { metric: manual }
+      - title: "Cost"
+        body: "O(length) without dots, more with many dots."
+        check: { metric: manual }
+
+  - id: common-prefix
+    title: "LC 14 · Longest Common Prefix"
+    minutes: 4
+    algo: lc-trie
+    steps:
+      - title: "The problem"
+        body: "Longest prefix shared by all words."
+        input: "prefix"
+        check: { metric: manual }
+      - title: "The pattern"
+        body: "Follow single-child nodes from the root until the path branches or a word ends."
+        watch: "The branch point is where words diverge."
+        check: { metric: manual }
+      - title: "Cost"
+        body: "O(total characters)."
+        check: { metric: manual }

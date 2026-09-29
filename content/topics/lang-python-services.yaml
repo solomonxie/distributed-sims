@@ -1,0 +1,45 @@
+id: py-services
+title: "Queues & telemetry"
+group: languages
+language: python
+icon: radio
+order: 8
+summary: "RabbitMQ task queues with pika, and OpenTelemetry traces and metrics from a Flask app."
+info: "Two things almost every Python backend ends up needing: a task queue to move slow work off the request path, and telemetry to see what happened when it goes wrong. Both follow the hello-rabbitmq and hello-opentelemetry projects."
+algos: [py-rabbitmq, py-otel]
+lessons:
+  - id: rabbitmq
+    title: "RabbitMQ task queue"
+    minutes: 5
+    algo: py-rabbitmq
+    steps:
+      - title: "Publish and consume"
+        body: "Persistent messages into a durable queue; workers ack when done."
+        input: "publish"
+        check: { metric: manual }
+      - title: "At least once"
+        body: "A crash before ack means redelivery, so handlers must be idempotent."
+        input: "ack"
+        check: { metric: manual }
+      - title: "Prefetch and dead letters"
+        body: "prefetch_count balances slow tasks; poison messages go to a DLX."
+        input: "prefetch"
+        check: { metric: manual }
+
+  - id: opentelemetry
+    title: "OpenTelemetry"
+    minutes: 4
+    algo: py-otel
+    steps:
+      - title: "Spans and metrics"
+        body: "Auto-instrumented request spans, your own child spans and counters."
+        input: "spans"
+        check: { metric: manual }
+      - title: "Propagation"
+        body: "traceparent headers stitch services into one trace."
+        input: "propagate"
+        check: { metric: manual }
+      - title: "Export"
+        body: "Batch, send over OTLP, sample in the collector, query in a backend."
+        input: "export"
+        check: { metric: manual }

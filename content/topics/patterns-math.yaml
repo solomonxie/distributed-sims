@@ -1,0 +1,89 @@
+id: patterns-math
+title: "Math & number theory"
+group: patterns
+icon: sigma
+order: 14
+summary: "Primes, fast powers, GCD and counting factors. Bit tricks live under Machine level."
+info: "A handful of number-theory tools cover most interview math: the sieve for primes, exponentiation by squaring (also for modular powers), Euclid’s GCD, and counting prime factors instead of computing huge numbers. For XOR, masks and popcount, see Machine level → Bit manipulation."
+algos: [lc-math, bits-xor]
+lessons:
+  - id: count-primes
+    title: "LC 204 · Count Primes"
+    minutes: 4
+    algo: lc-math
+    steps:
+      - title: "The problem"
+        body: "How many primes are below n?"
+        input: "sieve"
+        check: { metric: manual }
+      - title: "The pattern"
+        body: "Sieve of Eratosthenes: cross out multiples of each prime from p²."
+        watch: "Stop once p² passes n."
+        check: { metric: manual }
+      - title: "Cost"
+        body: "O(n log log n)."
+        check: { metric: manual }
+
+  - id: pow
+    title: "LC 50 · Pow(x, n)"
+    minutes: 4
+    algo: lc-math
+    steps:
+      - title: "The problem"
+        body: "Compute x to the power n fast."
+        input: "pow"
+        check: { metric: manual }
+      - title: "The pattern"
+        body: "Walk the exponent’s bits: square the base, multiply on 1 bits."
+        watch: "13 = 1101₂ needs only 4 squarings."
+        check: { metric: manual }
+      - title: "Cost"
+        body: "O(log n)."
+        check: { metric: manual }
+
+  - id: gcd
+    title: "LC 1979 · GCD (Euclid)"
+    minutes: 4
+    algo: lc-math
+    steps:
+      - title: "The problem"
+        body: "Greatest common divisor, and from it the lcm."
+        input: "gcd"
+        check: { metric: manual }
+      - title: "The pattern"
+        body: "gcd(a, b) = gcd(b, a mod b) until b is 0."
+        watch: "The numbers shrink at least as fast as Fibonacci."
+        check: { metric: manual }
+      - title: "Cost"
+        body: "O(log min(a, b))."
+        check: { metric: manual }
+
+  - id: trailing-zeros
+    title: "LC 172 · Factorial Trailing Zeroes"
+    minutes: 4
+    algo: lc-math
+    steps:
+      - title: "The problem"
+        body: "How many zeros end n factorial?"
+        input: "zeros"
+        check: { metric: manual }
+      - title: "The pattern"
+        body: "Count factors of 5: n/5 + n/25 + n/125 + …"
+        watch: "Never compute n! itself."
+        check: { metric: manual }
+      - title: "Cost"
+        body: "O(log n)."
+        check: { metric: manual }
+
+  - id: bit-tricks
+    title: "Bit tricks (XOR)"
+    minutes: 3
+    algo: bits-xor
+    steps:
+      - title: "XOR cancels pairs"
+        body: "x ^ x = 0 and x ^ 0 = x, so XOR-ing everything leaves the unpaired value (LC 136)."
+        input: "single"
+        check: { metric: manual }
+      - title: "More in Bit manipulation"
+        body: "Masks, popcount, subsets and bitmask DP are in Machine level → Bit manipulation."
+        check: { metric: manual }

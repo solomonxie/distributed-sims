@@ -1,0 +1,51 @@
+id: go-http
+title: "net/http servers"
+group: languages
+language: go
+icon: server
+order: 6
+summary: "What happens inside ListenAndServe: the accept loop, a goroutine per connection, middleware, ServeMux, graceful shutdown."
+info: "Go ships a production HTTP server in the standard library. Its model is simple, one goroutine per connection, and it scales because goroutines are cheap. Following hello-http: routing, middleware as handler wrapping, and shutting down without dropping requests."
+algos: [go-http]
+lessons:
+  - id: request-path
+    title: "From socket to handler"
+    minutes: 4
+    algo: go-http
+    steps:
+      - title: "Accept loop"
+        body: "ListenAndServe accepts connections forever."
+        input: "server"
+        check: { metric: manual }
+      - title: "Goroutine per connection"
+        body: "Each connection is served by its own goroutine, reading requests in a keep-alive loop."
+        check: { metric: manual }
+      - title: "ServeMux"
+        body: "Method + path patterns (Go 1.22) map requests to handlers."
+        check: { metric: manual }
+
+  - id: middleware
+    title: "Middleware"
+    minutes: 4
+    algo: go-http
+    steps:
+      - title: "Wrap a Handler"
+        body: "A middleware returns a Handler that calls next.ServeHTTP."
+        input: "middleware"
+        check: { metric: manual }
+      - title: "Compose"
+        body: "Stack logging, recovery, auth and CORS by nesting wrappers."
+        check: { metric: manual }
+
+  - id: shutdown
+    title: "Graceful shutdown"
+    minutes: 4
+    algo: go-http
+    steps:
+      - title: "Stop accepting"
+        body: "srv.Shutdown closes the listener first."
+        input: "shutdown"
+        check: { metric: manual }
+      - title: "Drain"
+        body: "In-flight requests finish within the context deadline; ErrServerClosed is the clean exit."
+        check: { metric: manual }

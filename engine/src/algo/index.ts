@@ -14,5 +14,13 @@ import '../machine/bits';
 import '../cpp';
 import '../net';
 import '../lang';
+import '../sd';
+import '../stack';
+import '../os';
+import '../ai';
+import '../patterns';
+import '../tech/kafka-deep';
+import '../tech/spark-deep';
+import '../tech/tdd';
 
 export * from './frames';

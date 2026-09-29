@@ -1,0 +1,76 @@
+id: patterns-heap
+title: "Heap / top-k"
+group: patterns
+icon: triangle
+order: 6
+summary: "Get the smallest or largest in O(1) and update in O(log n): top-k, merges and medians."
+info: "Python’s heapq is a min-heap stored in a list. Keep a size-k heap to track the k largest, a heap of list heads to merge k sorted lists, or two heaps (lower half max-heap, upper half min-heap) for a running median."
+algos: [lc-heap]
+lessons:
+  - id: kth-largest
+    title: "LC 215 · Kth Largest Element"
+    minutes: 4
+    algo: lc-heap
+    steps:
+      - title: "The problem"
+        body: "The k-th largest value in an unsorted array."
+        input: "kth"
+        check: { metric: manual }
+      - title: "The pattern"
+        body: "Keep a min-heap of size k; its top is the answer."
+        watch: "The smallest of the k largest sits at the root."
+        check: { metric: manual }
+      - title: "Cost"
+        body: "O(n log k)."
+        check: { metric: manual }
+
+  - id: top-k
+    title: "LC 347 · Top K Frequent Elements"
+    minutes: 4
+    algo: lc-heap
+    steps:
+      - title: "The problem"
+        body: "The k most frequent values."
+        input: "topk"
+        check: { metric: manual }
+      - title: "The pattern"
+        body: "Count, then keep a size-k heap keyed by count."
+        watch: "Least frequent candidates fall out of the heap."
+        check: { metric: manual }
+      - title: "Cost"
+        body: "O(n log k); bucket sort gives O(n)."
+        check: { metric: manual }
+
+  - id: merge-k
+    title: "LC 23 · Merge k Sorted Lists"
+    minutes: 4
+    algo: lc-heap
+    steps:
+      - title: "The problem"
+        body: "Merge k sorted lists into one."
+        input: "merge"
+        check: { metric: manual }
+      - title: "The pattern"
+        body: "The heap holds one head per list; pop the smallest, push its successor."
+        watch: "The heap never holds more than k items."
+        check: { metric: manual }
+      - title: "Cost"
+        body: "O(N log k)."
+        check: { metric: manual }
+
+  - id: median
+    title: "LC 295 · Find Median from Data Stream"
+    minutes: 5
+    algo: lc-heap
+    steps:
+      - title: "The problem"
+        body: "Median after every insertion."
+        input: "median"
+        check: { metric: manual }
+      - title: "The pattern"
+        body: "A max-heap for the lower half and a min-heap for the upper half."
+        watch: "Rebalance so sizes differ by at most one."
+        check: { metric: manual }
+      - title: "Cost"
+        body: "O(log n) per insert, O(1) median."
+        check: { metric: manual }

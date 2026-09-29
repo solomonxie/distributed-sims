@@ -1,0 +1,76 @@
+id: patterns-sliding-window
+title: "Sliding window"
+group: patterns
+icon: scan
+order: 2
+summary: "A window that grows on the right and shrinks on the left, keeping a running summary."
+info: "For contiguous subarrays or substrings, keep a window [l, r] and a summary of what is inside (a count map, a sum, a deque). Grow r every step; shrink l only while the window breaks the rule. Each element enters and leaves once, so the whole scan is O(n)."
+algos: [lc-sliding-window]
+lessons:
+  - id: no-repeat
+    title: "LC 3 · Longest Substring Without Repeating"
+    minutes: 4
+    algo: lc-sliding-window
+    steps:
+      - title: "The problem"
+        body: "Longest substring with all distinct characters."
+        input: "unique"
+        check: { metric: manual }
+      - title: "The pattern"
+        body: "A last-seen map lets l jump straight past the repeated character."
+        watch: "The window never contains a repeat."
+        check: { metric: manual }
+      - title: "Cost"
+        body: "O(n) time, O(alphabet) space."
+        check: { metric: manual }
+
+  - id: min-size
+    title: "LC 209 · Minimum Size Subarray Sum"
+    minutes: 4
+    algo: lc-sliding-window
+    steps:
+      - title: "The problem"
+        body: "Shortest subarray with sum at least the target."
+        input: "minlen"
+        check: { metric: manual }
+      - title: "The pattern"
+        body: "Grow until the sum qualifies, then shrink while it still does."
+        watch: "Record the length every time the window is valid."
+        check: { metric: manual }
+      - title: "Cost"
+        body: "O(n): positive numbers keep the sum monotonic."
+        check: { metric: manual }
+
+  - id: min-window
+    title: "LC 76 · Minimum Window Substring"
+    minutes: 5
+    algo: lc-sliding-window
+    steps:
+      - title: "The problem"
+        body: "Smallest substring of s containing every character of t."
+        input: "minwin"
+        check: { metric: manual }
+      - title: "The pattern"
+        body: "Count what is still needed; when nothing is missing, shrink past extras."
+        watch: "need[c] goes negative for surplus characters."
+        check: { metric: manual }
+      - title: "Cost"
+        body: "O(|s| + |t|)."
+        check: { metric: manual }
+
+  - id: window-max
+    title: "LC 239 · Sliding Window Maximum"
+    minutes: 4
+    algo: lc-sliding-window
+    steps:
+      - title: "The problem"
+        body: "Maximum of every window of size k."
+        input: "max"
+        check: { metric: manual }
+      - title: "The pattern"
+        body: "A deque of indices with decreasing values: the front is the max."
+        watch: "Smaller values behind a new one are popped for good."
+        check: { metric: manual }
+      - title: "Cost"
+        body: "O(n) versus O(nk) for rescanning each window."
+        check: { metric: manual }
