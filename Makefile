@@ -19,7 +19,17 @@ test: check-expo content
 ios-build: content
 	cd app/ios && xcodebuild -workspace DistributedSims.xcworkspace -scheme DistributedSims \
 	  -configuration Release -destination 'generic/platform=iOS' -derivedDataPath build \
-	  -xcconfig Local.xcconfig -allowProvisioningUpdates build | tail -30
+	  -xcconfig Local.xcconfig -allowProvisioningUpdates \
+	  DEPLOYMENT_POSTPROCESSING=YES STRIP_INSTALLED_PRODUCT=YES STRIP_STYLE=all build | tail -30
+	$(MAKE) ios-strip
+
+# Prebuilt RN frameworks ship with local symbols (~15 MB); strip them and re-sign with the build's identity.
+ios-strip:
+	@ID=$$(codesign -dvv $(APP) 2>&1 | sed -n 's/^Authority=\(Apple Development.*\)/\1/p' | head -1); \
+	codesign -d --entitlements - --xml $(APP) > /tmp/dsims-ent.plist 2>/dev/null; \
+	for f in $(APP)/Frameworks/*.framework; do strip -x "$$f/$$(basename $$f .framework)" 2>/dev/null; codesign -f -s "$$ID" --timestamp=none "$$f"; done; \
+	codesign -f -s "$$ID" --entitlements /tmp/dsims-ent.plist --timestamp=none $(APP); \
+	codesign --verify --deep --strict $(APP) && du -sh $(APP)
 
 ios-install:
 	xcrun devicectl device install app --device $(DEVICE) $(APP)
