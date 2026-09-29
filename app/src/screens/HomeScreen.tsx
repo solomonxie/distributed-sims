@@ -4,7 +4,7 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { problems, templates, topics, type ProblemDef, type TopicDef } from '@dsims/content';
-import type { SystemDoc } from '@dsims/engine';
+import { algo, type SystemDoc } from '@dsims/engine';
 import { MiniGraph } from '../ui/MiniGraph';
 import { FrameThumb, thumbFrame } from '../canvas/FrameThumb';
 import type { RootStackParamList } from '../navigation/types';
@@ -13,7 +13,6 @@ import { Button, Card, IconButton, Text } from '../ui/primitives';
 import { Icon } from '../ui/Icon';
 import { Section, Tile } from '../ui/Tile';
 import { useProgress } from '../state/progress';
-import { useSettings } from '../state/settings';
 import { useLibrary, blankDoc, forkDoc, saveSystem } from '../state/library';
 import { openLesson } from '../learn/open';
 import { demoGroups } from '../lib/demoGroups';
@@ -22,17 +21,54 @@ import { ago } from './ProblemScreen';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
+/** Resumes the last lesson or animation the user stepped through; a finished lesson points at the next one. */
+function ContinueCard({ nav }: { nav: Nav }) {
+  const { c } = useTheme();
+  const v = useProgress(s => s.lastPlayed);
+  const lessons = useProgress(s => s.lessons);
+  let title: string | undefined;
+  let open: (() => void) | undefined;
+  if (v?.kind === 'lesson') {
+    const t = topics.find(x => x.id === v.topic);
+    const k = t?.lessons.findIndex(l => l.id === v.lesson) ?? -1;
+    const l = t && (lessons[`${t.id}/${v.lesson}`] ? t.lessons[k + 1] : t.lessons[k]);
+    if (t && l) {
+      title = `${t.title} › ${l.title}`;
+      open = () => openLesson(nav, t, l);
+    }
+  } else if (v?.kind === 'demo') {
+    const d = algo.getDemo(v.slug);
+    if (d) {
+      title = d.title;
+      open = () => nav.navigate('AlgorithmPlayer', { slug: v.slug });
+    }
+  }
+  if (!title || !open) return null;
+  return (
+    <Card style={{ marginTop: space.l }} onPress={open}>
+      <View style={[styles.cont, { alignItems: 'center' }]}>
+        <Icon name="play" size={20} color={c.accent} />
+        <View style={{ flex: 1 }}>
+          <Text v="caption">Continue</Text>
+          <Text numberOfLines={2}>{title}</Text>
+        </View>
+        <Icon name="chevron-right" size={18} color={c.text3} />
+      </View>
+    </Card>
+  );
+}
+
 export type TopicGroup = Exclude<TopicDef['group'], 'languages'>;
 export const TOPIC_SECTIONS: { id: TopicGroup; title: string }[] = [
   { id: 'topics', title: 'System design' },
-  { id: 'under-the-hood', title: 'Tech stack' },
   { id: 'network', title: 'Network' },
   { id: 'machine', title: 'Machine level' },
+  { id: 'under-the-hood', title: 'Tech stack' },
 ];
 /** topic sections shown after Languages */
 export const LATE_SECTIONS: { id: TopicGroup; title: string }[] = [
-  { id: 'ai', title: 'AI & LLMs' },
-  { id: 'patterns', title: 'Coding patterns' },
+  { id: 'ai', title: 'Machine learning & LLMs' },
+  { id: 'patterns', title: 'Algorithms' },
 ];
 
 export const STARTERS = [
@@ -109,7 +145,6 @@ export function HomeScreen() {
   const { c } = useTheme();
   const nav = useNavigation<Nav>();
   const insets = useSafeAreaInsets();
-  const firstRunDismissed = useSettings(s => s.firstRunDismissed);
   const { items: systems, refresh } = useLibrary();
   const [q, setQ] = useState('');
   useEffect(() => {
@@ -136,18 +171,7 @@ export function HomeScreen() {
         <SearchResults q={q.trim().toLowerCase()} nav={nav} onClear={() => setQ('')} />
       ) : (
         <>
-          {!firstRunDismissed && all[0]?.lessons[0] ? (
-            <Card style={{ marginTop: space.l }}>
-              <View style={[styles.cont, { alignItems: 'center' }]}>
-                <Icon name="sparkles" size={20} color={c.accent} />
-                <Text style={{ flex: 1 }}>
-                  New here? Start with {all[0].title} › {all[0].lessons[0].title}
-                </Text>
-                <IconButton name="x" size={16} color={c.text3} onPress={() => useSettings.getState().set({ firstRunDismissed: true })} label="Dismiss" />
-              </View>
-              <Button kind="primary" title="Start" icon="play" style={{ margin: space.m, marginTop: 0 }} onPress={() => openLesson(nav, all[0], all[0].lessons[0])} />
-            </Card>
-          ) : null}
+          <ContinueCard nav={nav} />
 
           {TOPIC_SECTIONS.map(s => {
             const list = all.filter(t => t.group === s.id);
@@ -159,7 +183,7 @@ export function HomeScreen() {
                     <TopicTile key={t.id} t={t} nav={nav} />
                   ))}
                 </Section>
-                {s.id === 'under-the-hood' && (
+                {s.id === 'topics' && (
                   <Section title="Problems" count={probs.length} onSeeAll={() => nav.navigate('Problems')}>
                     {probs.map(p => (
                       <ProblemTile key={p.id} p={p} nav={nav} />

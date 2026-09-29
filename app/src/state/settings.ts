@@ -15,7 +15,6 @@ export interface Settings {
   /** animation speed, 0.1×–10× */
   animSpeed: number;
   launches: number;
-  firstRunDismissed: boolean;
   /** narrate the followed request in a tip box */
   requestTips: boolean;
   set: (p: Partial<Omit<Settings, 'set'>>) => void;
@@ -33,7 +32,6 @@ export const useSettings = create<Settings>()(
       labels: false,
       animSpeed: 1,
       launches: 0,
-      firstRunDismissed: false,
       requestTips: true,
       set: p => set(p),
     }),

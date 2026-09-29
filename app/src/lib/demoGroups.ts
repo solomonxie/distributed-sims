@@ -213,7 +213,7 @@ const LABEL: Record<string, string> = {
   'net-tools': 'Debugging tools',
 };
 
-export const KIND_LABEL: Record<DemoKind, string> = { algorithms: 'Algorithms', network: 'Network', machine: 'Machine level', languages: 'Languages', ai: 'AI & LLMs', patterns: 'Coding patterns' };
+export const KIND_LABEL: Record<DemoKind, string> = { algorithms: 'Distributed algorithms', network: 'Network', machine: 'Machine level', languages: 'Languages', ai: 'Machine learning & LLMs', patterns: 'Algorithms' };
 
 export const kindOf = (g: string): DemoKind => (g.startsWith('ai-') ? 'ai' : g.startsWith('algo-') ? 'patterns' : g === 'machine-cpp' || g.startsWith('cpp-') || g.startsWith('lang-') ? 'languages' : g.startsWith('net-') ? 'network' : g.startsWith('machine') ? 'machine' : 'algorithms');
 export const groupIcon = (g: string) => ICON[g] ?? (g.startsWith('net-') ? 'network' : 'diamond');
