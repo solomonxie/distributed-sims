@@ -1,0 +1,84 @@
+id: git-internals
+title: Git internals
+group: under-the-hood
+icon: git-branch
+order: 20
+summary: What git add and commit really write, branches as pointers, packfiles, merge vs rebase, reflog recovery and progressive commits.
+info: Git is a content-addressed object store (blobs, trees, commits named by their hash) plus a few pointer files (branches, HEAD) and a staging index. Every command moves pointers or adds objects; almost nothing is ever destroyed, which is why the reflog can undo most mistakes. Once you think in that model, merge, rebase and reset stop being scary.
+algos: [git-objects, git-history]
+lessons:
+  - id: objects
+    title: Blobs, trees & commits
+    minutes: 4
+    algo: git-objects
+    steps:
+      - title: git add
+        body: Hashes the file into a blob and records it in the index.
+        input: add
+        check: { metric: manual }
+      - title: git commit
+        body: Writes trees for each directory and a commit pointing at the root tree and its parent.
+        input: commit
+        watch: git cat-file -p shows any object's contents.
+        check: { metric: manual }
+  - id: refs
+    title: Branches & HEAD
+    minutes: 3
+    algo: git-objects
+    steps:
+      - title: Branches are pointers
+        body: A branch is a file holding one commit hash; creating one is instant.
+        input: refs
+        check: { metric: manual }
+      - title: Detached HEAD
+        body: Commits made there belong to no branch. Create one before switching away.
+        check: { metric: manual }
+  - id: packfiles
+    title: Packfiles & history rewrites
+    minutes: 3
+    algo: git-objects
+    steps:
+      - title: Deltas
+        body: git gc packs loose objects and stores similar versions as deltas.
+        input: pack
+        check: { metric: manual }
+      - title: Leaked secrets
+        body: Deleting a committed secret doesn't remove it from history. Rewrite with git filter-repo and rotate the secret.
+        check: { metric: manual }
+  - id: merge-rebase
+    title: Merge vs rebase
+    minutes: 4
+    algo: git-history
+    steps:
+      - title: Merge
+        body: A two-parent commit; history stays as it happened. Safe on shared branches.
+        input: merge
+        check: { metric: manual }
+      - title: Rebase
+        body: Replays your commits on the new base as new commits with new hashes. Linear, but never rebase work others pulled.
+        input: rebase
+        check: { metric: manual }
+  - id: reflog
+    title: Recovering with the reflog
+    minutes: 3
+    algo: git-history
+    steps:
+      - title: Nothing is lost
+        body: A bad reset or rebase only moves pointers. git reflog lists where HEAD has been.
+        input: reflog
+        check: { metric: manual }
+      - title: Undo
+        body: git reset --hard HEAD@{1} goes back, within about 90 days.
+        check: { metric: manual }
+  - id: progressive
+    title: Progressive commits for review
+    minutes: 3
+    algo: git-history
+    steps:
+      - title: One diff, many readable commits
+        body: Reorder real hunks into phases (skeleton, core, extras) so a reviewer reads layer by layer.
+        input: progressive
+        check: { metric: manual }
+      - title: Code stays byte-identical
+        body: Only grouping and order change, so the final tree matches the original branch exactly.
+        check: { metric: manual }

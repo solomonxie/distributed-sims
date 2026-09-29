@@ -1,0 +1,82 @@
+id: os-processes
+title: Processes & signals
+group: machine
+icon: list-tree
+order: 10
+summary: How a shell runs a command with fork, exec and wait, what zombies and orphans are, process states, scheduling and signals.
+info: Every command you run is a process created by fork and turned into a new program by exec, all through syscalls into the kernel. The kernel tracks each one in its process table, schedules it by weight, and talks to it with signals. Most "stuck" or "unkillable" processes make sense once you can read their state.
+algos: [os-process, os-signals]
+lessons:
+  - id: fork-exec
+    title: fork, exec, wait
+    minutes: 4
+    algo: os-process
+    steps:
+      - title: fork
+        body: The shell asks the kernel for a copy of itself. The child gets a new pid but the same memory (copy-on-write) and open files.
+        input: fork
+        check: { metric: manual }
+      - title: exec
+        body: The child replaces its program with ls. Same pid, brand-new memory.
+        watch: Every arrow into the kernel is a syscall; strace -f shows them.
+        check: { metric: manual }
+      - title: exit and wait
+        body: The child exits, the parent gets SIGCHLD and collects the status with waitpid.
+        check: { metric: manual }
+  - id: zombies
+    title: Zombies & orphans
+    minutes: 3
+    algo: os-process
+    steps:
+      - title: Zombie
+        body: An exited child whose parent never called wait keeps its table entry, state Z. kill -9 can't remove it.
+        input: zombie
+        check: { metric: manual }
+      - title: Orphan
+        body: If the parent dies, PID 1 adopts the child and reaps it.
+        check: { metric: manual }
+  - id: states
+    title: Process states
+    minutes: 3
+    algo: os-process
+    steps:
+      - title: R, S, D, T, Z
+        body: Running or runnable, sleeping, uninterruptible disk wait, stopped, zombie. ps -eo pid,stat,wchan,cmd shows them.
+        input: states
+        check: { metric: manual }
+      - title: Load average
+        body: It counts R plus D tasks, so a load of 20 on an idle CPU usually means processes stuck in I/O.
+        check: { metric: manual }
+  - id: scheduling
+    title: Scheduling & nice
+    minutes: 3
+    algo: os-process
+    steps:
+      - title: Weights, not priorities
+        body: The scheduler splits CPU by weight; nice 10 gets about a tenth of nice 0 when they compete.
+        input: sched
+        check: { metric: manual }
+      - title: Hard caps
+        body: nice only matters under contention. For a hard limit, use a cgroup with cpu.max.
+        check: { metric: manual }
+  - id: signals
+    title: Signals
+    minutes: 5
+    algo: os-signals
+    steps:
+      - title: SIGTERM and trap
+        body: The polite stop. A handler can finish work, clean up and exit 0.
+        input: term
+        check: { metric: manual }
+      - title: SIGKILL
+        body: Can't be caught. No cleanup, exit status 137, the same signature the OOM killer leaves.
+        input: kill
+        check: { metric: manual }
+      - title: Ctrl-C and Ctrl-Z
+        body: SIGINT ends the foreground job (exit 130); SIGTSTP stops it until fg or bg.
+        input: interrupt
+        check: { metric: manual }
+      - title: SIGCHLD
+        body: Parents reap children with waitpid(-1, WNOHANG) in a loop, or zombies pile up.
+        input: chld
+        check: { metric: manual }

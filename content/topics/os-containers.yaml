@@ -1,0 +1,102 @@
+id: os-containers
+title: Namespaces, cgroups & containers
+group: machine
+icon: container
+order: 13
+summary: What a container really is. Namespaces for isolation, cgroups for limits, overlayfs images, Docker's call chain and Firecracker microVMs.
+info: A container is an ordinary process that the kernel shows a private view of the system (namespaces) and limits (cgroups), with an image mounted as its root by overlayfs. Docker, containerd and runc only set this up and get out of the way. When sharing the host kernel is too risky, microVMs like Firecracker add a real VM boundary at nearly container speed.
+algos: [os-namespaces, os-containers]
+lessons:
+  - id: pid-ns
+    title: PID namespace
+    minutes: 3
+    algo: os-namespaces
+    steps:
+      - title: A private pid 1
+        body: unshare --pid --fork --mount-proc bash starts a shell that sees only itself as pid 1.
+        input: pid
+        check: { metric: manual }
+      - title: Still a host process
+        body: From the host it's just another pid. If the namespace's pid 1 exits, everything inside dies.
+        check: { metric: manual }
+  - id: net-ns
+    title: Network namespace
+    minutes: 3
+    algo: os-namespaces
+    steps:
+      - title: Own network stack
+        body: Its own interfaces, routes, iptables and ports, starting with just lo.
+        input: net
+        check: { metric: manual }
+      - title: veth + bridge + NAT
+        body: A veth pair connects it to a host bridge; this is exactly docker0.
+        check: { metric: manual }
+  - id: mount-ns
+    title: Mount namespace & pivot_root
+    minutes: 3
+    algo: os-namespaces
+    steps:
+      - title: Private mounts
+        body: Mounts made inside never appear on the host.
+        input: mount
+        check: { metric: manual }
+      - title: A new root
+        body: pivot_root makes the image's directory the process's /.
+        check: { metric: manual }
+  - id: cgroups
+    title: cgroup limits
+    minutes: 3
+    algo: os-namespaces
+    steps:
+      - title: Limits, not views
+        body: memory.max and cpu.max under /sys/fs/cgroup cap what a group of processes can use.
+        input: cgroup
+        check: { metric: manual }
+      - title: OOM inside the box
+        body: Over the memory limit the kernel kills a process in that cgroup (exit 137), and the host stays healthy.
+        check: { metric: manual }
+  - id: rootless
+    title: User namespaces & rootless
+    minutes: 2
+    algo: os-namespaces
+    steps:
+      - title: Root inside, nobody outside
+        body: uid 0 in the container maps to an unprivileged uid on the host. Rootless Podman builds on this.
+        input: user
+        check: { metric: manual }
+  - id: docker-run
+    title: docker run, end to end
+    minutes: 4
+    algo: os-containers
+    steps:
+      - title: The call chain
+        body: CLI → dockerd over a unix socket → containerd → runc, which makes the namespace and cgroup syscalls.
+        input: run
+        check: { metric: manual }
+      - title: Nothing left running
+        body: runc execs your entrypoint and exits. The container is just your process.
+        check: { metric: manual }
+  - id: layers
+    title: Image layers & overlayfs
+    minutes: 3
+    algo: os-containers
+    steps:
+      - title: Read-only layers
+        body: Each Dockerfile step that changes files becomes a cached, shared layer.
+        input: layers
+        check: { metric: manual }
+      - title: Order for caching
+        body: Put rarely changing steps (base, apt) first and your code last so rebuilds are fast.
+        check: { metric: manual }
+  - id: microvms
+    title: Firecracker microVMs
+    minutes: 3
+    algo: os-containers
+    steps:
+      - title: A real VM boundary
+        body: Each workload gets its own guest kernel under KVM, booting in about 125 ms.
+        input: microvm
+        check: { metric: manual }
+      - title: Where it runs
+        body: AWS Lambda and Fargate. The jailer adds namespaces, cgroups and seccomp around each VMM.
+        check: { metric: manual }
