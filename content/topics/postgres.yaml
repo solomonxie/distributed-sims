@@ -5,7 +5,7 @@ icon: database
 order: 15
 summary: A process per connection, a write-ahead log, row versions and a vacuum — where Postgres latency and stale reads come from.
 info: Every connection is a forked backend process, so poolers like PgBouncer matter. COMMIT waits for the WAL fsync, and one fsync covers every commit waiting (group commit). UPDATE leaves dead row versions that autovacuum removes only once no open transaction can see them. Checkpoints flush dirty pages; standbys replay the WAL and lag under heavy writes. Sizes and times are sim-scaled.
-algos: [b-tree, mem-page-cache]
+algos: [b-tree, mem-page-cache, stk-pg-ha, stk-pg-failover, stk-pg-migrate]
 problems: [kv-store, ticket-booking]
 lessons:
   - id: anatomy
@@ -135,3 +135,76 @@ lessons:
       - title: It catches up
         body: When the burst ends the standby drains the backlog. Read your own writes from the primary, or wait for the LSN.
         check: { metric: gauge:lagMs, target: standby, op: '<', value: 300 }
+
+  - id: patroni-design
+    title: "HA: Patroni, etcd, HAProxy, pgbouncer"
+    minutes: 5
+    algo: stk-pg-ha
+    steps:
+      - title: "Three nodes"
+        body: "PostgreSQL + Patroni + pgbouncer on two nodes, HAProxy on the third, etcd on all three."
+        watch: "Tap each box for its real config from postgres-progress."
+        input: design
+        check: { metric: manual }
+      - title: "Leader key"
+        body: "Whoever holds the leader key in etcd runs the primary."
+        check: { metric: manual }
+      - title: "Routing by health check"
+        body: "HAProxy asks each Patroni REST API /read-write and /read-only and routes :5432 and :6432 accordingly."
+        check: { metric: manual }
+
+  - id: patroni-loop
+    title: "HA: the leader loop"
+    minutes: 4
+    algo: stk-pg-failover
+    steps:
+      - title: "Renew or step down"
+        body: "Every 10 s the leader renews its key with a 30 s TTL; replicas read it and keep following."
+        input: loop
+        check: { metric: manual }
+      - title: "200 or 503"
+        body: "Health endpoints turn roles into routing without anyone querying etcd at request time."
+        check: { metric: manual }
+
+  - id: patroni-failover
+    title: "HA: primary dies"
+    minutes: 5
+    algo: stk-pg-failover
+    steps:
+      - title: "Key expires"
+        body: "Nobody renews, the TTL runs out, and the replica takes the key with an atomic create."
+        input: failover
+        check: { metric: manual }
+      - title: "Promote and reroute"
+        body: "Patroni promotes; HAProxy’s next checks move the write backend."
+        watch: "Downtime is TTL plus check interval."
+        input: failover
+        check: { metric: manual }
+      - title: "Rejoin with pg_rewind"
+        body: "The old primary discards its diverged WAL and follows the new one."
+        input: rejoin
+        check: { metric: manual }
+
+  - id: patroni-dcs
+    title: "HA: swap etcd for ZooKeeper"
+    minutes: 3
+    algo: stk-pg-ha
+    steps:
+      - title: "Pluggable DCS"
+        body: "Only the install, one patroni.yml block and a pip extra change."
+        input: zk
+        check: { metric: manual }
+
+  - id: migrate-rds
+    title: "Migrate RDS to self-hosted PG17"
+    minutes: 5
+    algo: stk-pg-migrate
+    steps:
+      - title: "Runbook"
+        body: "Snapshot, pre-checks, roles, parallel dump, restore through pgbouncer, verify, cutover, rollback window."
+        input: plan
+        check: { metric: manual }
+      - title: "Downtime"
+        body: "Dump and restore needs a write freeze; logical replication shrinks it to seconds."
+        input: downtime
+        check: { metric: manual }

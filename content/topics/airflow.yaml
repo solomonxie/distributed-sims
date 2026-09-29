@@ -5,7 +5,7 @@ icon: wind
 order: 3
 summary: Workflow scheduler — a loop over a metadata DB that turns schedules into DagRuns and task instances.
 info: Airflow's scheduler is a loop of database queries. It creates DagRuns when a schedule interval passes, moves task instances through scheduled → queued → running → success, and hands queued ones to an executor (Local, Celery or Kubernetes). All state lives in the metadata DB, so the DB is the heart, and every limit (parallelism, pools, max_active_runs) is a count in it.
-algos: []
+algos: [stk-airflow-dags, stk-airflow-runtime]
 problems: []
 lessons:
   - id: anatomy
@@ -152,3 +152,78 @@ lessons:
       - title: Task runs twice
         body: The same task executes on two workers. With Postgres row locks (swap the DB skin) the second scheduler skips locked rows.
         check: { metric: anomaly:duplicate, op: '>=', value: 1 }
+
+  - id: dag-basics
+    title: "DAG basics and dependencies"
+    minutes: 3
+    algo: stk-airflow-dags
+    steps:
+      - title: "Tasks and edges"
+        body: ">> declares order; file order does not matter."
+        input: deps
+        check: { metric: manual }
+      - title: "dag.test()"
+        body: "Runs every task in order without a scheduler, so each file runs with python3."
+        check: { metric: manual }
+
+  - id: dag-branching
+    title: "Branching and trigger rules"
+    minutes: 3
+    algo: stk-airflow-dags
+    steps:
+      - title: "Pick a path"
+        body: "BranchPythonOperator returns the next task_id; siblings are skipped."
+        input: branch
+        check: { metric: manual }
+      - title: "The join trap"
+        body: "With all_success the join is skipped too; use none_failed_min_one_success."
+        check: { metric: manual }
+
+  - id: dag-taskflow
+    title: "The TaskFlow API"
+    minutes: 3
+    algo: stk-airflow-dags
+    steps:
+      - title: "Functions as tasks"
+        body: "@task functions, called inside a @dag, declare order and data flow at once."
+        input: taskflow
+        check: { metric: manual }
+
+  - id: xcom
+    title: "XCom: passing data between tasks"
+    minutes: 3
+    algo: stk-airflow-runtime
+    steps:
+      - title: "Through the metadata DB"
+        body: "A return value is pushed to the DB; the downstream task pulls it, maybe on another machine."
+        input: xcom
+        check: { metric: manual }
+      - title: "Keep it small"
+        body: "Pass paths and ids, not data."
+        check: { metric: manual }
+
+  - id: retries
+    title: "Retries"
+    minutes: 3
+    algo: stk-airflow-runtime
+    steps:
+      - title: "up_for_retry"
+        body: "A failing task with retries left waits retry_delay and runs again."
+        input: retries
+        check: { metric: manual }
+      - title: "Idempotence"
+        body: "A retry re-runs the whole task, possibly on another worker."
+        check: { metric: manual }
+
+  - id: schedule-sensor
+    title: "Schedules and sensors"
+    minutes: 3
+    algo: stk-airflow-runtime
+    steps:
+      - title: "Schedule creates runs"
+        body: "The scheduler creates a DagRun when an interval passes."
+        input: sensor
+        check: { metric: manual }
+      - title: "Poking holds a slot"
+        body: "A sensor re-checks every poke_interval and occupies a worker slot until timeout."
+        check: { metric: manual }

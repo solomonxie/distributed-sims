@@ -5,7 +5,7 @@ icon: sparkles
 order: 2
 summary: Batch compute — a driver splits jobs into stages at shuffles and runs one task per partition on executors.
 info: A Spark action becomes a job. The driver's DAG scheduler cuts it into stages wherever data must be shuffled between machines, and the task scheduler runs one task per partition on executor cores. Shuffle outputs live on executors, so losing one means recomputing from lineage; losing the driver loses the job.
-algos: []
+algos: [spark-core, spark-sql, spark-mem, stk-spark-1brc, stk-spark-study]
 problems: []
 lessons:
   - id: anatomy
@@ -127,3 +127,218 @@ lessons:
       - title: Idle → released
         body: Between jobs, executors idle for 10s are given back to the cluster.
         check: { metric: eventMatch:released, op: '>=', value: 1 }
+
+  - id: deep-lineage
+    title: "Internals: lineage & lazy evaluation"
+    minutes: 3
+    algo: spark-core
+    steps:
+      - title: Transformations are a plan
+        body: filter, map and reduceByKey return new RDDs that only record a function and a parent.
+        input: lineage
+        check: { metric: manual }
+      - title: Actions run jobs
+        body: count, take and save submit a job that walks the lineage back to the source.
+        check: { metric: manual }
+      - title: Lineage is the fault tolerance
+        body: A lost partition is recomputed from its parents; no replication of intermediate data is needed.
+        check: { metric: manual }
+
+  - id: deep-stages
+    title: "Internals: narrow vs wide, stage cuts"
+    minutes: 3
+    algo: spark-core
+    steps:
+      - title: Narrow dependencies pipeline
+        body: map and filter read one parent partition each, so one task chains them with no data movement.
+        input: deps
+        check: { metric: manual }
+      - title: Wide dependencies shuffle
+        body: reduceByKey, groupBy and join need rows from every parent partition.
+        check: { metric: manual }
+      - title: DAG scheduler cuts stages
+        body: Each shuffle ends a ShuffleMapStage; the job’s last stage is the ResultStage.
+        check: { metric: manual }
+
+  - id: deep-shuffle
+    title: "Internals: how a shuffle works"
+    minutes: 4
+    algo: spark-core
+    steps:
+      - title: Map side
+        body: Records are bucketed by reduce partition, sorted in memory, and spilled to disk when the buffer fills.
+        input: shuffle
+        check: { metric: manual }
+      - title: Data + index
+        body: Each map task writes one data file and an index of byte offsets, then reports a MapStatus to the driver.
+        check: { metric: manual }
+      - title: Reduce side
+        body: Reducers fetch their segment from every map output; the external shuffle service keeps files served after executors exit.
+        check: { metric: manual }
+
+  - id: deep-catalyst
+    title: "Internals: Catalyst & codegen"
+    minutes: 4
+    algo: spark-sql
+    steps:
+      - title: Four plans
+        body: Parsed → analyzed → optimized logical → physical. explain(true) prints all four.
+        input: catalyst
+        check: { metric: manual }
+      - title: Pushdown and pruning
+        body: Filters move below joins into the scan, and scans read only the columns used.
+        check: { metric: manual }
+      - title: Whole-stage codegen
+        body: Tungsten fuses a pipeline of operators into one generated loop over binary rows; *(n) marks each fused stage.
+        input: codegen
+        check: { metric: manual }
+
+  - id: deep-joins
+    title: "Internals: join strategies"
+    minutes: 3
+    algo: spark-sql
+    steps:
+      - title: Broadcast hash join
+        body: A side under autoBroadcastJoinThreshold (10 MB) is copied to every executor; the big side never shuffles.
+        input: joins
+        check: { metric: manual }
+      - title: Sort-merge vs shuffle hash
+        body: Large joins shuffle both sides; sort-merge sorts and can spill, shuffle hash builds an in-memory table per partition.
+        check: { metric: manual }
+
+  - id: deep-aqe
+    title: "Internals: Adaptive Query Execution"
+    minutes: 3
+    algo: spark-sql
+    steps:
+      - title: Re-plan at stage boundaries
+        body: AQE uses real shuffle sizes after each query stage instead of estimates.
+        input: aqe
+        check: { metric: manual }
+      - title: Three rewrites
+        body: Coalesce tiny partitions, switch sort-merge to broadcast when a side is small, and split skewed partitions.
+        check: { metric: manual }
+
+  - id: deep-memory
+    title: "Internals: memory & caching"
+    minutes: 4
+    algo: spark-mem
+    steps:
+      - title: Unified memory
+        body: Execution and storage share 60% of the heap after 300 MB reserved; execution can evict cache down to a protected floor.
+        input: memory
+        check: { metric: manual }
+      - title: Spill and overhead
+        body: Execution that cannot grow spills to disk; off-heap use beyond memoryOverhead gets the container killed.
+        check: { metric: manual }
+      - title: persist is lazy
+        body: The first action stores partitions as blocks; MEMORY_AND_DISK sends overflow to disk instead of recomputing.
+        input: cache
+        check: { metric: manual }
+
+  - id: deep-partitioning
+    title: "Internals: repartition vs coalesce"
+    minutes: 3
+    algo: spark-mem
+    steps:
+      - title: repartition shuffles
+        body: repartition(n) moves every row to get even partitions; by column it co-locates keys but can skew.
+        input: partition
+        check: { metric: manual }
+      - title: coalesce merges
+        body: coalesce(n) only reduces the count, with no shuffle, but it also shrinks the upstream stage’s parallelism.
+        check: { metric: manual }
+      - title: partitionBy is disk layout
+        body: write.partitionBy creates one folder per value so readers can skip folders.
+        check: { metric: manual }
+
+  - id: study-session
+    title: "Study path: session and laziness"
+    minutes: 4
+    algo: stk-spark-study
+    steps:
+      - title: "SparkSession"
+        body: "master() picks local[*] or a spark:// cluster; the same script runs on both."
+        input: session
+        check: { metric: manual }
+      - title: "Transformations are lazy"
+        body: "map and filter only build lineage."
+        input: lazy
+        check: { metric: manual }
+      - title: "Actions run jobs"
+        body: "collect, count and reduce make the driver schedule tasks."
+        check: { metric: manual }
+
+  - id: study-window-parquet
+    title: "Study path: windows and Parquet"
+    minutes: 4
+    algo: stk-spark-study
+    steps:
+      - title: "Top N per group"
+        body: "A window with dense_rank keeps every row and ranks it inside its group."
+        input: window
+        check: { metric: manual }
+      - title: "Partitioned Parquet"
+        body: "partitionBy writes one directory per value; filters on it skip whole directories."
+        input: parquet
+        check: { metric: manual }
+
+  - id: 1brc-read
+    title: "1BRC: read a billion rows"
+    minutes: 4
+    algo: stk-spark-1brc
+    steps:
+      - title: "The challenge"
+        body: "About 1B lines of station;temperature, 15 GB; print min/mean/max per station."
+        input: schema
+        check: { metric: manual }
+      - title: "Explicit schema"
+        body: "inferSchema costs an extra full pass; a StructType reads once."
+        check: { metric: manual }
+      - title: "Correct before fast"
+        body: "Diff a 10k-row run against the brute-force reference; rounding is the usual bug."
+        check: { metric: manual }
+
+  - id: 1brc-plan
+    title: "1BRC: one shuffle"
+    minutes: 4
+    algo: stk-spark-1brc
+    steps:
+      - title: "Partial aggregation"
+        body: "Each task pre-aggregates its split to at most one row per station."
+        watch: "Shuffled rows drop from 1B to about 120k."
+        input: plan
+        check: { metric: manual }
+      - title: "Collect only the result"
+        body: "Only the 1000-row aggregate reaches the driver. A Python UDF or a raw collect breaks the plan."
+        check: { metric: manual }
+
+  - id: 1brc-cluster
+    title: "1BRC: partitions, slots and AQE"
+    minutes: 4
+    algo: stk-spark-1brc
+    steps:
+      - title: "Tasks and waves"
+        body: "128 MB splits give about 120 tasks on 4 slots, so 30 waves."
+        input: partitions
+        check: { metric: manual }
+      - title: "AQE"
+        body: "Left on, it coalesces 200 tiny shuffle partitions after seeing their real size."
+        input: aqe
+        check: { metric: manual }
+      - title: "Watch the UI"
+        body: "Spill, stragglers and shuffle size on :4040 tell you what to change."
+        check: { metric: manual }
+
+  - id: 1brc-ladder
+    title: "1BRC: climb the ladder"
+    minutes: 3
+    algo: stk-spark-1brc
+    steps:
+      - title: "10k → 1M → 100M → 1B"
+        body: "Each tier must be correct and spill-free before the next."
+        input: ladder
+        check: { metric: manual }
+      - title: "Why"
+        body: "Failures are cheaper to find small; the 1B run should need no changes."
+        check: { metric: manual }
