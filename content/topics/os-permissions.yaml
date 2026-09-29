@@ -1,0 +1,57 @@
+id: os-permissions
+title: Users, permissions & capabilities
+group: machine
+icon: shield
+order: 12
+summary: How the kernel decides Permission denied. uid and gid against rwx bits, setuid binaries, capabilities instead of root, and sudo.
+info: Every process carries user and group ids; every file carries an owner, a group and nine rwx bits. On open or exec the kernel picks exactly one set of bits (owner, group or other) and checks them. setuid, capabilities and sudo are controlled ways to borrow more power, and each is attack surface.
+algos: [os-perm]
+lessons:
+  - id: rwx
+    title: The rwx check
+    minutes: 3
+    algo: os-perm
+    steps:
+      - title: Owner, group, other
+        body: The kernel uses the first class that matches you, owner then group then other, and only that one.
+        input: rwx
+        check: { metric: manual }
+      - title: Fix access, don't chmod 777
+        body: Add the user to the file's group (usermod -aG) or use an ACL with setfacl.
+        check: { metric: manual }
+  - id: setuid
+    title: setuid, setgid & sticky
+    minutes: 3
+    algo: os-perm
+    steps:
+      - title: Borrowing the owner's uid
+        body: passwd is setuid root, so it can write /etc/shadow on your behalf.
+        input: setuid
+        check: { metric: manual }
+      - title: Audit them
+        body: find / -perm -4000 lists setuid binaries. Each one is a way to become root if it has a bug.
+        check: { metric: manual }
+  - id: capabilities
+    title: Capabilities instead of root
+    minutes: 3
+    algo: os-perm
+    steps:
+      - title: Slices of root
+        body: Root's power is split into about 40 capabilities. Grant only the one you need.
+        input: caps
+        check: { metric: manual }
+      - title: Port 80 without root
+        body: setcap cap_net_bind_service=+ep ./server lets it bind low ports while running as a normal user.
+        check: { metric: manual }
+  - id: sudo
+    title: sudo
+    minutes: 2
+    algo: os-perm
+    steps:
+      - title: How sudo works
+        body: A setuid-root binary that checks /etc/sudoers, logs, then runs your command as root.
+        input: sudo
+        check: { metric: manual }
+      - title: Narrow rules
+        body: Grant exact commands (with NOPASSWD for automation) and edit only with visudo.
+        check: { metric: manual }

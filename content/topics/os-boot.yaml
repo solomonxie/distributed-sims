@@ -1,0 +1,61 @@
+id: os-boot
+title: Linux boot process
+group: machine
+icon: power
+order: 9
+summary: From power button to login prompt. Firmware, GRUB, the kernel, initramfs, the real root and systemd as PID 1.
+info: Booting is a relay race where each stage loads the next and gets out of the way. Firmware finds a bootloader, GRUB loads the kernel and a tiny RAM root, the initramfs unlocks and mounts the real disk, and the kernel starts one process, PID 1, which starts everything else. Knowing the chain tells you where to look when a machine won't come up.
+algos: [os-boot]
+lessons:
+  - id: chain
+    title: The boot chain
+    minutes: 4
+    algo: os-boot
+    steps:
+      - title: Firmware
+        body: POST checks the hardware, then UEFI (or legacy BIOS) picks a boot entry.
+        input: chain
+        check: { metric: manual }
+      - title: Bootloader and kernel
+        body: GRUB loads the kernel and initramfs into RAM and passes the command line from /proc/cmdline.
+        watch: Each box lights up as control passes to it.
+        check: { metric: manual }
+      - title: Up to PID 1
+        body: The initramfs mounts the real root, then the kernel starts systemd, which starts every service.
+        check: { metric: manual }
+  - id: uefi
+    title: UEFI, ESP & Secure Boot
+    minutes: 3
+    algo: os-boot
+    steps:
+      - title: Boot entries
+        body: UEFI keeps entries in NVRAM pointing at .efi files on the FAT32 EFI System Partition. List them with efibootmgr.
+        input: uefi
+        check: { metric: manual }
+      - title: Secure Boot
+        body: Only signed binaries run, shim then GRUB then the kernel. mokutil --sb-state tells you if it is on.
+        check: { metric: manual }
+  - id: initramfs
+    title: Why initramfs exists
+    minutes: 3
+    algo: os-boot
+    steps:
+      - title: The chicken and egg
+        body: The drivers and tools needed to reach / (NVMe, LUKS, LVM) live on / itself.
+        input: initramfs
+        check: { metric: manual }
+      - title: Rebuild after changes
+        body: New disk layout or driver? Run update-initramfs -u (or dracut --force), or the next boot lands in an emergency shell.
+        check: { metric: manual }
+  - id: systemd
+    title: PID 1 and systemd
+    minutes: 3
+    algo: os-boot
+    steps:
+      - title: One process to start them all
+        body: systemd reads unit files and starts everything whose dependencies are met, in parallel.
+        input: systemd
+        check: { metric: manual }
+      - title: Debugging slow boots
+        body: systemd-analyze blame lists the slowest units; journalctl -b shows this boot's logs.
+        check: { metric: manual }

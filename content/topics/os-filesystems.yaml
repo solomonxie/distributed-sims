@@ -1,0 +1,73 @@
+id: os-filesystems
+title: Filesystems
+group: machine
+icon: folder-tree
+order: 11
+summary: What open, read, write and fsync really do. VFS, dentries, inodes, the page cache, the ext4 journal, links and mounts.
+info: A file is an inode (metadata plus a block map); a name is just a directory entry pointing at it. VFS gives every filesystem one API, caches path lookups, and serves reads and writes from the page cache in RAM. Durability only happens on fsync, where the journal keeps a crash from corrupting metadata.
+algos: [os-fs]
+lessons:
+  - id: open
+    title: Paths, dentries & inodes
+    minutes: 4
+    algo: os-fs
+    steps:
+      - title: Path walk
+        body: open() hands the path to VFS, which resolves it one component at a time, mostly from the dentry cache.
+        input: open
+        check: { metric: manual }
+      - title: Inodes
+        body: The final entry names an inode, which holds owner, mode, size and block map. ls -li shows the inode number.
+        check: { metric: manual }
+      - title: File descriptors
+        body: The kernel returns the lowest free fd. ls -l /proc/$$/fd lists what a process has open.
+        check: { metric: manual }
+  - id: page-cache
+    title: The page cache
+    minutes: 3
+    algo: os-fs
+    steps:
+      - title: Miss then hit
+        body: The first read goes to disk; every later read of that page is a memory copy.
+        input: read
+        check: { metric: manual }
+      - title: Free memory isn't wasted
+        body: buff/cache in free -h is file data the kernel gives back instantly when programs need RAM.
+        check: { metric: manual }
+  - id: durability
+    title: write, fsync & the journal
+    minutes: 4
+    algo: os-fs
+    steps:
+      - title: write returns early
+        body: write() only dirties the page cache. A power cut loses it.
+        input: write
+        check: { metric: manual }
+      - title: fsync
+        body: Forces data and metadata to disk; ext4 commits metadata through its journal so a crash never half-applies it.
+        watch: Durable flips to yes only after the device flush.
+        check: { metric: manual }
+  - id: links
+    title: Hard & symbolic links
+    minutes: 3
+    algo: os-fs
+    steps:
+      - title: Hard links share an inode
+        body: Deleting one name decrements the link count; data is freed at zero links and zero open fds.
+        input: links
+        check: { metric: manual }
+      - title: The deleted-log gotcha
+        body: A big log deleted while a daemon writes to it keeps using disk. Find it with lsof +L1, then restart or truncate.
+        check: { metric: manual }
+  - id: mounts
+    title: Mounts & fstab
+    minutes: 3
+    algo: os-fs
+    steps:
+      - title: One tree
+        body: Every filesystem is mounted somewhere in /, and VFS dispatches to the right driver.
+        input: mounts
+        check: { metric: manual }
+      - title: fstab by UUID
+        body: Device names can change between boots; UUIDs don't. Options like noatime save a write per read.
+        check: { metric: manual }
