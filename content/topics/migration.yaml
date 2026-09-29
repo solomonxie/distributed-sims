@@ -5,6 +5,7 @@ icon: arrow-right-left
 order: 8
 summary: Change a running system without taking it down, by shifting traffic, data and schema a step at a time.
 info: A safe migration is a series of small, reversible steps. Route a slice of traffic to the new thing, copy data and verify it before cutting over, change schemas without locking hot tables, and remember that DNS and caches keep pointing at the old world for a while.
+algos: [sd-migration-phases, sd-migration-seq]
 lessons:
   - id: strangler-fig
     title: Strangler fig
@@ -112,3 +113,36 @@ lessons:
       - title: Moved
         body: All traffic now lands in us-west-2. Keep the old region warm until you're sure you won't roll back.
         check: { metric: rps, target: app-new, op: '>=', value: 50 }
+
+  - id: expand-contract
+    title: Expand / contract, phase by phase
+    minutes: 4
+    algo: sd-migration-phases
+    steps:
+      - title: Both code versions run at once
+        body: During a rolling deploy old and new code share the database, so every step must be compatible with both.
+        input: expand
+        check: { metric: manual }
+      - title: Expand, backfill, verify
+        body: Add the column, write both, backfill in throttled resumable batches, then verify with counts and checksums.
+        check: { metric: manual }
+      - title: Migrate reads, then contract
+        body: Switch reads while still writing both; drop the old column in a later release. Never combine additive and destructive changes in one deploy.
+        check: { metric: manual }
+
+  - id: dual-write-vs-cdc
+    title: Dual-write vs CDC
+    minutes: 3
+    algo: sd-migration-seq
+    steps:
+      - title: Dual-write drifts
+        body: Two writes to two stores are not atomic. One timeout and they disagree, so dual-write needs reconciliation.
+        input: dual
+        check: { metric: manual }
+      - title: Replicate from the log
+        body: CDC tails the old store's WAL and applies changes in commit order, keeping one write path in the app.
+        input: cdc
+        check: { metric: manual }
+      - title: Gradual cutover
+        body: Shadow-read and compare, move reads 1% at a time, and keep the old store as the rollback for a defined window.
+        check: { metric: manual }

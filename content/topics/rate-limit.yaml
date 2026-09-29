@@ -5,7 +5,7 @@ icon: gauge
 order: 6
 summary: Cap how fast clients can call you, and shed what you can't serve.
 info: A rate limiter counts requests per key (global, per tenant, per user) and answers 429 once the budget is spent. The algorithm decides how bursts are treated, and where the counters live decides whether a fleet of limiters actually enforces one limit. Load shedding is the server-side twin, dropping excess work early so admitted requests stay fast.
-algos: [token-bucket, leaky-bucket, sliding-window]
+algos: [token-bucket, leaky-bucket, sliding-window, sd-ratelimit-seq]
 problems: [rate-limiter]
 lessons:
   - id: token-vs-leaky
@@ -109,3 +109,28 @@ lessons:
       - title: Recovery
         body: After the burst the right side recovers at once. The left one still has to work through its backlog of stale requests, which nobody is waiting for any more.
         check: { metric: availability, target: users-q, op: '>=', value: 99 }
+
+  - id: enforcement
+    title: Where and how to enforce
+    minutes: 4
+    algo: sd-ratelimit-seq
+    steps:
+      - title: Local counters multiply
+        body: Three instances each allowing 100 a minute let 300 through. The effective limit grows with the fleet.
+        input: naive
+        check: { metric: manual }
+      - title: One shared counter
+        body: INCR + EXPIRE in Redis per key and window. Decide explicitly whether to fail open or closed when Redis is unreachable.
+        input: shared
+        check: { metric: manual }
+      - title: Tell clients when to retry
+        body: Return 429 with Retry-After and X-RateLimit-Remaining, or clients turn one overload into a retry storm.
+        input: shared
+        check: { metric: manual }
+      - title: The window boundary
+        body: A fixed window lets a burst straddle the reset. The sliding-window counter weighs the previous window by its overlap.
+        input: boundary
+        check: { metric: manual }
+      - title: Layers
+        body: Coarse per-key limits at the edge, tighter ones on expensive endpoints, cooperative backoff in your own SDKs.
+        check: { metric: manual }

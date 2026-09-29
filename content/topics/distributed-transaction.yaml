@@ -5,7 +5,7 @@ icon: arrow-left-right
 order: 5
 summary: Keep several services or databases consistent when one business action touches all of them.
 info: One database gives you a transaction for free; several don't. Two-phase commit makes them all-or-nothing but blocks when the coordinator dies. Sagas and outboxes give up atomicity for availability and repair failures with compensations, retries and idempotency.
-algos: [raft-log, clocks]
+algos: [raft-log, clocks, sd-txn-seq]
 problems: [ticket-booking, distributed-mq]
 lessons:
   - id: 2pc-happy-path
@@ -124,3 +124,36 @@ lessons:
         body: Tap ⚡ Break → Slow on Legacy payments. More charges run past the timeout, so more get retried and charged again.
         action: { event: { kind: slow, target: legacy, params: { x: 4 }, durationSec: 30 } }
         check: { metric: anomaly:duplicate, op: '>=', value: 50 }
+
+  - id: message-by-message
+    title: Every message, step by step
+    minutes: 6
+    algo: sd-txn-seq
+    steps:
+      - title: 2PC commit
+        body: PREPARE to each participant, YES votes back, the decision logged, COMMIT out, ACKs back. Tap Next to see each request and response.
+        input: 2pc
+        check: { metric: manual }
+      - title: 2PC abort
+        body: One NO vote aborts everyone. A coordinator crash between prepare and decision leaves participants blocked holding locks.
+        input: 2pc-abort
+        check: { metric: manual }
+      - title: Orchestrated saga
+        body: Each step commits locally right away. The order is visibly PENDING until the last step confirms it.
+        input: saga
+        check: { metric: manual }
+      - title: Compensation
+        body: A late failure runs the completed steps' undo actions in reverse. Compensations only run in failures, so test them hardest.
+        input: saga-fail
+        check: { metric: manual }
+      - title: Choreography
+        body: No orchestrator; services react to each other's events. Easy to add a listener, hard to see the whole flow in one place.
+        input: choreo
+        check: { metric: manual }
+      - title: Outbox
+        body: The event row commits in the same local transaction as the order, then a relay publishes it. Consumers still dedupe.
+        input: outbox
+        check: { metric: manual }
+      - title: Default
+        body: Sagas plus outbox across services; 2PC only inside one failure domain where blocking is acceptable.
+        check: { metric: manual }

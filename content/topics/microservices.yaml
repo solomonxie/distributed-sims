@@ -5,6 +5,7 @@ icon: boxes
 order: 7
 summary: Many small services instead of one big process, and the failure modes that come with the network in between.
 info: Splitting a monolith gives independent deploys and a smaller blast radius, but every call now crosses the network. Slow dependencies back up into their callers, retries multiply load, and one hung pool can take unrelated features down. Timeouts, circuit breakers, bulkheads and health checks keep a failure local.
+algos: [sd-arch-boundaries]
 lessons:
   - id: monolith-vs-microservices
     title: Monolith → microservices
@@ -123,3 +124,23 @@ lessons:
       - title: It comes back
         body: When orders-2 restarts, it needs 5 good probes in a row before it gets traffic again.
         check: { metric: 'eventMatch:orders-2 healthy', op: '>=', value: 1 }
+
+  - id: boundaries
+    title: Modular monolith vs distributed monolith
+    minutes: 4
+    algo: sd-arch-boundaries
+    steps:
+      - title: A modular monolith
+        body: One deploy, strict module interfaces, each module owning its tables, enforced by a build-time rule.
+        input: modular
+        check: { metric: manual }
+      - title: The distributed monolith
+        body: Services that share a database and deploy in lockstep pay microservices' costs with none of the independence.
+        input: distmono
+        check: { metric: manual }
+      - title: Watch chattiness
+        body: Calls between services per user request is the early signal a boundary is wrong. Draw boundaries around bounded contexts, not tables or org charts.
+        check: { metric: manual }
+      - title: When to extract
+        body: Split when a part needs its own deploy cadence, scaling or runtime, not because the codebase feels big.
+        check: { metric: manual }

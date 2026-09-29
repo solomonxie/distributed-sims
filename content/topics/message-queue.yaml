@@ -6,6 +6,7 @@ order: 9
 summary: Decouple producers from consumers, and deal with redelivery, ordering, poison messages and lag.
 info: A queue (SQS, RabbitMQ) hands each message to one consumer and deletes it on ack. A stream (Kafka, Kinesis) keeps an ordered log that many consumer groups read at their own offsets. Both deliver at-least-once, so consumers must be idempotent, and order is only guaranteed per key or partition.
 problems: [send-email, distributed-mq]
+algos: [sd-mq-delivery]
 lessons:
   - id: queue-vs-stream
     title: Queue vs stream
@@ -117,3 +118,28 @@ lessons:
       - title: It catches up
         body: When Analytics recovers, it works through its backlog. The publisher never waited, because delivery is async.
         check: { metric: 'gauge:backlog', target: t, op: '<=', value: 10 }
+
+  - id: delivery-guarantees
+    title: Delivery guarantees, message by message
+    minutes: 5
+    algo: sd-mq-delivery
+    steps:
+      - title: At-most-once
+        body: Ack on receipt and a crash loses the message. Usually the result of not handling failure, not a deliberate choice.
+        input: atmost
+        check: { metric: manual }
+      - title: At-least-once
+        body: Ack after the work and a crash in between means redelivery, so the side effect runs twice.
+        input: atleast
+        check: { metric: manual }
+      - title: Idempotent consumer
+        body: Record the message id and do the work in one transaction; a unique key turns the redelivery into a no-op.
+        input: idempotent
+        check: { metric: manual }
+      - title: Producers duplicate too
+        body: A lost publish ack makes the producer resend. Only an id generated once per logical operation can dedupe that.
+        input: producer
+        check: { metric: manual }
+      - title: Exactly-once, in practice
+        body: At-least-once plus an idempotent consumer is the real-world answer. True exactly-once only exists inside narrow systems like Kafka-to-Kafka transactions.
+        check: { metric: manual }

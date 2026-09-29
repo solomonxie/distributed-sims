@@ -1,0 +1,47 @@
+id: sd-cloud-networking
+title: Cloud networking
+group: topics
+icon: cloud
+order: 23
+summary: VPCs, public and private subnets, route tables, NAT, security groups vs NACLs, peering and transit gateways.
+info: A VPC is your own private address space in a cloud. Public subnets route to an internet gateway and hold only load balancers and NAT; everything else sits in private subnets. Security groups are stateful per instance, network ACLs stateless per subnet. Peering is point to point and not transitive; many VPCs need a transit gateway hub.
+algos: [sd-vpc-layout, sd-vpc-firewalls]
+lessons:
+  - id: vpc-layout
+    title: Public and private subnets
+    minutes: 4
+    algo: sd-vpc-layout
+    steps:
+      - title: Only the edge is public
+        body: The load balancer and NAT gateway sit in public subnets with a route to the internet gateway. App servers and databases don't.
+        input: layout
+        check: { metric: manual }
+      - title: Outbound through NAT
+        body: Private instances reach the internet through NAT for updates and APIs, and can never be reached from outside.
+        check: { metric: manual }
+
+  - id: firewalls
+    title: Security groups vs NACLs
+    minutes: 3
+    algo: sd-vpc-firewalls
+    steps:
+      - title: Two layers
+        body: The subnet's NACL checks rules in order and statelessly; the instance's security group is a stateful allow-list.
+        input: path
+        check: { metric: manual }
+      - title: The ephemeral-port trap
+        body: Replies need their own NACL rule because NACLs don't track connections. Scope security groups to exactly the callers needed.
+        check: { metric: manual }
+
+  - id: connecting-vpcs
+    title: Peering and transit gateways
+    minutes: 3
+    algo: sd-vpc-layout
+    steps:
+      - title: Not transitive
+        body: A peered with B and B with C does not connect A to C.
+        input: peering
+        check: { metric: manual }
+      - title: Hub and spoke
+        body: A transit gateway routes between many VPCs and on-prem links without an N² mesh.
+        check: { metric: manual }

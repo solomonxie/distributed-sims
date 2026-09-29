@@ -1,0 +1,87 @@
+id: sd-frontend
+title: Frontend architecture
+group: topics
+icon: layout-panel-top
+order: 20
+summary: Where pages render (CSR, SSR, SSG, ISR) and the browser security model (same-origin, CORS, CSRF, XSS).
+info: Rendering strategy is a system design decision. It sets first-load speed, SEO, server cost and CDN cacheability, and real products mix strategies per route. The browser's same-origin policy is the root of CORS, CSRF defenses and cookie flags; CORS relaxes reads, CSRF abuses automatic cookies, XSS runs an attacker's script as your origin.
+algos: [sd-fe-render, sd-fe-cors, sd-fe-csrf, sd-fe-xss]
+lessons:
+  - id: rendering
+    title: CSR, SSR, SSG, ISR
+    minutes: 5
+    algo: sd-fe-render
+    steps:
+      - title: Client-side
+        body: An empty shell, then bundle, run, fetch. Nothing useful shows until all three are done.
+        input: csr
+        check: { metric: manual }
+      - title: Server-side
+        body: Real HTML paints early, but clicks do nothing until hydration. Every request costs server render time.
+        input: ssr
+        check: { metric: manual }
+      - title: Static
+        body: Rendered at build time and served from the CDN. Fastest, and only as fresh as the last build.
+        input: ssg
+        check: { metric: manual }
+      - title: Incremental static
+        body: Serve the static page and regenerate it in the background after the revalidate window.
+        input: isr
+        check: { metric: manual }
+      - title: Mix per route
+        body: Marketing pages SSG, product pages SSR or ISR, the logged-in dashboard CSR.
+        input: compare
+        check: { metric: manual }
+
+  - id: cors
+    title: Same-origin and CORS
+    minutes: 4
+    algo: sd-fe-cors
+    steps:
+      - title: The read is blocked, not the request
+        body: The request reaches the server either way. Without Access-Control-Allow-Origin the browser just hides the response.
+        input: simple
+        check: { metric: manual }
+      - title: Preflight
+        body: Non-simple requests send OPTIONS first and only proceed if the server allows the method and headers.
+        input: preflight
+        check: { metric: manual }
+      - title: Credentials
+        body: Wildcard origin plus credentials is refused by browsers. CORS is not an auth boundary; curl ignores it.
+        input: credentials
+        check: { metric: manual }
+
+  - id: csrf
+    title: CSRF
+    minutes: 4
+    algo: sd-fe-csrf
+    steps:
+      - title: The forged request
+        body: An attacker page makes the victim's browser post to the bank, and the browser attaches the bank cookie.
+        input: attack
+        check: { metric: manual }
+      - title: SameSite
+        body: Lax or Strict cookies stay home on cross-site posts, closing most CSRF vectors.
+        input: samesite
+        check: { metric: manual }
+      - title: CSRF tokens
+        body: An unpredictable token the attacker cannot read makes forged posts fail. Use both for sensitive actions.
+        input: token
+        check: { metric: manual }
+
+  - id: xss
+    title: XSS
+    minutes: 4
+    algo: sd-fe-xss
+    steps:
+      - title: Stored XSS
+        body: An unescaped comment runs as the site's own script and ships the session cookie to the attacker.
+        input: stored
+        check: { metric: manual }
+      - title: Layers of defense
+        body: Escape by context, set a Content-Security-Policy, and mark session cookies httpOnly.
+        input: csp
+        check: { metric: manual }
+      - title: Where tokens live
+        body: httpOnly cookies are safe from XSS theft but exposed to CSRF; localStorage is the reverse. Pick the risk you can mitigate.
+        check: { metric: manual }
