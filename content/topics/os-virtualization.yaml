@@ -1,0 +1,160 @@
+id: os-virtualization
+title: Virtual machines & hypervisors
+group: machine
+icon: server
+order: 14
+summary: A whole computer in software. Type 1 vs type 2, how VT-x traps and resumes, extended page tables, virtio, live migration, and KVM, Xen, ESXi, Nitro and nested virtualisation.
+info: A VM is a guest kernel that believes it owns the hardware. The CPU runs its code directly and traps only the sensitive instructions to the hypervisor (VT-x), a second set of page tables maps its fake physical memory (EPT), and virtio devices replace slow emulation. On top of that sit the products, KVM/QEMU, Xen, Hyper-V, ESXi, AWS Nitro, and the trade-off against containers and microVMs. Tap a box for the commands and details.
+algos: [os-vms, os-hypervisors]
+lessons:
+  - id: types
+    title: What a VM is, type 1 vs type 2
+    minutes: 4
+    algo: os-vms
+    steps:
+      - title: A computer in software
+        body: The guest kernel boots and runs unmodified, believing it owns CPU, RAM and devices.
+        input: types
+        check: { metric: manual }
+      - title: Type 1 and type 2
+        body: Bare metal (ESXi, Xen, Hyper-V, KVM) versus an app on a host OS (VirtualBox, Workstation). Same CPU features underneath.
+        check: { metric: manual }
+      - title: A VM is a process
+        body: With KVM each VM is a QEMU process and each vCPU a thread, scheduled by Linux like anything else.
+        check: { metric: manual }
+
+  - id: trap
+    title: "VT-x: trap and resume"
+    minutes: 5
+    algo: os-vms
+    steps:
+      - title: Guest mode
+        body: Ordinary instructions run natively. VT-x adds a mode below ring 0 so the guest kernel can run there.
+        input: trap
+        check: { metric: manual }
+      - title: VM exit
+        body: Port I/O, CPUID, HLT and page-table switches trap. The CPU saves state to the VMCS and jumps to the hypervisor.
+        watch: The VMCS box lights up on the exit.
+        check: { metric: manual }
+      - title: Who handles it
+        body: KVM in-kernel for cheap exits, QEMU for device emulation, then VMRESUME. About a microsecond each.
+        check: { metric: manual }
+      - title: Before hardware support
+        body: Binary translation (VMware) and paravirtualisation (Xen) did the same job in software before 2005.
+        check: { metric: manual }
+
+  - id: memory
+    title: Memory with extended page tables
+    minutes: 4
+    algo: os-vms
+    steps:
+      - title: Two levels of translation
+        body: Guest virtual → guest physical (guest tables) → host physical (EPT). The CPU walks both.
+        input: memory
+        check: { metric: manual }
+      - title: The cost
+        body: A TLB miss can take 24 memory reads. Huge pages help.
+        check: { metric: manual }
+      - title: Overcommit
+        body: Untouched pages cost nothing, balloon drivers reclaim, KSM dedupes identical pages across VMs.
+        check: { metric: manual }
+
+  - id: virtio
+    title: Devices and virtio
+    minutes: 4
+    algo: os-vms
+    steps:
+      - title: Emulation is slow
+        body: A faithful e1000 costs a VM exit per register write.
+        input: virtio
+        check: { metric: manual }
+      - title: Paravirtual devices
+        body: virtio drivers know they are in a VM and exchange buffers through shared rings, one kick per batch. vhost skips QEMU.
+        check: { metric: manual }
+      - title: Passthrough
+        body: SR-IOV hands a real device slice to the guest. Native speed, no live migration.
+        check: { metric: manual }
+
+  - id: migrate
+    title: Live migration
+    minutes: 4
+    algo: os-vms
+    steps:
+      - title: Pre-copy rounds
+        body: Copy memory while the guest runs, then re-copy what got dirty, until the remainder fits the pause budget.
+        input: migrate
+        check: { metric: manual }
+      - title: Stop and copy
+        body: Pause for ~50 ms, ship the last pages and CPU state, resume, send a gratuitous ARP.
+        check: { metric: manual }
+      - title: When it fails
+        body: Dirtying faster than the link never converges; post-copy moves the CPU first and fetches pages on demand.
+        check: { metric: manual }
+
+  - id: kvm
+    title: KVM, QEMU and libvirt
+    minutes: 4
+    algo: os-hypervisors
+    steps:
+      - title: The chain
+        body: virsh → libvirtd → one QEMU process → ioctl(KVM_RUN) per vCPU thread.
+        input: kvm
+        check: { metric: manual }
+      - title: Division of labour
+        body: KVM does CPU and memory, QEMU does devices, Linux does scheduling, drivers and cgroups.
+        check: { metric: manual }
+
+  - id: xen
+    title: Xen, Hyper-V and ESXi
+    minutes: 4
+    algo: os-hypervisors
+    steps:
+      - title: A privileged VM holds the drivers
+        body: Xen's dom0 and Hyper-V's root partition own the hardware; guests reach devices through them.
+        input: xen
+        check: { metric: manual }
+      - title: ESXi
+        body: A self-contained kernel with its own drivers, managed by vCenter. vMotion is its live migration.
+        check: { metric: manual }
+      - title: The trade-off
+        body: A dom0 crash takes every VM down; KVM and ESXi avoid the hop but carry the drivers themselves.
+        check: { metric: manual }
+
+  - id: nitro
+    title: AWS Nitro
+    minutes: 3
+    algo: os-hypervisors
+    steps:
+      - title: From Xen to cards
+        body: Networking, storage and security moved to Nitro cards; the host keeps a minimal KVM-based hypervisor.
+        input: cloud
+        check: { metric: manual }
+      - title: Bare metal
+        body: .metal instances drop the hypervisor and still use the cards.
+        check: { metric: manual }
+
+  - id: compare
+    title: VM vs microVM vs container
+    minutes: 4
+    algo: os-hypervisors
+    steps:
+      - title: Three boundaries
+        body: "VM: ~30 s and GBs. microVM: ~125 ms and MBs. Container: ~10 ms and a shared kernel."
+        input: compare
+        check: { metric: manual }
+      - title: Choosing
+        body: Your own code in containers; other people's code behind a hardware boundary. Lambda runs a microVM per customer with containers inside.
+        check: { metric: manual }
+
+  - id: nested
+    title: Nested virtualisation
+    minutes: 3
+    algo: os-hypervisors
+    steps:
+      - title: A hypervisor inside a VM
+        body: The host exposes VT-x to a guest. Every L2 exit trips through L0 first, so it is slower.
+        input: nested
+        check: { metric: manual }
+      - title: Where you meet it
+        body: KVM in cloud CI runners, Android emulators on cloud desktops, Docker Desktop's Linux VM on a Mac.
+        check: { metric: manual }

@@ -5,7 +5,7 @@ icon: ship-wheel
 order: 14
 summary: Control loops over etcd — how a Deployment becomes running pods, and what keeps serving when parts of the cluster die.
 info: Every change goes through the API server, which is the only component that talks to etcd (Raft). The scheduler binds Pending pods to nodes, controllers reconcile Deployments, nodes and the HPA, and each node's kubelet starts pods and probes them. A Service only sends traffic to pods whose readiness probe passes. Times are sim-scaled (grace 5s, eviction 10s).
-algos: [raft-log]
+algos: [raft-log, os-k8s-node]
 problems: [kv-store]
 lessons:
   - id: anatomy
@@ -142,3 +142,67 @@ lessons:
       - title: Pods keep serving
         body: The data plane doesn't need the API server. kube-proxy keeps its last endpoints, but no scaling, rollout or rescheduling can happen until it's back.
         check: { metric: availability, op: '>=', value: 99 }
+
+  - id: pod-to-process
+    title: "Inside a node: pod to process"
+    minutes: 4
+    algo: os-k8s-node
+    steps:
+      - title: The kubelet's watch
+        body: The scheduler set spec.nodeName; the kubelet on that node picks the pod up and syncs it.
+        input: pod
+        check: { metric: manual }
+      - title: Sandbox, then CNI
+        body: RunPodSandbox creates the pause container that holds the network namespace; the CNI plugin adds a veth and the pod IP.
+        check: { metric: manual }
+      - title: Containers join
+        body: Each app container starts into the pause container's net and IPC namespaces. Underneath it is runc, the same as Docker.
+        check: { metric: manual }
+
+  - id: service-to-pod
+    title: Service to pod
+    minutes: 4
+    algo: os-k8s-node
+    steps:
+      - title: A virtual IP
+        body: The ClusterIP is on no interface. EndpointSlices list the Ready pod IPs behind it.
+        input: service
+        check: { metric: manual }
+      - title: kube-proxy and CoreDNS
+        body: iptables DNAT on every node picks a random endpoint; CoreDNS maps web.default.svc to the ClusterIP.
+        check: { metric: manual }
+      - title: Outward
+        body: NodePort, LoadBalancer and Ingress are layers on top of the same rules.
+        check: { metric: manual }
+
+  - id: requests-limits
+    title: Requests, limits and cgroups
+    minutes: 4
+    algo: os-k8s-node
+    steps:
+      - title: Requests schedule
+        body: A node needs the requested CPU and memory free to take the pod.
+        input: limits
+        check: { metric: manual }
+      - title: Limits become cgroup files
+        body: memory.max kills at the limit (OOMKilled, 137); cpu.max throttles per 100 ms period and only hurts latency.
+        check: { metric: manual }
+      - title: QoS classes
+        body: Guaranteed, Burstable, BestEffort decide who gets evicted first under node pressure.
+        check: { metric: manual }
+
+  - id: probes-explained
+    title: What each probe does
+    minutes: 4
+    algo: os-k8s-node
+    steps:
+      - title: Readiness removes, liveness restarts
+        body: A failing readiness probe pulls the pod out of the Service; a failing liveness probe restarts the container.
+        input: probes
+        check: { metric: manual }
+      - title: CrashLoopBackOff
+        body: Repeated restarts back off from 10 s to 5 minutes.
+        check: { metric: manual }
+      - title: Do not probe your database
+        body: Liveness asks whether the process is stuck, readiness whether it can serve. Mixing them turns a blip into a restart storm.
+        check: { metric: manual }

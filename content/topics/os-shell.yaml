@@ -2,7 +2,7 @@ id: os-shell
 title: Shell, fds & make
 group: machine
 icon: square-terminal
-order: 14
+order: 16
 summary: What the shell does behind a pipeline, why 2>&1 order matters, exit codes and pipefail, and how make decides what to rebuild.
 info: The shell is a small program that forks, wires file descriptors with pipe and dup2, and execs. Once you see pipelines and redirections as fd plumbing, their gotchas stop being surprising. make is the same kind of simple idea, a dependency graph compared by timestamps.
 algos: [os-shell]
