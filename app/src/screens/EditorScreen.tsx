@@ -14,7 +14,7 @@ import { computeLayout, hitTest, nodeIcon } from '../canvas/layout';
 import { useDoc, flushSave } from '../state/doc';
 import { useLibrary, forkDoc, saveSystem } from '../state/library';
 import { useSettings } from '../state/settings';
-import { controller, SEND_BURSTS, useRun, flightsSV, simTime, anchorsSV, hasTrafficOrigin, CHALLENGE_PACE, journeyOf, type JourneyHop } from '../state/run';
+import { controller, SEND_BURSTS, useRun, flightsSV, simTime, anchorsSV, hasTrafficOrigin, isClient, CHALLENGE_PACE, journeyOf, type JourneyHop } from '../state/run';
 import { Sheet } from '../sheets/Sheet';
 import { PaletteContent, type PaletteItem } from '../sheets/PaletteSheet';
 import { NodeInspector, EdgeInspector, ContainerInspector } from '../sheets/Inspector';
@@ -224,7 +224,7 @@ export function EditorScreen() {
       toast({ text: 'Add a client and a service to run', tone: 'info', icon: 'info' });
       return;
     }
-    if (!doc.scenario?.sources.length) toast({ text: 'Added 100 rps from every client', tone: 'info', icon: 'activity' });
+    if (!doc.scenario?.sources.length && doc.nodes.some(n => isClient(n.type))) toast({ text: 'Added 100 rps from every client', tone: 'info', icon: 'activity' });
     const g = route.params.guide;
     const lessonSpeed = g?.kind === 'lesson' ? ((topics.find(t => t.id === g.topicId)?.lessons.find(l => l.id === g.lessonId) as any)?.speed ?? 1) : g ? 1 : undefined;
     controller.start(doc, layout, { autoplay: true, owner: myDocId, speed: lessonSpeed, pace: g?.kind === 'challenge' ? CHALLENGE_PACE : undefined, auto: false });
