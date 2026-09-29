@@ -11,39 +11,37 @@ floats in glass over the canvas and gets out of the way. Tokens live in
   are floating glass pills; the canvas runs edge to edge under them.
 - **Light = activity.** Idle things are muted greys; motion, glow and
   saturation are reserved for traffic, health changes and alerts.
-- **One accent.** Cyan for interactive/primary. Semantic colours (health,
-  op types) never double as accents.
+- **Calm chrome.** Neutral near-black surfaces, one soft indigo accent for
+  the primary action and progress, muted status colours. Tile icons stay
+  neutral; colour marks only progress and completion. Semantic colours
+  (health, op types) never double as accents.
 - **Numbers never jitter.** Tabular SF Mono for every live figure.
 - **Everything springs, nothing fades in slow.** 200–350ms, spring-based.
 
 ## Colour tokens
 
-Dark only for now — the light column is kept but not shipped.
+Two palettes (`theme/tokens.ts`): `palette` for app chrome (`useTheme().c`)
+and `canvasPalette` for the animations (`useTheme().k`: algorithm frames,
+system canvas). The canvas palette keeps the original neon set until the
+animations get their own pass. Dark only for now.
 
 ```
-                       dark (default)   light
- bg.canvas             #0A0D14          #F5F6F8
- bg.grid-dot           #1C2230          #D9DDE4
- surface.1  (cards)    #121722          #FFFFFF
- surface.2  (raised)   #1A2030          #FFFFFF + shadow
- glass                 #121722 @ 72% + blur 24     #FFFFFF @ 72% + blur 24
- stroke.hairline       #FFFFFF @ 8%     #0A0D14 @ 8%
- text.primary          #E8ECF4          #0A0D14
- text.secondary        #8A93A6          #5A6376
- text.tertiary         #566074          #8A93A6
- accent                #5CE1FF          #0095C8
- accent.pressed        #2FC4E8          #007AA6
+ chrome (palette)      dark             light (parked)
+ bg.canvas             #0F1012          #F6F6F4
+ surface.1  (cards)    #17181B          #FFFFFF
+ surface.2  (raised)   #1F2023          #F0F0EE
+ glass                 #17181B @ 78% + blur
+ stroke.hairline       #FFFFFF @ 7%     #000000 @ 6%
+ text.primary          #ECECEE          #1C1C1E
+ text.secondary        #9B9CA2          #6B6B70
+ text.tertiary         #64656B          #A1A1A6
+ accent                #A3AEF5          #4F5BD5   (on-accent #111217 / #FFF)
+ health ok/warn/fail   #86C3A3 #DDB679 #E39494
+ op read/write/proto   #96B4E0 #DFAA85 #B7A8E6
 
- health.ok             #3DDC97          #0F9D63
- health.warn           #FFB547          #C77800
- health.fail           #FF5C6C          #D6263B
- health.down           #566074 + 45° hatch
- health.partition      #B28CFF (⟂ icon)
-
- op.read               #5CE1FF   (= accent family, cool)
- op.write              #FF9F5C   (warm)
- op.protocol           #B28CFF   (violet — consensus / txn)
- op.error              #FF5C6C
+ canvas (canvasPalette, unchanged)
+ bg #0A0D14 · accent/read #5CE1FF · write #FF9F5C · protocol #B28CFF
+ ok #3DDC97 · warn #FFB547 · fail #FF5C6C
 ```
 
 Contrast: text.primary / secondary on surface.1 ≥ 7:1 / 4.5:1. Health

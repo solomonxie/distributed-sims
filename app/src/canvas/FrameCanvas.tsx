@@ -46,7 +46,7 @@ export function FrameCanvas({ frame, prev, size }: { frame: Frame; prev?: Frame;
 
 /** Palette, fonts and surface colours for drawShapes, from the current theme. */
 export function useFrameStyle() {
-  const { c } = useTheme();
+  const { k: c } = useTheme();
   const palette = useMemo(() => {
     const m: Record<string, string> = {};
     for (const t of TONES) m[t] = toneColor(c, t);

@@ -68,7 +68,7 @@ const PORT_R = 7;
 const LANE = 5;
 
 export function SystemCanvas(p: SystemCanvasProps) {
-  const { c, dark } = useTheme();
+  const { k: c, dark } = useTheme();
   const { layout, camera } = p;
   const { tx, ty, s } = camera;
 

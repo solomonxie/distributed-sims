@@ -156,7 +156,7 @@ export function IconButton({ name, onPress, color, size = 22, disabled, label, s
 }
 
 export function Segmented<T extends string>({ options, value, onChange, labels, style }: { options: readonly T[]; value: T; onChange: (v: T) => void; labels?: Partial<Record<T, string>>; style?: StyleProp<ViewStyle> }) {
-  const { c } = useTheme();
+  const { c, dark } = useTheme();
   return (
     <View style={[styles.seg, { backgroundColor: c.surface2, borderColor: c.hairline }, style]}>
       {options.map(o => {
@@ -168,7 +168,7 @@ export function Segmented<T extends string>({ options, value, onChange, labels, 
               haptic('select');
               onChange(o);
             }}
-            style={[styles.segItem, on && { backgroundColor: c.canvas === '#0A0D14' ? '#2A3246' : '#FFFFFF', shadowOpacity: 0.15 }]}
+            style={[styles.segItem, on && { backgroundColor: dark ? c.hairlineStrong : c.surface1, shadowOpacity: 0.15 }]}
           >
             <RNText numberOfLines={1} style={[typo.callout, { color: on ? c.text : c.text2, fontWeight: on ? '700' : '500' }]}>
               {labels?.[o] ?? cap(o)}
@@ -248,7 +248,7 @@ export function Glass({ children, style, radius: r = radius.pill }: { children: 
   return (
     <View style={[{ borderRadius: r, overflow: 'hidden', borderWidth: StyleSheet.hairlineWidth, borderColor: c.hairlineStrong }, style]}>
       <BlurView style={StyleSheet.absoluteFill} blurType={dark ? 'dark' : 'light'} blurAmount={24} reducedTransparencyFallbackColor={c.glassSolid} />
-      <View style={[StyleSheet.absoluteFill, { backgroundColor: dark ? 'rgba(18,23,34,0.55)' : 'rgba(255,255,255,0.55)' }]} />
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: dark ? 'rgba(23,24,27,0.55)' : 'rgba(255,255,255,0.55)' }]} />
       {children}
     </View>
   );
