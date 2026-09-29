@@ -1,0 +1,94 @@
+id: ai-ml-basics
+title: "Machine learning basics"
+group: ai
+icon: chart-scatter
+order: 0.2
+summary: "Features and labels, fitting a line, gradient descent, logistic regression and overfitting."
+info: "Machine learning fits a function to examples by minimising a loss. Everything in deep learning, LLMs included, is this loop at scale: predict, measure the error, follow the gradient downhill, and check on data the model has not seen."
+algos: [ai-ml-regression, ai-ml-gd, ai-ml-logistic, ai-ml-overfit]
+lessons:
+  - id: data
+    title: "Data, features & labels"
+    minutes: 3
+    algo: ai-ml-regression
+    steps:
+      - title: "Examples"
+        body: "Each row is one example: features x (the inputs) and a label y (the answer)."
+        input: "data"
+        check: { metric: manual }
+      - title: "The goal"
+        body: "Learn a function from x to y that also works on examples not in the table."
+        check: { metric: manual }
+
+  - id: regression
+    title: "Linear regression & MSE"
+    minutes: 4
+    algo: ai-ml-regression
+    steps:
+      - title: "A guess and its errors"
+        body: "Predict ŷ = w·x + b. The residuals are the misses; their mean square is the loss."
+        watch: "Dashed lines are the residuals."
+        input: "fit"
+        check: { metric: manual }
+      - title: "The best line"
+        body: "Least squares picks w and b with the smallest MSE, then predicts new houses."
+        check: { metric: manual }
+
+  - id: gradient-descent
+    title: "Gradient descent & the learning rate"
+    minutes: 5
+    algo: ai-ml-gd
+    steps:
+      - title: "Walk downhill"
+        body: "The gradient is the slope of the loss; step against it: w ← w − lr·gradient."
+        input: "good"
+        check: { metric: manual }
+      - title: "Too small"
+        body: "A tiny learning rate is safe but crawls."
+        input: "small"
+        check: { metric: manual }
+      - title: "Too big"
+        body: "A big one overshoots and bounces across the bowl."
+        input: "big"
+        check: { metric: manual }
+      - title: "Diverging"
+        body: "Bigger still and every step overshoots further: the loss explodes."
+        input: "diverge"
+        check: { metric: manual }
+
+  - id: logistic
+    title: "Logistic regression & cross-entropy"
+    minutes: 5
+    algo: ai-ml-logistic
+    steps:
+      - title: "Sigmoid"
+        body: "σ(z) squashes a score into a probability between 0 and 1."
+        input: "sigmoid"
+        check: { metric: manual }
+      - title: "Cross-entropy"
+        body: "Loss = −log(probability of the right answer): confident and wrong costs the most."
+        input: "xent"
+        check: { metric: manual }
+      - title: "Decision boundary"
+        body: "Gradient descent moves the line w·x + b = 0 until it separates the classes."
+        input: "boundary"
+        check: { metric: manual }
+
+  - id: overfitting
+    title: "Train, validate & overfitting"
+    minutes: 4
+    algo: ai-ml-overfit
+    steps:
+      - title: "Underfit"
+        body: "A straight line cannot follow a wave: high error on both sets."
+        input: "underfit"
+        check: { metric: manual }
+      - title: "About right"
+        body: "Degree 3 follows the shape; train and validation errors are both low."
+        input: "good"
+        check: { metric: manual }
+      - title: "Overfit"
+        body: "Degree 6 threads every training point but misses the held-out ones. Always judge on validation data."
+        watch: "Train MSE near 0, validation MSE up."
+        input: "overfit"
+        check: { metric: manual }

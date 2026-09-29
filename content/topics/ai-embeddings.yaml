@@ -1,0 +1,47 @@
+id: ai-embeddings
+title: "Embeddings & vector search"
+group: ai
+icon: scatter-chart
+order: 3
+summary: "Meaning as direction: cosine similarity, analogies, and nearest-neighbour search."
+info: "An embedding maps a token or a whole text to a vector so that similar meanings point the same way. Cosine similarity compares them; vector indexes find the nearest ones fast. Hands-on: ~/workspace/llm-references/hello-embeddings."
+algos: [ai-embed]
+lessons:
+  - id: cosine
+    title: "Cosine similarity"
+    minutes: 3
+    algo: ai-embed
+    steps:
+      - title: "Vectors"
+        body: "Each word is a row of numbers."
+        input: "cosine"
+        check: { metric: manual }
+      - title: "Compare direction"
+        body: "cos(king, queen) is high, cos(king, apple) is low."
+        check: { metric: manual }
+
+  - id: analogy
+    title: "Vector arithmetic"
+    minutes: 3
+    algo: ai-embed
+    steps:
+      - title: "Directions mean things"
+        body: "king \u2212 man + woman lands next to queen."
+        input: "analogy"
+        check: { metric: manual }
+
+  - id: search
+    title: "Semantic search"
+    minutes: 4
+    algo: ai-embed
+    steps:
+      - title: "Embed once"
+        body: "Documents are embedded at index time."
+        input: "search"
+        check: { metric: manual }
+      - title: "Rank by cosine"
+        body: "The query vector is compared to every document."
+        check: { metric: manual }
+      - title: "Approximate indexes"
+        body: "HNSW and IVF skip most of the comparisons."
+        check: { metric: manual }

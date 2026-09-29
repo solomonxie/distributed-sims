@@ -1,0 +1,68 @@
+id: ai-tokenizer
+title: "Tokenization"
+group: ai
+icon: text-cursor-input
+order: 2
+summary: "How text becomes token ids: word, char, BPE merges and byte-level BPE."
+info: "Models read integers. Subword tokenizers (BPE, WordPiece) learn frequent chunks, so common words are one token and rare words split into pieces, with no unknown tokens at the byte level. Hands-on: ~/workspace/llm-references/hello-tokenizer."
+algos: [ai-bpe]
+lessons:
+  - id: granularity
+    title: "Word, char or subword"
+    minutes: 3
+    algo: ai-bpe
+    steps:
+      - title: "Word-level"
+        body: "Short sequences, but every unseen word is unknown."
+        input: "levels"
+        check: { metric: manual }
+      - title: "Char-level"
+        body: "Never unknown, but long and low-meaning sequences."
+        check: { metric: manual }
+      - title: "Subword"
+        body: "The middle ground every modern LLM uses."
+        check: { metric: manual }
+
+  - id: bpe
+    title: "Learning BPE merges"
+    minutes: 4
+    algo: ai-bpe
+    steps:
+      - title: "Count pairs"
+        body: "Start from characters and count adjacent pairs."
+        input: "merges"
+        check: { metric: manual }
+      - title: "Merge"
+        body: "The most frequent pair becomes a new token, and the counts are redone."
+        watch: "Each merge shortens the sequence."
+        input: "merges"
+        check: { metric: manual }
+      - title: "Vocabulary"
+        body: "GPT-2 learned 50,000 merges this way."
+        check: { metric: manual }
+
+  - id: encode
+    title: "Encoding new text"
+    minutes: 3
+    algo: ai-bpe
+    steps:
+      - title: "Apply merges in order"
+        body: "New words are split using the learned merges, in training order."
+        input: "encode"
+        check: { metric: manual }
+      - title: "No unknowns"
+        body: "Rare words just become more pieces."
+        check: { metric: manual }
+
+  - id: bytes
+    title: "Byte-level BPE"
+    minutes: 3
+    algo: ai-bpe
+    steps:
+      - title: "Bytes, not chars"
+        body: "Start from 256 UTF-8 byte values."
+        input: "bytes"
+        check: { metric: manual }
+      - title: "Anything encodes"
+        body: "Emoji and accents are just more bytes; merges learn the common ones."
+        check: { metric: manual }

@@ -1,0 +1,54 @@
+id: ai-serving
+title: "Inference servers"
+group: ai
+icon: server
+order: 10
+summary: "A serving stack request by request: queue, scheduler, paged KV blocks, GPU steps, streaming, batching."
+info: "An inference server turns one model into a shared service: it batches many users into each GPU step, pages the KV cache, streams tokens and applies backpressure. Hands-on: ~/workspace/llm-references/hello-inference-server."
+algos: [ai-server, ai-batching]
+lessons:
+  - id: request
+    title: "One request, every hop"
+    minutes: 5
+    algo: ai-server
+    steps:
+      - title: "In"
+        body: "Client \u2192 API \u2192 tokenize \u2192 queue."
+        input: "request"
+        check: { metric: manual }
+      - title: "Scheduled"
+        body: "Scheduler reserves KV blocks and batches it into a GPU step."
+        watch: "Watch each request/response pair."
+        input: "request"
+        check: { metric: manual }
+      - title: "Out"
+        body: "Each token streams back as soon as it is sampled."
+        check: { metric: manual }
+
+  - id: batching
+    title: "Continuous batching"
+    minutes: 4
+    algo: ai-batching
+    steps:
+      - title: "Static"
+        body: "A batch waits for its longest request."
+        input: "static"
+        check: { metric: manual }
+      - title: "Continuous"
+        body: "Freed slots are refilled every step."
+        watch: "Fewer steps, higher utilisation."
+        input: "continuous"
+        check: { metric: manual }
+
+  - id: overload
+    title: "Under load"
+    minutes: 3
+    algo: ai-server
+    steps:
+      - title: "Queueing"
+        body: "KV blocks run out, so TTFT climbs."
+        input: "overload"
+        check: { metric: manual }
+      - title: "Preemption and shedding"
+        body: "Evict and recompute, or reject early with 429s."
+        check: { metric: manual }

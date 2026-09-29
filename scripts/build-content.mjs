@@ -120,9 +120,9 @@ export interface LessonDef {
 export interface TopicDef {
   id: string;
   title: string;
-  group: 'topics' | 'under-the-hood' | 'network' | 'machine' | 'languages';
+  group: 'topics' | 'under-the-hood' | 'network' | 'machine' | 'languages' | 'ai' | 'patterns';
   /** languages group only */
-  language?: 'cpp' | 'go' | 'python' | 'java' | 'rust' | 'csharp';
+  language?: 'cpp' | 'go' | 'python' | 'java' | 'rust' | 'csharp' | 'fp';
   icon: string;
   summary: string;
   order: number;

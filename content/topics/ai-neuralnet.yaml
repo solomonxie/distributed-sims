@@ -1,0 +1,125 @@
+id: ai-neuralnet
+title: "Neural networks & backprop"
+group: ai
+icon: brain
+order: 1
+summary: "One neuron, the chain rule and gradient descent: the machinery under every model."
+info: "A network is layers of weighted sums and nonlinearities. Training means measuring the loss and nudging every weight downhill, with gradients from backpropagation (the chain rule, run backwards). Hands-on: ~/workspace/llm-references/hello-neuralnet."
+algos: [ai-nn, ai-mlp]
+lessons:
+  - id: neuron
+    title: "A single neuron"
+    minutes: 3
+    algo: ai-nn
+    steps:
+      - title: "Weighted sum"
+        body: "z = w\u00b7x + b: two inputs, two weights, one bias."
+        watch: "The sum lights up once the inputs are weighted."
+        input: "forward"
+        check: { metric: manual }
+      - title: "Activation"
+        body: "A sigmoid squashes z into (0, 1), giving the output a."
+        check: { metric: manual }
+      - title: "Loss"
+        body: "Squared error against the target says how wrong it is."
+        check: { metric: manual }
+
+  - id: backprop
+    title: "Backpropagation"
+    minutes: 4
+    algo: ai-nn
+    steps:
+      - title: "Start at the loss"
+        body: "dL/da = 2(a \u2212 y): how the loss changes with the output."
+        input: "backprop"
+        check: { metric: manual }
+      - title: "Chain rule"
+        body: "Multiply local derivatives backwards: through the sigmoid, then to each weight."
+        check: { metric: manual }
+      - title: "Update"
+        body: "w \u2190 w \u2212 lr \u00b7 dL/dw, and the loss really drops."
+        watch: "Loss before and after in the panel."
+        input: "backprop"
+        check: { metric: manual }
+
+  - id: sgd
+    title: "Mini-batch gradient descent"
+    minutes: 3
+    algo: ai-nn
+    steps:
+      - title: "Batches"
+        body: "Average gradients over a few examples, step, repeat."
+        input: "sgd"
+        check: { metric: manual }
+      - title: "Epochs"
+        body: "One pass over the data is an epoch; the loss curve flattens as it converges."
+        check: { metric: manual }
+
+  - id: activations
+    title: "Activations"
+    minutes: 2
+    algo: ai-nn
+    steps:
+      - title: "Why nonlinear"
+        body: "Without them, many layers equal one linear map."
+        input: "activations"
+        check: { metric: manual }
+      - title: "Saturation"
+        body: "Sigmoid and tanh flatten at the ends; ReLU and GELU keep gradients alive."
+        check: { metric: manual }
+
+  - id: layer
+    title: "A layer as xW + b"
+    minutes: 3
+    algo: ai-mlp
+    steps:
+      - title: "Shapes"
+        body: "x (1×2) times W (2×3) plus b (1×3) gives z (1×3): one number per neuron."
+        input: "layer"
+        check: { metric: manual }
+      - title: "Column by column"
+        body: "Each output is x dotted with one column of W, then the bias is added and ReLU applied."
+        check: { metric: manual }
+
+  - id: mlp-forward
+    title: "A 2 → 3 → 1 network, forward"
+    minutes: 4
+    algo: ai-mlp
+    steps:
+      - title: "Hidden layer"
+        body: "Each hidden neuron sums both inputs times its weights, adds its bias and applies ReLU. One of them switches off."
+        watch: "h3 turns red: ReLU clipped it to 0."
+        input: "forward"
+        check: { metric: manual }
+      - title: "Output and loss"
+        body: "The output is a weighted sum of the hidden layer; the squared error against the target is the loss."
+        check: { metric: manual }
+
+  - id: mlp-backprop
+    title: "Backprop, node by node"
+    minutes: 5
+    algo: ai-mlp
+    steps:
+      - title: "From the loss back"
+        body: "dL/dy first, then each output weight's gradient is dL/dy times the hidden value it multiplied."
+        input: "backprop"
+        check: { metric: manual }
+      - title: "Through ReLU"
+        body: "The gradient reaches each hidden neuron through its weight, and stops at the neuron that was off."
+        check: { metric: manual }
+      - title: "First layer and update"
+        body: "Input times dz gives each first-layer gradient; one step against all of them lowers the loss."
+        check: { metric: manual }
+
+  - id: mlp-batch
+    title: "A mini-batch as matrices"
+    minutes: 4
+    algo: ai-mlp
+    steps:
+      - title: "Forward"
+        body: "X (4×2) → Z1 (4×3) → H → Y (4×1): the whole batch in two matrix products."
+        input: "batch"
+        check: { metric: manual }
+      - title: "Backward"
+        body: "dW = inputᵀ · d(output): Hᵀ·dY for W2 and Xᵀ·dZ1 for W1, summing over the examples."
+        check: { metric: manual }

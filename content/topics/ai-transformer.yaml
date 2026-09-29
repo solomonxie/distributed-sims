@@ -1,0 +1,92 @@
+id: ai-transformer
+title: "Transformers & attention"
+group: ai
+icon: sparkles
+order: 4
+summary: "Q, K, V attention on real numbers, masking, heads, positions, and the whole decoder block."
+info: "Attention lets every token read every earlier token, weighted by query\u00b7key similarity. Stack it with an MLP, residuals and layer norm, repeat N times, and you have GPT. Hands-on: ~/workspace/llm-references/hello-transformer and karpathy-microgpt."
+algos: [ai-attention, ai-block, tx-mha, tx-sdpa]
+lessons:
+  - id: attention
+    title: "Scaled dot-product attention"
+    minutes: 5
+    algo: ai-attention
+    steps:
+      - title: "Q, K, V"
+        body: "Each token is projected into a query, a key and a value."
+        input: "attend"
+        check: { metric: manual }
+      - title: "Scores"
+        body: "Query \u00b7 key / \u221ad says how relevant each token is."
+        input: "attend"
+        check: { metric: manual }
+      - title: "Softmax and mix"
+        body: "Weights sum to 1; the output is a weighted blend of values."
+        watch: "out(sat) is mostly cat and sat."
+        input: "attend"
+        check: { metric: manual }
+
+  - id: causal
+    title: "Causal masking"
+    minutes: 3
+    algo: ai-attention
+    steps:
+      - title: "No peeking"
+        body: "A decoder masks future tokens with \u2212\u221e before the softmax."
+        watch: "The first token can only see itself."
+        input: "causal"
+        check: { metric: manual }
+
+  - id: heads
+    title: "Multi-head attention"
+    minutes: 3
+    algo: ai-attention
+    steps:
+      - title: "Many views"
+        body: "Each head has its own projections and attends differently."
+        input: "heads"
+        check: { metric: manual }
+      - title: "Concat and project"
+        body: "Head outputs are joined and mixed by W_o."
+        check: { metric: manual }
+
+  - id: position
+    title: "Positional encoding"
+    minutes: 3
+    algo: ai-attention
+    steps:
+      - title: "Order-blind"
+        body: "Attention alone ignores order."
+        input: "position"
+        check: { metric: manual }
+      - title: "Sinusoids and RoPE"
+        body: "Positions are added (sinusoids) or rotated into Q and K (RoPE)."
+        check: { metric: manual }
+
+  - id: block
+    title: "The decoder block"
+    minutes: 4
+    algo: ai-block
+    steps:
+      - title: "Forward path"
+        body: "Ids \u2192 embedding \u2192 attention \u2192 MLP, \u00d7 N, \u2192 logits."
+        input: "forward"
+        check: { metric: manual }
+      - title: "Where parameters live"
+        body: "Embedding, attention, and above all the MLPs."
+        input: "params"
+        check: { metric: manual }
+
+  - id: matrices
+    title: "Attention as matrices (deep dive)"
+    minutes: 5
+    algo: tx-sdpa
+    steps:
+      - title: "Q·Kᵀ cell by cell"
+        body: "The same recipe on a 4-token example with d_model 8. Every cell is one dot product."
+        input: "scores"
+        check: { metric: manual }
+      - title: "Mask, softmax, mix"
+        body: "Future cells go to −∞, rows become weights, and outputs are weighted sums of V. The full walkthrough is in Transformer architecture, step by step."
+        input: "mix"
+        check: { metric: manual }

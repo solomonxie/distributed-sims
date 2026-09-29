@@ -1,0 +1,47 @@
+id: ai-quant
+title: "Quantization"
+group: ai
+icon: minimize-2
+order: 8
+summary: "Fewer bits per weight: int8 and int4 on real numbers, packing, and the memory/quality trade-off."
+info: "Quantization stores weights in fewer bits with a scale per group. It shrinks memory and, because decoding is memory-bound, speeds up generation, at some cost in accuracy. Hands-on: ~/workspace/llm-references/hello-quantization."
+algos: [ai-quant]
+lessons:
+  - id: int8
+    title: "int8 absmax"
+    minutes: 3
+    algo: ai-quant
+    steps:
+      - title: "Scale"
+        body: "scale = max|w| / 127."
+        input: "int8"
+        check: { metric: manual }
+      - title: "Round and back"
+        body: "Dequantized weights are close; error stays under half a step."
+        check: { metric: manual }
+
+  - id: int4
+    title: "int4 and packing"
+    minutes: 3
+    algo: ai-quant
+    steps:
+      - title: "15 levels"
+        body: "Coarser steps, bigger error."
+        input: "int4"
+        check: { metric: manual }
+      - title: "Two per byte"
+        body: "Nibbles are packed, halving memory again."
+        check: { metric: manual }
+
+  - id: tradeoff
+    title: "Choosing a format"
+    minutes: 3
+    algo: ai-quant
+    steps:
+      - title: "Memory"
+        body: "fp32, bf16, int8, int4 for a 7B model."
+        input: "tradeoff"
+        check: { metric: manual }
+      - title: "Speed"
+        body: "Fewer bytes per weight means faster decoding."
+        check: { metric: manual }

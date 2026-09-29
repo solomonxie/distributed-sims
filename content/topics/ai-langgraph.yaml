@@ -1,0 +1,115 @@
+id: ai-langgraph
+title: "LangGraph"
+group: ai
+icon: workflow
+order: 13.2
+summary: "State graphs for agents: nodes and reducers, routers and cycles, the tool loop, checkpoints, time travel, human approval and supervisors."
+info: "LangGraph is a graph library first: a typed State, nodes that return partial updates, and edges (fixed or conditional) that can loop. Compiled with a checkpointer it saves the State after every step per thread, which gives memory, time travel and interrupt/resume. Hands-on: ~/workspace/llm-references/hello-langgraph."
+algos: [lg-graph, lg-agent, lg-agent-wire, lg-persist, lg-multi]
+lessons:
+  - id: state-graph
+    title: "State, nodes & edges"
+    minutes: 4
+    algo: lg-graph
+    steps:
+      - title: "Typed State"
+        body: "A TypedDict describes what flows through the graph."
+        input: "basics"
+        check: { metric: manual }
+      - title: "Partial updates"
+        body: "A node returns only the keys it changes; LangGraph merges them in."
+        watch: "Changed keys are highlighted."
+        input: "basics"
+        check: { metric: manual }
+      - title: "Reducers"
+        body: "Annotated[list, add_messages] makes a key append instead of overwrite."
+        check: { metric: manual }
+
+  - id: routers-cycles
+    title: "Routers & cycles"
+    minutes: 4
+    algo: lg-graph
+    steps:
+      - title: "Conditional edge"
+        body: "A routing function reads the State and returns the next node name."
+        input: "medium"
+        check: { metric: manual }
+      - title: "Other branches"
+        body: "Small and large amounts take different paths through the same graph."
+        input: "large"
+        check: { metric: manual }
+      - title: "Loops"
+        body: "An edge that points back makes a cycle; always add a hard cap."
+        watch: "Eight attempts to reach 73."
+        input: "loop"
+        check: { metric: manual }
+
+  - id: agent-graph
+    title: "The agent loop as a graph"
+    minutes: 5
+    algo: lg-agent
+    steps:
+      - title: "agent ↔ tools"
+        body: "The model node and a ToolNode, joined by tools_condition."
+        input: "graph"
+        check: { metric: manual }
+      - title: "Until no tool calls"
+        body: "Each pass appends messages; the loop ends when the model answers in text."
+        input: "graph"
+        check: { metric: manual }
+
+  - id: agent-wire
+    title: "The agent loop on the wire"
+    minutes: 4
+    algo: lg-agent-wire
+    steps:
+      - title: "Every call"
+        body: "The same run as numbered messages between app, graph, model API and tools."
+        input: "wire"
+        check: { metric: manual }
+
+  - id: checkpoints
+    title: "Checkpoints & threads"
+    minutes: 4
+    algo: lg-persist
+    steps:
+      - title: "Saved every step"
+        body: "compile(checkpointer=MemorySaver()) snapshots the State after each node."
+        input: "threads"
+        check: { metric: manual }
+      - title: "thread_id"
+        body: "Invoking with the same thread continues it; another thread starts empty."
+        input: "threads"
+        check: { metric: manual }
+      - title: "Time travel"
+        body: "Fork from any earlier checkpoint; the original path is kept."
+        input: "timetravel"
+        check: { metric: manual }
+
+  - id: human-in-the-loop
+    title: "Human in the loop"
+    minutes: 4
+    algo: lg-persist
+    steps:
+      - title: "interrupt()"
+        body: "A node pauses the graph and hands a payload to the caller."
+        input: "hitl"
+        check: { metric: manual }
+      - title: "Command(resume)"
+        body: "Resuming re-enters that node; earlier nodes do not run again."
+        input: "hitl"
+        check: { metric: manual }
+
+  - id: multi-agent
+    title: "Multi-agent & streaming"
+    minutes: 4
+    algo: lg-multi
+    steps:
+      - title: "Supervisor"
+        body: "A router agent hands off to workers over a shared State until FINISH."
+        input: "supervisor"
+        check: { metric: manual }
+      - title: "stream()"
+        body: "updates, values and messages modes yield progress while the graph runs."
+        input: "stream"
+        check: { metric: manual }

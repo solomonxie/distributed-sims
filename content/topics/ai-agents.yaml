@@ -1,0 +1,52 @@
+id: ai-agents
+title: "Agents & tool use"
+group: ai
+icon: bot
+order: 13
+summary: "The tool-calling loop request by request, state checkpoints, human approval and durable execution."
+info: "An agent is a loop: the model picks a tool, your code runs it, the result goes back to the model, until it answers in text. Real agents add sandboxes, checkpoints and durable workflows. Hands-on: ~/workspace/llm-references/hello-agent, hello-langgraph, hello-temporal, hello-kern, hello-pi."
+algos: [ai-agent]
+lessons:
+  - id: loop
+    title: "The tool loop"
+    minutes: 5
+    algo: ai-agent
+    steps:
+      - title: "Tool call"
+        body: "The model returns a structured call instead of text."
+        input: "react"
+        check: { metric: manual }
+      - title: "Run and append"
+        body: "Your code runs the tool and appends the result."
+        watch: "Three LLM calls, two tool calls."
+        input: "react"
+        check: { metric: manual }
+      - title: "Stop"
+        body: "A plain-text reply ends the loop."
+        check: { metric: manual }
+
+  - id: sandbox
+    title: "Running model-written code"
+    minutes: 2
+    algo: ai-agent
+    steps:
+      - title: "Sandbox"
+        body: "Untrusted code runs in a container with no network and tight limits."
+        input: "react"
+        check: { metric: manual }
+
+  - id: durable
+    title: "State & durability"
+    minutes: 4
+    algo: ai-agent
+    steps:
+      - title: "Checkpoints"
+        body: "Save state after every step."
+        input: "durable"
+        check: { metric: manual }
+      - title: "Human in the loop"
+        body: "Pause for approval, resume days later."
+        check: { metric: manual }
+      - title: "Durable workflows"
+        body: "Temporal retries activities and replays history after crashes."
+        check: { metric: manual }
