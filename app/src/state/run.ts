@@ -669,8 +669,12 @@ export function ensureScenario(doc: SystemDoc): SystemDoc {
   };
 }
 
+export const isClient = (type: string) => !!catalog.types.find(t => t.type === type)?.client || /client|device|bot$/.test(type);
+/** components that start work on their own timers, no client needed */
+const SELF_DRIVEN = new Set(['cron', 'airflow-scheduler', 'spark-driver', 'zk-app', 'celery-beat', 'celery-producer', 'kafka-producer']);
+
 export function hasTrafficOrigin(doc: SystemDoc) {
-  return doc.nodes.some(n => catalog.types.find(t => t.type === n.type)?.client || /client|device|bot$/.test(n.type) || n.type === 'cron');
+  return doc.nodes.some(n => isClient(n.type) || SELF_DRIVEN.has(n.type));
 }
 
 /** Most recent finished traced request that hasn't been featured yet. */
