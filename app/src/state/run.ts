@@ -149,6 +149,7 @@ class Controller {
     const seed = opts?.seed ?? Math.floor(Math.random() * 1e6);
     const settings = useSettings.getState();
     const budget = settings.particles === 'low' ? 600 : settings.particles === 'high' ? 3000 : 1500;
+    this.netLesson = isNetLesson(doc);
     this.run = createRun(ensureScenario(doc), { catalog, seed, budget, traceEvery: settings.traceEvery, flightKeepMs: 15000 });
     this.showProto = doc.nodes.some(n => PROTO_TYPES.test(n.type));
     this.setLayout(layout);
@@ -421,7 +422,7 @@ class Controller {
   }
 
   private feature(tr: Trace, run: Run, speed: number, now: number, user: boolean) {
-    const hops = journeyOf(tr, run, this.opened);
+    const hops = journeyOf(tr, run, this.opened, this.netLesson);
     if (!hops.length) return;
     let acc = 0;
     const ends = hops.map(h => (acc += this.beatMs(h, speed)));
@@ -460,6 +461,7 @@ class Controller {
   private advanceSpawn = false;
   /** connections already opened with a TCP handshake in this run */
   private opened = new Set<string>();
+  private netLesson = false;
 
   /** Play the current step of the followed request, then hold at the next one. */
   nextStep(sender?: string, op: 'read' | 'write' = 'read') {
@@ -685,7 +687,10 @@ type SpanX = Span & { ghost?: boolean; waitMs?: number };
 
 /** Turn a trace into beats: down each call, a pause where it waits inside, and back.
  *  Calls that never got an answer (component down, packet dropped) end in a red return. */
-export function journeyOf(tr: Trace, run: Run, opened = new Set<string>()): JourneyHop[] {
+/** Only network lessons show transport detail (TCP handshakes, packet layers). */
+export const isNetLesson = (doc?: SystemDoc | null) => !!doc && /^lesson-network-/.test(doc.id);
+
+export function journeyOf(tr: Trace, run: Run, opened = new Set<string>(), tcp = false): JourneyHop[] {
   const w = run.world;
   const fl = w.traceFlights.get(tr.id) ?? [];
   const spans: SpanX[] = [...tr.spans];
@@ -736,6 +741,7 @@ export function journeyOf(tr: Trace, run: Run, opened = new Set<string>()): Jour
     return mine.length;
   };
   const handshake = (a: string, b: string) => {
+    if (!tcp) return;
     const edge = [...w.edges.values()].find(e => e.from === a && e.to === b);
     const link = `${a}>${b}`;
     if (edge?.cfg.keepAlive !== false && opened.has(link)) return;

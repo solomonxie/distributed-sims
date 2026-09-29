@@ -8,6 +8,8 @@ export interface Wire {
   res: string[];
   status: string;
   ok: boolean;
+  /** the same exchange in plain words */
+  plain?: { req: string; res: string };
 }
 
 interface RouteHint {
@@ -100,7 +102,12 @@ export function wireOf(x: WireCtx): Wire {
   const err = (x.res?.err ?? x.err) as ErrKind | undefined;
   const ok = x.res ? x.res.ok : x.ok;
   const w = { kind, to, from, toType, hint, key, write, code, vars, host, value, timeout, err, ok, x };
-  switch (kind) {
+  const wire = build(w);
+  return { ...wire, plain: plainOf(w, wire) };
+}
+
+function build(w: W): Wire {
+  switch (w.kind) {
     case 'cache':
       return cacheWire(w);
     case 'sql':
@@ -119,6 +126,54 @@ export function wireOf(x: WireCtx): Wire {
     default:
       return httpWire(w);
   }
+}
+
+const FAIL: Partial<Record<ErrKind, string>> = {
+  timeout: 'No answer in time: the caller gave up waiting.',
+  refused: 'Nobody answered: the server is down.',
+  unavailable: 'Nobody answered: the server is down.',
+  '429': 'Too many requests: slow down and retry shortly.',
+  '503': 'Too busy right now: try again later.',
+  auth: 'Not allowed: the login token is missing or expired.',
+  conflict: 'Conflict: someone else changed it first.',
+};
+
+/** What the request asks and what the answer means, for a human. */
+function plainOf(w: W, wire: Wire): { req: string; res: string } {
+  const who = w.to?.name ?? 'the server';
+  const item = `item ${w.hint.keyCol ? w.code : w.key}`;
+  const v = w.value ?? w.key;
+  const fail = FAIL[w.err as ErrKind] ?? 'Something went wrong on the server.';
+  switch (w.kind) {
+    case 'cache':
+      return {
+        req: w.write ? `Remember ${item} for an hour.` : `Do you have ${item} in memory?`,
+        res: !w.ok ? fail : w.write ? 'Stored.' : w.x.calls ? 'Not cached, so it was loaded from the database and kept for next time.' : `Yes, here it is: ${v}.`,
+      };
+    case 'sql':
+    case 'kv':
+      return {
+        req: w.write ? `Save ${item} with value ${v}.` : `Look up ${item}.`,
+        res: !w.ok ? fail : w.write ? 'Saved.' : `Found it: ${v}${w.x.res?.stale ? ', but from a copy that is behind' : ''}.`,
+      };
+    case 'queue':
+      return { req: `Post an event about ${item} for others to pick up later.`, res: !w.ok ? fail : 'Queued. Consumers will handle it on their own time.' };
+    case 'grpc':
+    case 'rpc':
+      if (w.toType === 'id-generator') return { req: 'Give me a new unique ID.', res: !w.ok ? fail : 'Here is a fresh ID, unique across all servers.' };
+      return { req: w.write ? `Ask ${who} to update ${item}.` : `Ask ${who} for ${item}.`, res: !w.ok ? fail : w.write ? 'Done.' : `Here it is: ${v}.` };
+    case 'search':
+      return { req: `Search for things matching "q${w.key}".`, res: !w.ok ? fail : 'Here are the best matches.' };
+    case 's3':
+      return { req: w.write ? `Upload file ${w.key}.bin.` : `Download file ${w.key}.bin.`, res: !w.ok ? fail : w.write ? 'Stored.' : 'Here is the file.' };
+  }
+  const st = Number(wire.status);
+  const loc = wire.res.find(l => l.startsWith('location: '))?.slice(10);
+  const cdn = wire.res.find(l => l.startsWith('x-cache: '));
+  return {
+    req: w.write ? `Please save this for ${item}.` : `Please send me ${item}.`,
+    res: !w.ok ? fail : loc ? `It lives elsewhere: go to ${loc}.` : w.write ? `Saved as ${item}.` : `Here is ${item}${cdn ? (/Hit/.test(cdn) ? ', straight from the CDN edge' : ', fetched from the origin by the CDN') : ''}.${st === 200 ? '' : ` (${wire.status})`}`,
+  };
 }
 
 type W = {
