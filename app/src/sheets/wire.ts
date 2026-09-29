@@ -145,11 +145,13 @@ function plainOf(w: W, wire: Wire): { req: string; res: string } {
   const v = w.value ?? w.key;
   const fail = FAIL[w.err as ErrKind] ?? 'Something went wrong on the server.';
   switch (w.kind) {
-    case 'cache':
+    case 'cache': {
+      const del = w.write && !!w.x.msg?.data?.del;
       return {
-        req: w.write ? `Remember ${item} for an hour.` : `Do you have ${item} in memory?`,
-        res: !w.ok ? fail : w.write ? 'Stored.' : w.x.calls ? 'Not cached, so it was loaded from the database and kept for next time.' : `Yes, here it is: ${v}.`,
+        req: del ? `Forget ${item}.` : w.write ? `Remember ${item} for an hour.` : `Do you have ${item} in memory?`,
+        res: !w.ok ? fail : del ? 'Forgotten: the next read will miss and refill it.' : w.write ? 'Stored.' : w.x.res?.miss ? 'No, not in memory: a miss.' : w.x.calls ? 'Not cached, so it was loaded from the database and kept for next time.' : `Yes, here it is: ${v}.`,
       };
+    }
     case 'sql':
     case 'kv':
       return {
@@ -246,11 +248,13 @@ function httpErr(w: W, req: string[], ver: string): Wire {
 function cacheWire(w: W): Wire {
   const k = `${w.hint.cachePrefix ?? 'item:'}${w.hint.keyCol ? w.code : w.key}`;
   const val = w.hint.read?.location ? `"${fill(w.hint.read.location, w.key, w.vars)}"` : `"${w.value ?? w.key}"`;
-  const req = w.write ? [`SET ${k} ${val} EX 3600`] : [`GET ${k}`];
+  const del = w.write && !!w.x.msg?.data?.del;
+  const miss = !!w.x.res?.miss;
+  const req = del ? [`DEL ${k}`] : w.write ? [`SET ${k} ${val} EX 3600`] : [`GET ${k}`];
   if (!w.ok) return { proto: 'RESP', req, res: [respErr(w)], status: w.err ?? 'error', ok: false };
-  const res = w.write ? ['OK'] : w.x.calls ? ['(nil)', `# miss: loaded from the database, cached, then returned`, val] : [val];
+  const res = del ? ['(integer) 1'] : w.write ? ['OK'] : miss ? ['(nil)', '# miss: not in the cache'] : w.x.calls ? ['(nil)', `# miss: loaded from the database, cached, then returned`, val] : [val];
   res.push(`# ${ms(w.x.spanMs)} ms`);
-  return { proto: 'RESP', req, res, status: w.write ? 'OK' : w.x.calls ? 'miss' : 'hit', ok: true };
+  return { proto: 'RESP', req, res, status: del ? 'DEL' : w.write ? 'OK' : miss || w.x.calls ? 'miss' : 'hit', ok: true };
 }
 
 function respErr(w: W) {

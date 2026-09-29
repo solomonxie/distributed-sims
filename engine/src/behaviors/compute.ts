@@ -171,8 +171,38 @@ function serve(n: SimNode, req: Req, callOut?: (req: Req, edges: EdgeRt[], done:
       if (r.ok) n.publish(req);
       req.reply(r);
     };
+    const caches = edges.filter(e => n.world.nodes.get(e.to)?.type === 'cache' && (n.world.nodes.get(e.to)?.cfg.strategy ?? 'cache-aside') === 'cache-aside');
+    const stores = edges.filter(e => !caches.includes(e));
     if (callOut && edges.length) callOut(req, edges, done);
+    else if (caches.length && stores.length) cacheAside(n, req, caches[0], stores, done);
     else n.forward(req, edges, fanoutOf(n), done);
+  });
+}
+
+/** Cache-aside, done by the application: GET the cache; on a miss read the store and SET; writes go to the store, then DEL (or SET) the cached copy. */
+function cacheAside(n: SimNode, req: Req, ce: EdgeRt, stores: EdgeRt[], done: (r: Reply) => void) {
+  const invalidation = String(n.world.nodes.get(ce.to)?.cfg.invalidation ?? 'delete-on-write');
+  const setCache = (value: number | undefined, version: number | undefined, after: () => void, del = false) => {
+    const m = n.world.child(req.msg, n.id, ce.to);
+    m.op = 'write';
+    m.value = value;
+    m.version = version;
+    if (del) m.data = { del: true };
+    n.call(ce, m, after);
+  };
+  if (req.msg.op === 'write') {
+    return n.forward(req, stores, fanoutOf(n), r => {
+      if (!r.ok || invalidation === 'none') return done(r);
+      if (invalidation === 'update') setCache(req.msg.value, r.version, () => done(r));
+      else setCache(undefined, r.version, () => done(r), true);
+    });
+  }
+  n.call(ce, n.world.child(req.msg, n.id, ce.to), r => {
+    if (r.ok && !r.miss) return done(r);
+    n.forward(req, stores, fanoutOf(n), r2 => {
+      if (!r2.ok) return done(r2);
+      setCache(r2.value, r2.version, () => done(r2));
+    });
   });
 }
 
