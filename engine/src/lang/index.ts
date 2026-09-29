@@ -4,3 +4,5 @@ import './rust';
 import './csharp';
 import './python';
 import './java';
+import './fp';
+import './lua';
