@@ -4,6 +4,8 @@ import type { SimNode } from '../node';
 
 /** Sampled keyspace size (engine.md → Data model). */
 export const KEYS = 1024;
+/** top of the key space, never used by background traffic: user "cold key" sends rotate through it */
+export const COLD_KEYS = 64;
 
 export function keyOf(k: number | undefined, size = KEYS): number {
   const x = Math.floor(k ?? 0) % size;

@@ -115,7 +115,8 @@ test('unclean election trades acked records for availability', () => {
 
 test('commit before processing loses records on crash; after processing duplicates them', () => {
   const crash = (commit: string) => {
-    const r = run({ cons: { commit, p50Ms: 1.5, p99Ms: 4 } }, 2);
+    // seed chosen so a record is mid-processing when c2 dies (arrival timing depends on the seed)
+    const r = run({ cons: { commit, p50Ms: 1.5, p99Ms: 4 } }, 3);
     r.step(5000, 1e9);
     r.fire({ kind: 'kill', target: 'c2' });
     r.step(12000, 1e9);

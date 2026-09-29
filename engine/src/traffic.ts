@@ -1,3 +1,4 @@
+import { COLD_KEYS, KEYS } from './data/keystore';
 import type { World } from './world';
 import type { TrafficEvent, TrafficSource } from './types';
 
@@ -50,36 +51,64 @@ export class TrafficGen {
     this.weight = Math.max(1, Math.ceil(this.rate() / per));
   }
 
-  apply(te: TrafficEvent) {
+  /** Applies the event; returns how to undo it. durationSec 0 = until healed, undefined = the action's usual length. */
+  apply(te: TrafficEvent): (() => void) | undefined {
     const p = te.params ?? {};
-    const dur = (te.durationSec ?? 5) * 1000;
+    const open = te.durationSec === 0;
     const now = this.world.now;
+    const upto = (fallbackSec: number) => (open ? Infinity : now + (te.durationSec ?? fallbackSec) * 1000);
+    let heal: (() => void) | undefined;
+    const overlay = (o: Overlay) => {
+      this.overlays.push(o);
+      heal = () => {
+        this.overlays = this.overlays.filter(x => x !== o);
+        this.adapt();
+      };
+    };
     switch (te.action) {
       case 'burst':
-        this.overlays.push({ x: p.x ?? 20, until: now + dur });
+        overlay({ x: p.x ?? 20, until: upto(5) });
         break;
       case 'flash-crowd':
-        this.overlays.push({ x: p.x ?? 100, until: now + (te.durationSec ?? 20) * 1000, from: now, decay: true });
+        // decays by nature; open-ended keeps the tail until healed
+        overlay({ x: p.x ?? 100, until: now + (te.durationSec || 20) * 1000, from: now, decay: true });
         break;
       case 'ramp':
-        this.overlays.push({ x: p.x ?? 3, until: now + (te.durationSec ?? 30) * 1000, from: now, ramp: true });
+        overlay({ x: p.x ?? 3, until: now + (te.durationSec || 30) * 1000, from: now, ramp: true });
         break;
       case 'set':
         if (p.rps !== undefined) this.base = { kind: 'constant', rps: p.rps };
         break;
-      case 'hot-key':
-        this.hotOverride = { hot: p.hot ?? 0.4, until: now + (te.durationSec ?? 30) * 1000 };
+      case 'hot-key': {
+        const prev = this.hotOverride;
+        this.hotOverride = { hot: p.hot ?? 0.4, until: upto(30) };
+        heal = () => {
+          this.hotOverride = prev;
+        };
         break;
+      }
       case 'bots':
         this.extraRps = p.rps ?? 5000;
-        this.extraUntil = now + (te.durationSec ?? 15) * 1000;
+        this.extraUntil = upto(15);
+        heal = () => {
+          this.extraUntil = 0;
+          this.adapt();
+        };
         break;
-      case 'herd':
-        this.herdUntil = now + 1500;
-        this.overlays.push({ x: p.x ?? 30, until: now + 1500 });
+      case 'herd': {
+        const until = open ? Infinity : now + (te.durationSec ? te.durationSec * 1000 : 1500);
+        this.herdUntil = until;
+        overlay({ x: p.x ?? 30, until });
+        const drop = heal!;
+        heal = () => {
+          this.herdUntil = 0;
+          drop();
+        };
         break;
+      }
     }
     this.adapt();
+    return heal;
   }
 
   private scheduleNext() {
@@ -117,7 +146,7 @@ export class TrafficGen {
 
   private key(): number {
     const kd = this.src.keys ?? { kind: 'zipf', s: 0.9 };
-    const n = kd.keys ?? 1024;
+    const n = Math.min(kd.keys ?? KEYS, KEYS - COLD_KEYS);
     const r = this.world.rng;
     const hot = this.hotOverride && this.hotOverride.until > this.world.now ? this.hotOverride.hot : kd.kind === 'hot' ? kd.hot ?? 0.4 : 0;
     if (hot && r.chance(hot)) return 0;
