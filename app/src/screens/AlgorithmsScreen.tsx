@@ -40,7 +40,7 @@ export function AlgorithmsScreen() {
             {groups
               .filter(g => g.kind === k)
               .map(g => (
-                <Tile key={g.id} icon={g.icon} title={g.label} thumb={demoThumb(g.demos[0]?.slug)} meta={`${g.demos.length} animations`} tint={c.protocol} onPress={() => nav.push('Algorithms', { group: g.id })} />
+                <Tile key={g.id} icon={g.icon} title={g.label} thumb={demoThumb(g.demos[0]?.slug)} meta={`${g.demos.length} animations`} onPress={() => nav.push('Algorithms', { group: g.id })} />
               ))}
           </TileGrid>
         </View>

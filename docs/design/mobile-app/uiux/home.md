@@ -5,8 +5,7 @@
 ```
  Distributed Sims                          ⚙
  🔍 Search lessons, problems, animations
- CONTINUE                 ← recent visits, newest first
- TOPICS 16                          See all ›
+ SYSTEM DESIGN                    More (16) ›
  ╭────────────────╮ ╭────────────────╮ ╭──   one horizontal row per
  │[◈]  ●─◆─●    ✓ │ │[◈]  ┌─┐→┌─┐    │ │     section, max 10 tiles,
  │      ╲ ╱       │ │     └─┘ └─┘    │ │     snaps per tile; two
@@ -14,33 +13,35 @@
  │ Caching        │ │ Sharding       │ │
  │ ██████  6/6    │ │ █░░░░░  1/5    │ │     tile = thumbnail + icon
  ╰────────────────╯ ╰────────────────╯ ╰──   badge, 2-line title, meta
- TECH STACK · NETWORK · MACHINE LEVEL      (topic tiles, same pattern)
- LANGUAGES 6     C++ · Go · Python · Java · Rust · C#  → language page
+ TECH STACK                               (topic tiles, same pattern)
  PROBLEMS        tiles: 1/3 ★
- ANIMATIONS      tiles = demo groups: "12 animations"
+ NETWORK · MACHINE LEVEL                  (topic tiles)
+ LANGUAGES       C++ · Go · Python · Java · Rust · C# · FP  → language page
  MY SYSTEMS      [+ New system] then systems (parts · edited)
 ```
 
 - Thumbnails: a system template → `MiniGraph`; otherwise the last frame
   of the tile's first animation (`FrameThumb`, static, centre-cropped).
-  No preview → large faded icon.
-- "See all" pages use a wrapping 2-column grid of the same tiles.
-- Continue = `progress.recent` (max 12 stored, 10 shown): recorded on
-  opening a lesson, topic, problem, standalone animation or language.
-- "See all ›" pushes a full grid (header = section title):
-  `TopicsScreen` (group), `LanguageScreen` (one language's topics),
+  Languages → the language's logo. No preview → large faded icon.
+- "More" pages use a wrapping 2-column grid of the same tiles.
+- Recent visits are still recorded (`progress.recent`) but not shown on Home for now.
+- Section titles: 21pt bold, title case (not small caps), 32pt above each section.
+- "More (n) ›" (n = section total) pushes a full grid (header = section title):
+  `TopicsScreen` (group), `LanguagesScreen`,
   `ProblemsScreen`, `AlgorithmsScreen` (groups by Algorithms · Network ·
   Machine level · Languages; group tile → its list), `MySystemsScreen`.
+- No Animations section: topics are the only way into animations (each topic page lists its own). Search still finds any animation directly; the full library stays reachable at `AlgorithmsScreen`.
 - Search replaces the sections with one result list (max 40).
 - Tile colours: topics accent (ok when complete), problems warn,
   animations protocol, systems write, create tiles ok.
 
 States:
 ```
-first-run   no recents → "New here? Start with Caching › Cache-aside" ( ✕ ) [[ Start ]]
+first-run   "New here? Start with Caching › Cache-aside" ( ✕ ) [[ Start ]]
 search      no match → "Nothing matches "raft2"" + ( Clear )
 no systems  MY SYSTEMS: [+ New system] [From a template]
-language    no topics yet → "Lessons for this language are on the way."
+language    page = blurb + vertical list of topics (done/total lessons)
+            no topics yet → "Lessons for this language are on the way."
 ```
 
 ## Topic page — `TopicScreen`
@@ -162,8 +163,5 @@ event-driven) · Import from Files…
  Export all systems…
  Reset progress…                      !
  ABOUT
- Feedback                        2 open ›
  Version 0.1.0 (12)
 ```
-
-Feedback → `FeedbackScreen`: multiline add, list (text, date, status chip, agent note); tap chip = status, long-press = delete. Stored in `Documents/feedback.json` (app-feedback contract).

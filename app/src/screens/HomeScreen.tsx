@@ -4,7 +4,7 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { problems, templates, topics, type ProblemDef, type TopicDef } from '@dsims/content';
-import { algo, type SystemDoc } from '@dsims/engine';
+import type { SystemDoc } from '@dsims/engine';
 import { MiniGraph } from '../ui/MiniGraph';
 import { FrameThumb, thumbFrame } from '../canvas/FrameThumb';
 import type { RootStackParamList } from '../navigation/types';
@@ -12,11 +12,11 @@ import { useTheme, space, type as typo } from '../theme';
 import { Button, Card, IconButton, Text } from '../ui/primitives';
 import { Icon } from '../ui/Icon';
 import { Section, Tile } from '../ui/Tile';
-import { useProgress, visitKey, type Visit } from '../state/progress';
+import { useProgress } from '../state/progress';
 import { useSettings } from '../state/settings';
 import { useLibrary, blankDoc, forkDoc, saveSystem } from '../state/library';
 import { openLesson } from '../learn/open';
-import { demoGroups, groupIcon } from '../lib/demoGroups';
+import { demoGroups } from '../lib/demoGroups';
 import { LANGUAGES, langTopics, type LangId } from '../lib/languages';
 import { ago } from './ProblemScreen';
 
@@ -24,10 +24,15 @@ type Nav = NativeStackNavigationProp<RootStackParamList>;
 
 export type TopicGroup = Exclude<TopicDef['group'], 'languages'>;
 export const TOPIC_SECTIONS: { id: TopicGroup; title: string }[] = [
-  { id: 'topics', title: 'Topics' },
+  { id: 'topics', title: 'System design' },
   { id: 'under-the-hood', title: 'Tech stack' },
   { id: 'network', title: 'Network' },
   { id: 'machine', title: 'Machine level' },
+];
+/** topic sections shown after Languages */
+export const LATE_SECTIONS: { id: TopicGroup; title: string }[] = [
+  { id: 'ai', title: 'AI & LLMs' },
+  { id: 'patterns', title: 'Coding patterns' },
 ];
 
 export const STARTERS = [
@@ -55,6 +60,8 @@ const problemThumb = (p: ProblemDef) => {
   return graphThumb(d ? templates[d.template] : undefined, p.order);
 };
 
+const langThumb = (icon: string): Thumb => (_w, h) => <Icon name={icon} size={h * 0.6} />;
+
 const sortedTopics = () => [...topics].sort((a, b) => a.order - b.order);
 
 export function useTopicDone() {
@@ -71,10 +78,9 @@ export function TopicTile({ t, nav }: { t: TopicDef; nav: Nav }) {
 }
 
 export function ProblemTile({ p, nav }: { p: ProblemDef; nav: Nav }) {
-  const { c } = useTheme();
   const challenges = useProgress(s => s.challenges);
   const stars = p.challenges.filter(ch => challenges[`${p.id}/${ch.id}`]?.passed).length;
-  return <Tile icon={p.icon} title={p.title} thumb={problemThumb(p)} meta={`${stars}/${p.challenges.length} ★`} done={p.challenges.length > 0 && stars === p.challenges.length} tint={c.warn} onPress={() => nav.navigate('Problem', { problemId: p.id })} />;
+  return <Tile icon={p.icon} title={p.title} thumb={problemThumb(p)} meta={`${stars}/${p.challenges.length} ★`} done={p.challenges.length > 0 && stars === p.challenges.length} onPress={() => nav.navigate('Problem', { problemId: p.id })} />;
 }
 
 export function LanguageTile({ id, nav }: { id: LangId; nav: Nav }) {
@@ -83,41 +89,7 @@ export function LanguageTile({ id, nav }: { id: LangId; nav: Nav }) {
   const ts = langTopics(id);
   const n = ts.reduce((a, t) => a + t.lessons.length, 0);
   const done = ts.reduce((a, t) => a + doneIn(t), 0);
-  return <Tile icon={l.icon} title={l.name} thumb={ts[0] && topicThumb(ts[0])} meta={n ? `${ts.length} topics` : 'soon'} progress={n ? done / n : undefined} done={n > 0 && done === n} onPress={() => nav.navigate('Language', { id })} />;
-}
-
-/** False when the visited content no longer exists in this build. */
-function isLive(v: Visit) {
-  if (v.kind === 'lesson') return !!topics.find(x => x.id === v.topic)?.lessons.some(x => x.id === v.lesson);
-  if (v.kind === 'topic') return topics.some(x => x.id === v.id);
-  if (v.kind === 'problem') return problems.some(x => x.id === v.id);
-  if (v.kind === 'demo') return !!algo.getDemo(v.slug);
-  return LANGUAGES.some(x => x.id === v.id);
-}
-
-/** One recent visit. */
-function RecentTile({ v, nav }: { v: Visit; nav: Nav }) {
-  const { c } = useTheme();
-  if (v.kind === 'lesson') {
-    const t = topics.find(x => x.id === v.topic);
-    const l = t?.lessons.find(x => x.id === v.lesson);
-    if (!t || !l) return null;
-    return <Tile icon="play" title={l.title} thumb={(l as any).template && templates[(l as any).template] ? graphThumb(templates[(l as any).template]) : demoThumb((l as any).algo) ?? topicThumb(t)} meta={t.title} tint={c.accent} onPress={() => openLesson(nav, t, l)} />;
-  }
-  if (v.kind === 'topic') {
-    const t = topics.find(x => x.id === v.id);
-    return t ? <Tile icon={t.icon} title={t.title} thumb={topicThumb(t)} meta="Topic" onPress={() => nav.navigate('Topic', { topicId: t.id })} /> : null;
-  }
-  if (v.kind === 'problem') {
-    const p = problems.find(x => x.id === v.id);
-    return p ? <Tile icon={p.icon} title={p.title} thumb={problemThumb(p)} meta="Problem" tint={c.warn} onPress={() => nav.navigate('Problem', { problemId: p.id })} /> : null;
-  }
-  if (v.kind === 'demo') {
-    const d = algo.getDemo(v.slug);
-    return d ? <Tile icon={groupIcon(d.group)} title={d.title} thumb={demoThumb(d.slug)} meta="Animation" tint={c.protocol} onPress={() => nav.navigate('AlgorithmPlayer', { slug: d.slug })} /> : null;
-  }
-  const l = LANGUAGES.find(x => x.id === v.id);
-  return l ? <Tile icon={l.icon} title={l.name} thumb={langTopics(l.id)[0] && topicThumb(langTopics(l.id)[0])} meta="Language" onPress={() => nav.navigate('Language', { id: l.id })} /> : null;
+  return <Tile icon={l.icon} title={l.name} thumb={langThumb(l.icon)} meta={n ? `${ts.length} topics` : 'soon'} progress={n ? done / n : undefined} done={n > 0 && done === n} onPress={() => nav.navigate('Language', { id })} />;
 }
 
 export async function createSystem(nav: Nav, slug?: string) {
@@ -137,7 +109,6 @@ export function HomeScreen() {
   const { c } = useTheme();
   const nav = useNavigation<Nav>();
   const insets = useSafeAreaInsets();
-  const recent = useProgress(s => s.recent ?? []).filter(isLive);
   const firstRunDismissed = useSettings(s => s.firstRunDismissed);
   const { items: systems, refresh } = useLibrary();
   const [q, setQ] = useState('');
@@ -146,7 +117,6 @@ export function HomeScreen() {
   }, [refresh]);
 
   const all = useMemo(sortedTopics, []);
-  const groups = useMemo(demoGroups, []);
   const probs = useMemo(() => [...problems].sort((a, b) => a.order - b.order), []);
 
   return (
@@ -166,13 +136,7 @@ export function HomeScreen() {
         <SearchResults q={q.trim().toLowerCase()} nav={nav} onClear={() => setQ('')} />
       ) : (
         <>
-          {recent.length ? (
-            <Section title="Continue">
-              {recent.map(v => (
-                <RecentTile key={visitKey(v)} v={v} nav={nav} />
-              ))}
-            </Section>
-          ) : !firstRunDismissed && all[0]?.lessons[0] ? (
+          {!firstRunDismissed && all[0]?.lessons[0] ? (
             <Card style={{ marginTop: space.l }}>
               <View style={[styles.cont, { alignItems: 'center' }]}>
                 <Icon name="sparkles" size={20} color={c.accent} />
@@ -189,6 +153,33 @@ export function HomeScreen() {
             const list = all.filter(t => t.group === s.id);
             if (!list.length) return null;
             return (
+              <React.Fragment key={s.id}>
+                <Section title={s.title} count={list.length} onSeeAll={() => nav.navigate('Topics', { group: s.id })}>
+                  {list.map(t => (
+                    <TopicTile key={t.id} t={t} nav={nav} />
+                  ))}
+                </Section>
+                {s.id === 'under-the-hood' && (
+                  <Section title="Problems" count={probs.length} onSeeAll={() => nav.navigate('Problems')}>
+                    {probs.map(p => (
+                      <ProblemTile key={p.id} p={p} nav={nav} />
+                    ))}
+                  </Section>
+                )}
+              </React.Fragment>
+            );
+          })}
+
+          <Section title="Languages" count={LANGUAGES.length} onSeeAll={() => nav.navigate('Languages')}>
+            {LANGUAGES.map(l => (
+              <LanguageTile key={l.id} id={l.id} nav={nav} />
+            ))}
+          </Section>
+
+          {LATE_SECTIONS.map(s => {
+            const list = all.filter(t => t.group === s.id);
+            if (!list.length) return null;
+            return (
               <Section key={s.id} title={s.title} count={list.length} onSeeAll={() => nav.navigate('Topics', { group: s.id })}>
                 {list.map(t => (
                   <TopicTile key={t.id} t={t} nav={nav} />
@@ -197,29 +188,11 @@ export function HomeScreen() {
             );
           })}
 
-          <Section title="Languages" count={LANGUAGES.length}>
-            {LANGUAGES.map(l => (
-              <LanguageTile key={l.id} id={l.id} nav={nav} />
-            ))}
-          </Section>
-
-          <Section title="Problems" count={probs.length} onSeeAll={() => nav.navigate('Problems')}>
-            {probs.map(p => (
-              <ProblemTile key={p.id} p={p} nav={nav} />
-            ))}
-          </Section>
-
-          <Section title="Animations" count={groups.reduce((a, g) => a + g.demos.length, 0)} onSeeAll={() => nav.navigate('Algorithms', {})}>
-            {groups.map(g => (
-              <Tile key={g.id} icon={g.icon} title={g.label} thumb={demoThumb(g.demos[0]?.slug)} meta={`${g.demos.length} animations`} tint={c.protocol} onPress={() => nav.navigate('Algorithms', { group: g.id })} />
-            ))}
-          </Section>
-
           <Section title="My systems" count={systems.length} onSeeAll={() => nav.navigate('Mine')}>
             {[
-              <Tile key="new" icon="plus" title="New system" meta="blank canvas" tint={c.ok} onPress={() => createSystem(nav)} />,
-              ...(systems.length ? [] : [<Tile key="tpl" icon="layout-template" title="From a template" meta={`${STARTERS.length} starters`} tint={c.ok} onPress={() => templateMenu(nav)} />]),
-              ...systems.map(it => <Tile key={it.id} icon="layers" title={it.name} thumb={graphThumb(it.doc)} meta={`${it.nodes} parts · ${ago(it.updatedAt)}`} tint={c.write} onPress={() => nav.navigate('Editor', { doc: it.doc })} />),
+              <Tile key="new" icon="plus" title="New system" meta="blank canvas" onPress={() => createSystem(nav)} />,
+              ...(systems.length ? [] : [<Tile key="tpl" icon="layout-template" title="From a template" meta={`${STARTERS.length} starters`} onPress={() => templateMenu(nav)} />]),
+              ...systems.map(it => <Tile key={it.id} icon="layers" title={it.name} thumb={graphThumb(it.doc)} meta={`${it.nodes} parts · ${ago(it.updatedAt)}`} onPress={() => nav.navigate('Editor', { doc: it.doc })} />),
             ]}
           </Section>
         </>

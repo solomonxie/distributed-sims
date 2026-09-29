@@ -1,28 +1,17 @@
-import React, { useCallback, useState } from 'react';
+import React from 'react';
 import { Alert, Share } from 'react-native';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useTheme } from '../theme';
 import { Screen } from '../ui/Screen';
 import { Card, Row, SectionHeader, Segmented, Toggle } from '../ui/primitives';
 import { useSettings } from '../state/settings';
 import { useProgress } from '../state/progress';
 import { useLibrary } from '../state/library';
-import { loadFeedback } from '../lib/feedback';
 
 const VERSION = '0.1.0';
 
 export function SettingsScreen() {
   const { c } = useTheme();
   const s = useSettings();
-  const nav = useNavigation();
-  const [openCount, setOpenCount] = useState(0);
-  useFocusEffect(
-    useCallback(() => {
-      loadFeedback()
-        .then(items => setOpenCount(items.filter(i => i.status === 'open').length))
-        .catch(() => {});
-    }, []),
-  );
   return (
     <Screen contentStyle={{ paddingTop: 8 }}>
       <SectionHeader title="SIMULATION" />
@@ -59,7 +48,6 @@ export function SettingsScreen() {
       </Card>
       <SectionHeader title="ABOUT" />
       <Card>
-        <Row title="Feedback" value={openCount ? `${openCount} open` : undefined} chevron onPress={() => nav.navigate('Feedback')} />
         <Row title="Version" value={VERSION} last titleStyle={{ color: c.text }} />
       </Card>
     </Screen>
