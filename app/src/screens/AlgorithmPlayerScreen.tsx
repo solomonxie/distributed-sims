@@ -5,6 +5,7 @@ import { runOnJS } from 'react-native-worklets';
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { algo } from '@dsims/engine';
+import { templates } from '@dsims/content';
 import type { RootStackParamList } from '../navigation/types';
 import { useTheme, space, toneColor } from '../theme';
 import { FrameCanvas } from '../canvas/FrameCanvas';
@@ -13,7 +14,7 @@ import { Icon } from '../ui/Icon';
 import { InfoButton } from '../ui/Info';
 import { haptic } from '../lib/haptics';
 import { bus } from '../debug/bus';
-import { AlgoLesson } from '../learn/AlgoLesson';
+import { ChapterHeader, LessonDone, chapterAt, lessonOf, planChapters } from '../learn/Chapters';
 import { useProgress } from '../state/progress';
 import { DetailSheet, detailAt } from '../ui/DetailSheet';
 
@@ -25,20 +26,20 @@ export function AlgorithmPlayerScreen() {
   const demo = algo.getDemo(route.params.slug);
   const { width } = useWindowDimensions();
   const size = width - space.l * 2;
-  const [presetIdx, setPresetIdx] = useState(0);
   const [custom, setCustom] = useState<algo.GraphInput | null>(null);
   const [editing, setEditing] = useState(false);
   const [i, setI] = useState(0);
+  const [finished, setFinished] = useState(false);
   const [detail, setDetail] = useState<algo.Detail | undefined>(undefined);
-  const input = custom ?? demo?.inputs[presetIdx]?.data;
-  const frames = useMemo(() => (demo ? algo.frames(demo, input) : []), [demo, input]);
+  const lesson = route.params.lesson;
+  const ls = useMemo(() => (lesson ? lessonOf(lesson.topicId, lesson.lessonId) : undefined), [lesson]);
+  const { frames, chapters } = useMemo(() => (demo ? planChapters(demo, ls?.lesson.steps, custom) : { frames: [], chapters: [] }), [demo, ls, custom]);
   const prevRef = useRef<algo.Frame | undefined>(undefined);
 
   const slug = route.params.slug;
-  const inLesson = !!route.params.lesson;
   useEffect(() => {
-    if (!inLesson) useProgress.getState().visit({ kind: 'demo', slug });
-  }, [slug, inLesson]);
+    useProgress.getState().visit(ls ? { kind: 'lesson', topic: ls.topic.id, lesson: ls.lesson.id } : { kind: 'demo', slug });
+  }, [slug, ls]);
 
   useLayoutEffect(() => {
     nav.setOptions({
@@ -72,13 +73,31 @@ export function AlgorithmPlayerScreen() {
     setI(k);
   };
 
-  const lesson = route.params.lesson;
-  const pickInput = (id: string) => {
-    const k = demo.inputs.findIndex(x => x.id === id);
-    if (k < 0) return;
-    setCustom(null);
-    setPresetIdx(k);
+  const last = i >= frames.length - 1;
+  const ck = chapterAt(chapters, i);
+  const chapter = chapters[ck];
+  const atChapterEnd = !!chapter && i === chapter.start + chapter.len - 1;
+  const nextChapter = chapters[ck + 1];
+  const next = () => {
+    useProgress.getState().played(ls ? { kind: 'lesson', topic: ls.topic.id, lesson: ls.lesson.id } : { kind: 'demo', slug });
+    if (last) {
+      if (!ls) return;
+      useProgress.getState().completeLesson(`${ls.topic.id}/${ls.lesson.id}`);
+      setFinished(true);
+      haptic('success');
+      return;
+    }
+    haptic(atChapterEnd ? 'select' : 'light');
+    go(i + 1);
   };
+  const openNextLesson = () => {
+    const n = ls?.next;
+    if (!ls || !n) return nav.goBack();
+    if (n.algo) nav.replace('AlgorithmPlayer', { slug: n.algo, lesson: { topicId: ls.topic.id, lessonId: n.id } });
+    else if (n.template && templates[n.template]) nav.replace('Editor', { doc: templates[n.template], readOnly: true, autoRun: true, guide: { kind: 'lesson', topicId: ls.topic.id, lessonId: n.id } });
+  };
+  const nextLabel = last ? (ls ? 'Finish lesson' : 'Done') : atChapterEnd && nextChapter ? nextChapter.title : 'Next step';
+  const nextSub = last ? `${frames.length} steps` : atChapterEnd && nextChapter ? `Part ${ck + 2} of ${chapters.length}` : `${i + 1} of ${frames.length}`;
   const tapStage = (sx: number, sy: number) => {
     const d = frames[i] && detailAt(frames[i].shapes, (sx / size) * 1000, (sy / size) * 1000);
     if (!d) return;
@@ -86,38 +105,12 @@ export function AlgorithmPlayerScreen() {
     setDetail(d);
   };
   const stageTap = Gesture.Tap().onEnd(e => runOnJS(tapStage)(e.x, e.y));
-  const editGraph = editing && demo.editable === 'graph' ? (custom ?? (demo.inputs[presetIdx]?.data as algo.GraphInput)) : null;
+  const editGraph = editing && demo.editable === 'graph' ? (custom ?? (demo.inputs.find(x => x.id === chapter?.input)?.data as algo.GraphInput)) : null;
 
   return (
     <View style={{ flex: 1, backgroundColor: c.canvas }}>
       <ScrollView contentContainerStyle={{ padding: space.l, paddingBottom: 140 }}>
-        {lesson && !editing && <AlgoLesson topicId={lesson.topicId} lessonId={lesson.lessonId} onInput={pickInput} />}
-        {demo.inputs.length > 1 && !editing && (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingBottom: space.m }}>
-            {demo.inputs.map((inp, k) => (
-              <Pressable
-                key={inp.id}
-                onPress={() => {
-                  setCustom(null);
-                  setPresetIdx(k);
-                  haptic('select');
-                }}
-                style={[styles.preset, { borderColor: k === presetIdx && !custom ? c.accent : c.hairlineStrong, backgroundColor: k === presetIdx && !custom ? c.surface2 : c.surface1 }]}
-              >
-                <Text v="callout" style={{ fontSize: 13.5, fontWeight: k === presetIdx && !custom ? '700' : '500' }}>
-                  {inp.label}
-                </Text>
-              </Pressable>
-            ))}
-            {custom && (
-              <View style={[styles.preset, { borderColor: c.accent, backgroundColor: c.surface2 }]}>
-                <Text v="callout" style={{ fontWeight: '700' }}>
-                  My graph
-                </Text>
-              </View>
-            )}
-          </ScrollView>
-        )}
+        {!editing && (finished && ls ? <LessonDone title={ls.lesson.title} hasNext={!!ls.next} onReview={() => setFinished(false)} onNext={openNextLesson} /> : <ChapterHeader chapters={chapters} i={i} onJump={go} />)}
         <View style={[styles.stage, { backgroundColor: c.surface1, borderColor: c.hairline }]}>
           {editGraph ? <GraphEditor size={size} graph={editGraph} onChange={g => setCustom(g)} /> : frame ? (
             <GestureDetector gesture={stageTap}>
@@ -135,7 +128,7 @@ export function AlgorithmPlayerScreen() {
           <>
             <View style={styles.stepRow}>
               <Mono color={c.accent}>
-                Step {i + 1} / {frames.length}
+                Step {i - (chapter?.start ?? 0) + 1} / {chapter?.len ?? frames.length}
               </Mono>
               {frame.done && <Icon name="circle-check" size={16} color={c.ok} />}
             </View>
@@ -171,21 +164,17 @@ export function AlgorithmPlayerScreen() {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Next step"
-            disabled={i >= frames.length - 1}
-            onPress={() => {
-              haptic('light');
-              go(i + 1);
-              if (i + 1 >= frames.length - 1) haptic('success');
-            }}
-            style={({ pressed }) => [styles.next, { backgroundColor: c.accent }, i >= frames.length - 1 && { opacity: 0.4 }, pressed && { transform: [{ scale: 0.97 }] }]}
+            disabled={last && (!ls || finished)}
+            onPress={next}
+            style={({ pressed }) => [styles.next, { backgroundColor: c.accent }, last && (!ls || finished) && { opacity: 0.4 }, pressed && { transform: [{ scale: 0.97 }] }]}
           >
-            <Icon name="step-forward" size={22} color={c.onAccent} strokeWidth={2.4} />
-            <View>
-              <Text v="headline" color={c.onAccent}>
-                {i >= frames.length - 1 ? 'Done' : 'Next step'}
+            <Icon name={last ? 'check' : atChapterEnd ? 'chevrons-right' : 'step-forward'} size={22} color={c.onAccent} strokeWidth={2.4} />
+            <View style={{ flexShrink: 1 }}>
+              <Text v="headline" color={c.onAccent} numberOfLines={1}>
+                {nextLabel}
               </Text>
               <Text v="callout" color={c.onAccent} style={{ opacity: 0.8, fontSize: 12 }}>
-                {i + 1} of {frames.length}
+                {nextSub}
               </Text>
             </View>
           </Pressable>
@@ -274,7 +263,6 @@ function GraphEditor({ size, graph, onChange }: { size: number; graph: algo.Grap
 
 const styles = StyleSheet.create({
   stage: { borderRadius: 18, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
-  preset: { paddingHorizontal: 14, height: 34, borderRadius: 17, borderWidth: 1, justifyContent: 'center' },
   stepRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: space.l },
   panelRows: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
   panelChip: { flexDirection: 'row', gap: 6, alignItems: 'center', paddingHorizontal: 10, height: 30, borderRadius: 8, borderWidth: 1 },

@@ -22,12 +22,13 @@ const MAX_RECENT = 12;
 interface Progress {
   lessons: Record<string, boolean>;
   challenges: Record<string, ChallengeResult>;
-  lastLesson?: { topic: string; lesson: string };
+  /** last lesson or animation the user actually stepped through */
+  lastPlayed?: Visit;
   designsOpened: Record<string, boolean>;
   recent: Visit[];
   visit: (v: Visit) => void;
   completeLesson: (id: string) => void;
-  setLast: (topic: string, lesson: string) => void;
+  played: (v: Visit) => void;
   recordChallenge: (id: string, passed: boolean, value?: number) => void;
   openedDesign: (problemId: string) => void;
   reset: () => void;
@@ -45,9 +46,8 @@ export const useProgress = create<Progress>()(
         set({ recent: [v, ...(get().recent ?? []).filter(x => visitKey(x) !== k)].slice(0, MAX_RECENT) });
       },
       completeLesson: id => set({ lessons: { ...get().lessons, [id]: true } }),
-      setLast: (topic, lesson) => {
-        set({ lastLesson: { topic, lesson } });
-        get().visit({ kind: 'lesson', topic, lesson });
+      played: v => {
+        if (!get().lastPlayed || visitKey(get().lastPlayed!) !== visitKey(v)) set({ lastPlayed: v });
       },
       recordChallenge: (id, passed, value) => {
         const prev = get().challenges[id];
@@ -55,7 +55,7 @@ export const useProgress = create<Progress>()(
         set({ challenges: { ...get().challenges, [id]: { passed: passed || !!prev?.passed, best, at: new Date().toISOString() } } });
       },
       openedDesign: pid => set({ designsOpened: { ...get().designsOpened, [pid]: true } }),
-      reset: () => set({ lessons: {}, challenges: {}, lastLesson: undefined, designsOpened: {}, recent: [] }),
+      reset: () => set({ lessons: {}, challenges: {}, lastPlayed: undefined, designsOpened: {}, recent: [] }),
     }),
     { name: 'progress', storage: createJSONStorage(() => zustandStorage) },
   ),
