@@ -1,0 +1,72 @@
+id: sd-video-streaming
+title: Video streaming
+group: topics
+icon: clapperboard
+order: 19
+summary: From upload or camera to a viewer's screen. Adaptive bitrate, VOD and live pipelines, HLS through CDNs.
+info: Encode the same video at several bitrates, cut it into short segments, and let the player pick a rendition per segment from its measured throughput and buffer. HLS and DASH are plain HTTP files, so any CDN can cache them, and the CDN hit rate is the biggest cost and latency lever. VOD optimises encoding efficiency; live optimises latency with short segments and a growing manifest.
+algos: [sd-video-abr, sd-video-pipeline, sd-video-hls]
+lessons:
+  - id: abr
+    title: Adaptive bitrate
+    minutes: 5
+    algo: sd-video-abr
+    steps:
+      - title: Start low, climb
+        body: With an empty buffer the player starts at the lowest rendition so playback begins fast, then climbs as it measures throughput.
+        input: steady
+        check: { metric: manual }
+      - title: The tunnel
+        body: When throughput collapses, quality drops instead of stalling. The buffer absorbs the gap.
+        input: drop
+        check: { metric: manual }
+      - title: Buffer beats estimate
+        body: On a noisy link, weighting buffer health over the latest throughput stops quality flipping every segment.
+        input: flaky
+        check: { metric: manual }
+
+  - id: vod
+    title: The VOD pipeline
+    minutes: 4
+    algo: sd-video-pipeline
+    steps:
+      - title: Upload to transcode
+        body: One source file becomes every rendition, segment by segment, in parallel on a transcoding fleet.
+        input: vod
+        check: { metric: manual }
+      - title: Storage compounds
+        body: Renditions times titles grows fast. Per-title encoding ladders and newer codecs like AV1 are ongoing cost levers.
+        check: { metric: manual }
+
+  - id: hls
+    title: HLS requests through a CDN
+    minutes: 4
+    algo: sd-video-hls
+    steps:
+      - title: Manifest, then segments
+        body: The player fetches the master manifest, a media playlist, then 4 s segments, all over plain HTTP.
+        input: playback
+        check: { metric: manual }
+      - title: Switching is a URL
+        body: Changing quality means requesting the next segment from a different rendition's path. No special streaming server.
+        check: { metric: manual }
+      - title: The kickoff herd
+        body: When a big live stream starts, 50k players miss at 300 edges at once. The origin shield coalesces them into one origin fetch.
+        input: herd
+        check: { metric: manual }
+
+  - id: live
+    title: Live streaming
+    minutes: 4
+    algo: sd-video-pipeline
+    steps:
+      - title: Ingest and live transcode
+        body: The encoder pushes RTMP; the live transcoder and packager append segments to a manifest that keeps growing.
+        input: live
+        check: { metric: manual }
+      - title: Segment length is latency
+        body: Shorter segments cut glass-to-glass delay but cost compression and more requests. Low-latency HLS ships parts early; sub-second needs WebRTC.
+        check: { metric: manual }
+      - title: Kickoff stampede
+        body: Everyone requests the first segment at once. An origin shield coalesces the misses so the origin sees one request (HLS lesson, Live start herd).
+        check: { metric: manual }

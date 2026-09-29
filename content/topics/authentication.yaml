@@ -6,6 +6,7 @@ order: 14
 summary: Sessions, JWTs, revocation and key rotation, and where to check them.
 info: A session is a lookup at the identity provider on every request; a JWT is verified locally with cached public keys. JWTs survive an IdP outage but can't be revoked before they expire without a denylist. Where you validate (gateway or every service) decides IdP load and latency.
 problems: [whatsapp]
+algos: [sd-auth-seq]
 lessons:
   - id: session-vs-jwt
     title: Session vs JWT
@@ -107,3 +108,35 @@ lessons:
         body: Every lookup is another hop on the critical path. Offload auth to the gateway and pass a signed identity downstream.
         watch: Right users' p99 is higher than left.
         check: { metric: p99, target: web2, op: '>=', value: 140 }
+
+  - id: oidc-hop-by-hop
+    title: OIDC login, hop by hop
+    minutes: 4
+    algo: sd-auth-seq
+    steps:
+      - title: Redirect with PKCE
+        body: The app sends the browser to the IdP with a code challenge. The password is only ever typed at the IdP.
+        input: oidc
+        check: { metric: manual }
+      - title: Code for tokens
+        body: The IdP returns a one-time code; the backend swaps it plus the PKCE verifier for tokens, server to server.
+        check: { metric: manual }
+      - title: OAuth2 vs OIDC
+        body: OAuth2 grants access to an API. OIDC adds the ID token that says who the user is. SSO is many apps trusting one IdP.
+        check: { metric: manual }
+
+  - id: access-refresh
+    title: Access + refresh tokens
+    minutes: 3
+    algo: sd-auth-seq
+    steps:
+      - title: Short-lived JWTs
+        body: Access tokens are verified by signature with no lookup, which is why they can't be revoked early. Keep them to minutes.
+        input: refresh
+        check: { metric: manual }
+      - title: Refresh is the revocation point
+        body: The long-lived refresh token is checked against a database, so killing a session takes effect at the next refresh.
+        check: { metric: manual }
+      - title: Passwords and MFA
+        body: Store passwords with bcrypt, scrypt or Argon2, never a fast hash. Prefer TOTP or passkeys over SMS for the second factor.
+        check: { metric: manual }

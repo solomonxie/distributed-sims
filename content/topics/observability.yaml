@@ -6,6 +6,7 @@ order: 15
 summary: Metrics, traces and alerts that tell you what broke, and what they cost.
 info: Four golden signals (latency, traffic, errors, saturation) cover most services. Traces follow one request across services to find the slow hop, but you can only afford to keep a sample. Good alerts page on user pain (SLO burn), not on every blip, and the telemetry pipeline itself can drop data under load.
 problems: [telemetry]
+algos: [sd-tel-pillars, sd-tel-trace]
 lessons:
   - id: golden-signals
     title: Golden signals
@@ -97,3 +98,30 @@ lessons:
       - title: Blind during the incident
         body: Users are fine, but half the traces are gone exactly when you'd want them. Sample at the source and size collectors for peaks.
         check: { metric: availability, target: web, op: '>=', value: 99 }
+
+  - id: pillars
+    title: Logs, metrics, traces together
+    minutes: 3
+    algo: sd-tel-pillars
+    steps:
+      - title: Three questions
+        body: Metrics say that something is wrong, traces say where, logs say why. None replaces the others.
+        input: pillars
+        check: { metric: manual }
+      - title: One trace id everywhere
+        body: A correlation id in every log line, span and queue message is the highest-leverage observability investment.
+        check: { metric: manual }
+
+  - id: async-context
+    title: Tracing across a queue
+    minutes: 3
+    algo: sd-tel-trace
+    steps:
+      - title: Propagated
+        body: traceparent flows through every synchronous hop, and through the queue only because the producer injects it into message headers.
+        input: sync
+        check: { metric: manual }
+      - title: Broken
+        body: One client that drops headers starts a new, unrelated trace on the consumer side. That is where incidents go dark.
+        input: broken
+        check: { metric: manual }

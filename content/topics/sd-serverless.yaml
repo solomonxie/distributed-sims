@@ -1,0 +1,66 @@
+id: sd-serverless
+title: Serverless
+group: topics
+icon: cloud-lightning
+order: 21
+summary: Functions and managed compute. Cold starts, event sources, cost crossover, and running it under one deploy standard.
+info: Serverless is a deployment model, not an architecture. You ship code, the platform scales per invocation and to zero. It wins for spiky, event-driven and low-traffic work, and costs cold-start tail latency, hard limits and lock-in; at high steady traffic per-invocation pricing can overtake a small fleet. At scale, a standard for naming, least-privilege IAM and packaging matters as much as the functions.
+algos: [sd-sls-coldstart, sd-sls-events, sd-sls-cost, sd-sls-deploy]
+lessons:
+  - id: cold-starts
+    title: Cold starts
+    minutes: 3
+    algo: sd-sls-coldstart
+    steps:
+      - title: Where the time goes
+        body: Fetch the package, boot the runtime, run your module init, then the handler. Heavy imports are the part you control.
+        input: cold
+        check: { metric: manual }
+      - title: Provisioned concurrency
+        body: Pre-initialised instances remove cold starts on latency-critical paths, at a fixed hourly cost.
+        check: { metric: manual }
+
+  - id: event-sources
+    title: Event sources
+    minutes: 4
+    algo: sd-sls-events
+    steps:
+      - title: HTTP
+        body: API Gateway invokes the function synchronously and turns its return value into the response.
+        input: api
+        check: { metric: manual }
+      - title: Schedules and state machines
+        body: Long jobs become short retried steps in Step Functions, well under the 15 minute limit. Every step must be idempotent.
+        input: schedule
+        check: { metric: manual }
+
+  - id: cost
+    title: The cost crossover
+    minutes: 3
+    algo: sd-sls-cost
+    steps:
+      - title: Cheap when small
+        body: A 100 ms, 256 MB function stays under the cost of a small fleet until very high traffic.
+        input: light
+        check: { metric: manual }
+      - title: Heavy functions cross early
+        body: At 400 ms and 1 GB the lines cross around 20M requests a month. Model your own traffic shape.
+        input: heavy
+        check: { metric: manual }
+
+  - id: deploy-standard
+    title: A deploy standard
+    minutes: 4
+    algo: sd-sls-deploy
+    steps:
+      - title: One template, derived everything
+        body: A single template.yaml declares functions, APIs, schedules and state machines; names, IAM and packaging are derived, not chosen.
+        input: deploy
+        check: { metric: manual }
+      - title: Least privilege
+        body: Each role gets only the statements its resources use. Access to data stores goes through a human-approved ticket.
+        check: { metric: manual }
+      - title: Versions and aliases
+        body: Deploy publishes an immutable version and moves the live alias; rollback moves it back in seconds.
+        input: rollback
+        check: { metric: manual }

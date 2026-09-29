@@ -1,0 +1,84 @@
+id: sd-telemetry
+title: Telemetry deep dive
+group: topics
+icon: activity
+order: 22
+summary: Logs, metrics and traces in practice. Percentiles, cardinality, trace context, Prometheus to pager, the ELK pipeline.
+info: Observability is answering a question you didn't plan for without shipping new code. Metrics tell you that something is wrong and are cheap until labels explode; traces show where across services, if context propagates through every hop; logs show why, if they are structured and carry the trace id. Alert on symptoms users feel, and treat dashboards, rules and retention as code.
+algos: [sd-tel-pillars, sd-tel-trace, sd-tel-metrics, sd-tel-prom]
+lessons:
+  - id: percentiles
+    title: Percentiles, not averages
+    minutes: 3
+    algo: sd-tel-metrics
+    steps:
+      - title: The average lies
+        body: 94 fast requests and 6 very slow ones average to a number that describes nobody.
+        input: percentiles
+        check: { metric: manual }
+      - title: Golden signals
+        body: Latency (split success and error), traffic, errors, saturation. SLOs are a percentile over a window, which gives you an error budget.
+        check: { metric: manual }
+
+  - id: cardinality
+    title: Cardinality
+    minutes: 3
+    algo: sd-tel-metrics
+    steps:
+      - title: Labels multiply
+        body: Each distinct label combination is a separate series in memory. One user_id label takes a Prometheus down.
+        input: cardinality
+        check: { metric: manual }
+      - title: Put ids elsewhere
+        body: Keep metric labels bounded; per-user and per-request ids belong in traces and logs.
+        check: { metric: manual }
+
+  - id: trace-context
+    title: Trace context
+    minutes: 4
+    algo: sd-tel-trace
+    steps:
+      - title: traceparent
+        body: One trace id and a parent span id ride in a header through every hop, making a tree of spans.
+        input: sync
+        check: { metric: manual }
+      - title: The async gap
+        body: Queues only carry context if the producer injects it and the consumer extracts it. Otherwise the trace splits.
+        input: broken
+        check: { metric: manual }
+      - title: Head vs tail sampling
+        body: Deciding at the start is cheap but misses rare errors; deciding at the end keeps slow and failed traces but must buffer them in the collector.
+        check: { metric: manual }
+
+  - id: prometheus
+    title: From scrape to page
+    minutes: 4
+    algo: sd-tel-prom
+    steps:
+      - title: Pull, with discovery
+        body: Prometheus finds targets through service discovery and scrapes /metrics on an interval. A failed scrape is itself a signal.
+        input: scrape
+        check: { metric: manual }
+      - title: Rules and routing
+        body: Alert rules live in Prometheus; grouping, dedupe, silences and routing live in Alertmanager.
+        check: { metric: manual }
+      - title: Long-term storage
+        body: Prometheus keeps weeks locally. Remote-write to Thanos, Mimir or a vendor for history.
+        check: { metric: manual }
+
+  - id: logs-pipeline
+    title: Structured logs and ELK
+    minutes: 4
+    algo: sd-tel-pillars
+    steps:
+      - title: Pillars and the collector
+        body: The OpenTelemetry collector batches, samples and routes all three signals, keeping vendor logic out of apps.
+        input: pillars
+        check: { metric: manual }
+      - title: The ELK pipeline
+        body: Beats ship, Logstash parses, Elasticsearch indexes, Kibana searches. Structure logs at the source instead of grok-parsing free text.
+        input: elk
+        check: { metric: manual }
+      - title: Retention is a decision
+        body: Hot, warm, cold, delete by policy. Log 100% of errors, sample INFO, and never log secrets or PII.
+        check: { metric: manual }

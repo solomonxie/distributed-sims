@@ -5,7 +5,7 @@ icon: database-zap
 order: 1
 summary: Keep hot data close so the database only sees what the cache can't answer.
 info: A cache trades freshness and memory for latency and database load. The hard parts are what happens on a miss, on a write, and when the cache empties all at once. Every lesson here runs a live Redis/CDN in front of a real store.
-algos: [bloom-filter, count-min-sketch]
+algos: [bloom-filter, count-min-sketch, sd-cache-herd, sd-cache-layers]
 problems: [tinyurl, facebook-feed]
 lessons:
   - id: cache-aside
@@ -123,3 +123,41 @@ lessons:
       - title: The remaining race
         body: A read can fetch the old row just before a write and store it just after the delete. Versioned keys (user:42:v7) close that gap.
         check: { metric: manual, op: '>=', value: 0 }
+
+  - id: cache-layers
+    title: Where caches live
+    minutes: 3
+    algo: sd-cache-layers
+    steps:
+      - title: Closer is faster, and harder to invalidate
+        body: A browser hit costs nothing, but you can only set a TTL; you cannot reach into every client to delete a stale copy.
+        input: layers
+        check: { metric: manual }
+      - title: In-process vs distributed
+        body: An in-process LRU is the fastest hit but every replica has its own copy, cold after each deploy. Redis is one shared place to invalidate, one hop away.
+        watch: "copies: one per instance vs one"
+        check: { metric: manual }
+      - title: A cache must never be required for correctness
+        body: If the cache is down, the system should get slower, not wrong. Alert on hit rate; a silent drop shows up as database load.
+        check: { metric: manual }
+
+  - id: single-flight
+    title: Stampede, step by step
+    minutes: 4
+    algo: sd-cache-herd
+    steps:
+      - title: The stampede
+        body: A hot key expires and hundreds of requests miss in the same millisecond, all querying the database for the same row.
+        input: stampede
+        check: { metric: manual }
+      - title: Single-flight
+        body: The first miss takes a short lock (SET NX) and refills; everyone else waits briefly and then hits. One query instead of hundreds.
+        input: singleflight
+        check: { metric: manual }
+      - title: Stale-while-revalidate
+        body: Serve the soft-expired value immediately and refresh once in the background. Nobody waits on the database at all.
+        input: swr
+        check: { metric: manual }
+      - title: Jitter the TTLs
+        body: Hot keys written together expire together. Add random jitter to TTLs so they don't.
+        check: { metric: manual }

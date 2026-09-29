@@ -1,0 +1,101 @@
+id: sd-live-chat
+title: Live chat
+group: topics
+icon: message-circle
+order: 18
+summary: Real-time two-way messaging at scale. Transports, gateways, presence, fan-out, catch-up and ordering.
+info: 1:1 DMs, group chats and live-stream comment feeds are the same problem at different fan-out sizes. Stateful gateways hold open connections, a presence registry says which gateway holds which user, pub/sub fans messages out, and a durable store backs catch-up after reconnects. Delivery is at-least-once, so clients dedupe by message id and order by per-conversation sequence numbers.
+algos: [sd-chat-transport, sd-chat-delivery, sd-chat-order, sd-chat-arch]
+lessons:
+  - id: transports
+    title: Polling, long polling, WebSocket, SSE
+    minutes: 5
+    algo: sd-chat-transport
+    steps:
+      - title: Polling
+        body: The client asks every few seconds. Most answers are empty and new messages wait up to one interval.
+        input: poll
+        check: { metric: manual }
+      - title: Long polling
+        body: The server parks the request until something happens. Good latency over plain HTTP, but one open request per user.
+        input: longpoll
+        check: { metric: manual }
+      - title: WebSocket
+        body: One HTTP upgrade, then a persistent two-way connection with tiny frames. The standard choice for chat.
+        watch: The server pushes msg 42 without being asked.
+        input: websocket
+        check: { metric: manual }
+      - title: SSE
+        body: A long HTTP response the server keeps writing events to. One-way, so the client sends with ordinary POSTs.
+        input: sse
+        check: { metric: manual }
+
+  - id: delivery
+    title: One message, every hop
+    minutes: 5
+    algo: sd-chat-delivery
+    steps:
+      - title: Store first, then push
+        body: The chat service assigns a sequence number and writes durably before any real-time push, so a dropped socket never loses history.
+        input: dm
+        check: { metric: manual }
+      - title: Find the gateway
+        body: Presence maps each user to the gateway holding their socket. It lives in Redis with a TTL and may be a few seconds stale.
+        check: { metric: manual }
+      - title: Receipts are messages too
+        body: Bob's ack travels back through gateway B and the service to Alice's gateway. Every tick on screen is a round trip.
+        check: { metric: manual }
+
+  - id: fan-out
+    title: Group fan-out
+    minutes: 3
+    algo: sd-chat-delivery
+    steps:
+      - title: Publish once
+        body: Gateways subscribe to the rooms their users are in; one publish reaches every gateway with a member online.
+        input: group
+        check: { metric: manual }
+      - title: Huge rooms need another path
+        body: 200k viewers and thousands of messages a second break per-member fan-out. Batch, sample and broadcast instead (see Sizing the connection layer).
+        check: { metric: manual }
+
+  - id: catch-up
+    title: Reconnect and catch up
+    minutes: 3
+    algo: sd-chat-delivery
+    steps:
+      - title: Offline
+        body: No presence entry means nothing to push to. The message is still safe in the store.
+        input: reconnect
+        check: { metric: manual }
+      - title: Give me everything since 41
+        body: On reconnect the client sends its last seq and the server reads history from the durable store. Design this path from day one.
+        check: { metric: manual }
+
+  - id: ordering
+    title: Ordering and duplicates
+    minutes: 3
+    algo: sd-chat-order
+    steps:
+      - title: Retries create duplicates
+        body: A lost ack makes the client resend. A unique key on (conversation, client id) turns the retry into a no-op.
+        input: dedupe
+        check: { metric: manual }
+      - title: Per-conversation order
+        body: Sequence numbers per conversation let the client spot a gap and wait or fetch. No global order is needed.
+        input: order
+        check: { metric: manual }
+
+  - id: architecture
+    title: Sizing the connection layer
+    minutes: 3
+    algo: sd-chat-arch
+    steps:
+      - title: Connections, not requests
+        body: Gateways are sized by concurrent idle sockets. Async I/O that holds many idle connections cheaply matters more than per-request throughput.
+        input: arch
+        check: { metric: manual }
+      - title: Split by group size
+        body: Keep the per-user path for DMs and small groups, and a broadcast tier for huge channels.
+        input: bigroom
+        check: { metric: manual }
