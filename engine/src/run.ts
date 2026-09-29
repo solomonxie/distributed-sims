@@ -1,5 +1,6 @@
 import './behaviors';
-import { World, type Flight, type LogEvent, type Trace, type ProtoMsg } from './world';
+import { COLD_KEYS, KEYS } from './data/keystore';
+import { World, type Flight, type LogEvent, type Trace, type ProtoMsg , trafficText } from './world';
 import type { Badge, Catalog, ChaosEvent, Health, Id, SystemDoc, TrafficEvent } from './types';
 import { label } from './chaos';
 import { expandComposites, aggregateSnapshot, collapseFlights } from './composite';
@@ -54,7 +55,12 @@ export interface RunOptions {
   flightKeepMs?: number;
 }
 
-type Command = { t: number; ev: ChaosEvent | TrafficEvent } | { t: number; heal: number | 'all' } | { t: number; sendOne: Id; op?: 'read' | 'write' };
+/** what a user-sent request looks like: the hottest key (cached once warm), a never-seen key (a sure miss), a given key, or random */
+export interface SendOpts {
+  key?: 'hot' | 'cold' | number;
+}
+
+type Command = { t: number; ev: ChaosEvent | TrafficEvent } | { t: number; heal: number | 'all' } | { t: number; sendOne: Id; op?: 'read' | 'write'; opts?: SendOpts };
 
 /**
  * A simulation run. Deterministic: same doc + seed + commands ⇒ same run.
@@ -115,17 +121,20 @@ export class Run {
   }
 
   /** Fire exactly one traced request from a client. Returns trace id. */
-  sendOne(clientId: Id, op: 'read' | 'write' = 'read'): number | undefined {
-    this.commands.push({ t: this.world.now, sendOne: clientId, op });
-    return this.doSendOne(clientId, op);
+  sendOne(clientId: Id, op: 'read' | 'write' = 'read', opts?: SendOpts): number | undefined {
+    this.commands.push({ t: this.world.now, sendOne: clientId, op, opts });
+    return this.doSendOne(clientId, op, opts);
   }
 
-  private doSendOne(clientId: Id, op: 'read' | 'write' = 'read'): number | undefined {
+  private coldSeq = 0;
+
+  private doSendOne(clientId: Id, op: 'read' | 'write' = 'read', opts?: SendOpts): number | undefined {
     const w = this.world;
     const c = w.nodes.get(clientId);
     if (!c) return undefined;
     const traceId = w.newTrace(clientId, true);
-    const msg = w.newMsg({ from: clientId, to: clientId, weight: 1, op, key: w.rng.int(1024), traceId });
+    const key = opts?.key === 'hot' ? 0 : opts?.key === 'cold' ? KEYS - COLD_KEYS + (this.coldSeq++ % COLD_KEYS) : typeof opts?.key === 'number' ? opts.key : w.rng.int(KEYS - COLD_KEYS);
+    const msg = w.newMsg({ from: clientId, to: clientId, weight: 1, op, key, traceId });
     if (op === 'write') msg.value = w.rng.int(1e9);
     w.deliver(msg, r => {
       const tr = w.traces.get(traceId!);
@@ -141,6 +150,7 @@ export class Run {
   rewindTo(t: number) {
     const cmds = this.commands.filter(c => c.t < t);
     this.commands = [];
+    this.coldSeq = 0;
     this.world = this.build();
     this.lastEvents = 0;
     this.lastEventsT = 0;
@@ -149,7 +159,7 @@ export class Run {
       w.kernel.runUntil(c.t);
       if ('ev' in c) this.fire(c.ev);
       else if ('heal' in c) this.heal(c.heal);
-      else this.commands.push(c), this.doSendOne(c.sendOne, c.op);
+      else this.commands.push(c), this.doSendOne(c.sendOne, c.op, c.opts);
     }
     w.kernel.runUntil(t);
   }
@@ -178,7 +188,7 @@ export class Run {
     const firingTargets = new Set([...w.firing].map(id => w.alerts.find(a => a.id === id)?.target));
     const chaosByTarget = new Map<Id, string[]>();
     for (const c of w.chaos) {
-      for (const t of [c.ev.target, c.ev.target2]) {
+      for (const t of c.ev.kind === 'traffic' ? [c.target] : [(c.ev as ChaosEvent).target, (c.ev as ChaosEvent).target2]) {
         if (!t) continue;
         if (!chaosByTarget.has(t)) chaosByTarget.set(t, []);
         chaosByTarget.get(t)!.push(c.ev.kind);
@@ -242,9 +252,9 @@ export class Run {
       chaos: w.chaos.map(c => ({
         id: c.id,
         kind: c.ev.kind,
-        label: label(c.ev.kind),
-        target: c.ev.target,
-        target2: c.ev.target2,
+        label: c.ev.kind === 'traffic' ? trafficText(c.ev as TrafficEvent) : label(c.ev.kind),
+        target: c.ev.kind === 'traffic' ? c.target : (c.ev as ChaosEvent).target,
+        target2: c.ev.kind === 'traffic' ? undefined : (c.ev as ChaosEvent).target2,
         remainingSec: c.until ? Math.max(0, (c.until - w.now) / 1000) : undefined,
       })),
       anomalies: { ...w.anomalies },

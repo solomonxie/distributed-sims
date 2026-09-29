@@ -91,10 +91,12 @@ export interface ProtoMsg {
 
 export interface ActiveChaos {
   id: number;
-  ev: ChaosEvent;
+  ev: ChaosEvent | TrafficEvent;
   since: number;
   until?: number;
   heal: () => void;
+  /** traffic events: the client node the source belongs to */
+  target?: Id;
 }
 
 export interface WorldOptions {
@@ -490,9 +492,24 @@ export class World {
   fire(ev: ChaosEvent | TrafficEvent): number | undefined {
     if (ev.kind === 'traffic') {
       const te = ev as TrafficEvent;
-      for (const g of this.traffic) if (!te.source || te.source === g.src.id) g.apply(te);
+      const heals: (() => void)[] = [];
+      let node: Id | undefined;
+      for (const g of this.traffic)
+        if (!te.source || te.source === g.src.id) {
+          const h = g.apply(te);
+          if (h) {
+            heals.push(h);
+            node = g.src.node;
+          }
+        }
       this.log('traffic', trafficText(te));
-      return undefined;
+      if (!heals.length) return undefined;
+      // listed with the faults so it can be healed; durationSec 0 = until healed
+      const id = this.chaosSeq++;
+      const until = te.durationSec ? this.now + te.durationSec * 1000 : undefined;
+      this.chaos.push({ id, ev: te, since: this.now, until, heal: () => heals.forEach(h => h()), target: node });
+      if (until) this.kernel.at(until, () => this.heal(id));
+      return id;
     }
     const ce = ev as ChaosEvent;
     const heal = applyChaos(this, ce);
@@ -641,7 +658,7 @@ function summarize(d: unknown): string {
   }
 }
 
-function trafficText(te: TrafficEvent) {
+export function trafficText(te: TrafficEvent) {
   const p = te.params ?? {};
   switch (te.action) {
     case 'burst':

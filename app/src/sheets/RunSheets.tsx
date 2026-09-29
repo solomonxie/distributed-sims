@@ -315,7 +315,7 @@ export function ChaosContent({ onPick, onTraffic, scheduling, node }: { onPick: 
 export function ChaosParams({ def, onGo, onCancel }: { def: ChaosDef; onGo: (params: Record<string, number>, durationSec?: number) => void; onCancel: () => void }) {
   const { c } = useTheme();
   const [vals, setVals] = useState<Record<string, number>>(() => Object.fromEntries((def.params ?? []).map(p => [p.key, Number(p.default)])));
-  const [dur, setDur] = useState<number | undefined>(def.defaultDurationSec ?? undefined);
+  const [dur, setDur] = useState<number | undefined>(undefined);
   return (
     <View>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
@@ -368,7 +368,7 @@ export function buildChaosEvent(def: ChaosDef, params: Record<string, number>, d
   if (tr && (!tr.whenTarget || tr.whenTarget !== 'source' || sourceId)) {
     const p: Record<string, number> = { ...(tr.params ?? {}) };
     for (const [k, v] of Object.entries(params)) p[k] = v * (tr.scale?.[k] ?? 1);
-    return { kind: 'traffic', action: tr.action, params: p, durationSec: durationSec ?? 10, source: sourceId };
+    return { kind: 'traffic', action: tr.action, params: p, durationSec: durationSec ?? 0, source: sourceId };
   }
   return { kind: def.kind, target, target2, params, durationSec };
 }
