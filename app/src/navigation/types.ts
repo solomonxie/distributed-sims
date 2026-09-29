@@ -10,8 +10,9 @@ export interface GuideSpec {
 
 export type RootStackParamList = {
   Home: undefined;
-  Topics: { group: 'topics' | 'under-the-hood' | 'network' | 'machine' };
-  Language: { id: 'cpp' | 'go' | 'python' | 'java' | 'rust' | 'csharp' };
+  Topics: { group: 'topics' | 'under-the-hood' | 'network' | 'machine' | 'ai' | 'patterns' };
+  Languages: undefined;
+  Language: { id: 'cpp' | 'go' | 'python' | 'java' | 'rust' | 'csharp' | 'fp' };
   Problems: undefined;
   Algorithms: { group?: string };
   Mine: undefined;
@@ -22,7 +23,6 @@ export type RootStackParamList = {
   Metrics: undefined;
   AlgorithmPlayer: { slug: string; lesson?: { topicId: string; lessonId: string } };
   Settings: undefined;
-  Feedback: undefined;
   Tour: undefined;
 };
 

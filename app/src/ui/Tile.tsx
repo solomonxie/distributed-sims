@@ -18,10 +18,11 @@ export function useTileWidth() {
 export const TILE_THUMB_H = THUMB_H;
 
 /** Uniform tile: thumbnail (or a large faded icon), icon badge, 2-line title, one meta line. */
-export function Tile({ icon, title, meta, progress, done, thumb, onPress, onLongPress, tint }: { icon: string; title: string; meta?: string; progress?: number; done?: boolean; thumb?: (w: number, h: number) => React.ReactNode; onPress: () => void; onLongPress?: () => void; tint?: string }) {
+export function Tile({ icon, title, meta, progress, done, thumb, onPress, onLongPress }: { icon: string; title: string; meta?: string; progress?: number; done?: boolean; thumb?: (w: number, h: number) => React.ReactNode; onPress: () => void; onLongPress?: () => void }) {
   const { c } = useTheme();
   const w = useTileWidth();
-  const col = done ? c.ok : tint ?? c.accent;
+  // calm: icons stay neutral, colour only marks progress and completion
+  const col = done ? c.ok : c.text2;
   return (
     <Pressable onPress={onPress} onLongPress={onLongPress} delayLongPress={350} accessibilityRole="button" accessibilityLabel={title} style={({ pressed }) => [styles.tile, { width: w, backgroundColor: c.surface1, borderColor: c.hairline }, pressed && { opacity: 0.75, transform: [{ scale: 0.98 }] }]}>
       <View style={[styles.thumb, { borderBottomColor: c.hairline, backgroundColor: c.canvas }]}>
@@ -40,7 +41,7 @@ export function Tile({ icon, title, meta, progress, done, thumb, onPress, onLong
           {title}
         </Text>
         <View style={styles.meta}>
-          {progress !== undefined && <Progress value={progress} color={col} style={styles.bar} />}
+          {progress !== undefined && <Progress value={progress} color={done ? c.ok : c.accent} style={styles.bar} />}
           {!!meta && (
             <Text v="callout" color={c.text2} style={styles.metaText} numberOfLines={1}>
               {meta}
@@ -57,25 +58,22 @@ export function TileGrid({ children }: { children: React.ReactNode }) {
   return <View style={styles.grid}>{children}</View>;
 }
 
-/** Home section: caption header with count and "See all", then one horizontally scrolling row of the first 10 tiles. */
+/** Home section: caption header with "More (count)", then one horizontally scrolling row of the first 10 tiles. */
 export function Section({ title, count, onSeeAll, children }: { title: string; count?: number; onSeeAll?: () => void; children: React.ReactNode[] }) {
   const { c } = useTheme();
   const w = useTileWidth();
   const shown = children.filter(Boolean).slice(0, ROW_MAX);
   return (
-    <View style={{ marginTop: space.xl }}>
+    <View style={{ marginTop: space.xxl }}>
       <View style={styles.head}>
-        <Text v="caption">{title}</Text>
-        {count !== undefined && (
-          <Text v="caption" color={c.text3} style={styles.count}>
-            {count}
-          </Text>
-        )}
+        <Text v="title" style={styles.sectionTitle}>
+          {title}
+        </Text>
         <View style={styles.grow} />
         {onSeeAll && (
           <Pressable hitSlop={10} onPress={onSeeAll} style={styles.all} accessibilityRole="button" accessibilityLabel={`See all ${title}`}>
             <Text v="callout" color={c.accent}>
-              See all
+              {count !== undefined ? `More (${count})` : 'More'}
             </Text>
             <Icon name="chevron-right" size={14} color={c.accent} />
           </Pressable>
@@ -99,8 +97,8 @@ const styles = StyleSheet.create({
   bar: { flex: 1 },
   metaText: { fontSize: 12, flexShrink: 1 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: GAP },
-  head: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
-  count: { marginLeft: 6 },
+  head: { flexDirection: 'row', alignItems: 'baseline', marginBottom: 12 },
+  sectionTitle: { fontSize: 21, fontWeight: '700', letterSpacing: -0.2 },
   grow: { flex: 1 },
   all: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   row: { marginHorizontal: -space.l },
