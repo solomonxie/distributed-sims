@@ -321,6 +321,8 @@ interface BR {
   /** highlighted bit indices */
   hl?: number[];
   dim?: number[];
+  /** bits not computed yet: drawn as empty slots */
+  hide?: number[];
   sub?: string;
   /** rule above this row (result) */
   line?: boolean;
@@ -332,6 +334,8 @@ interface Beat {
   rows: BR[];
   panel?: Row[];
   title?: string;
+  /** don't split into worked columns */
+  whole?: boolean;
 }
 interface Opts {
   w: number;
@@ -364,18 +368,67 @@ function drawBits(o: Opts, rows: BR[], title?: string): Shape[] {
     if (r.op) out.push(text(`op${i}`, 244, y + h / 2, r.op, { size: r.op.length > 2 ? 24 : 30, bold: true, mono: true, tone: 'accent' }));
     if (r.line) out.push(line(`ln${i}`, x0, y - 6, 980, y - 6, 'default', { width: 3 }));
     for (let b = 0; b < w; b++) {
+      const bx = x0 + (w - 1 - b) * cw + 2;
+      if (r.hide?.includes(b)) {
+        out.push(box(`r${i}b${b}`, bx, y, cw - 4, h, '', { tone: 'muted', filled: false, dashed: true }));
+        continue;
+      }
       const bit = bitOf(r.v, b);
       const hot = r.hl?.includes(b);
       const tone: Tone = hot ? 'current' : r.dim?.includes(b) ? 'visited' : bit ? (r.tone ?? 'accent') : 'default';
-      out.push(box(`r${i}b${b}`, x0 + (w - 1 - b) * cw + 2, y, cw - 4, h, String(bit), { mono: true, tone, filled: bit === 1 || !!hot }));
+      out.push(box(`r${i}b${b}`, bx, y, cw - 4, h, String(bit), { mono: true, tone, filled: bit === 1 || !!hot }));
     }
   });
   return out;
 }
 
+const COLUMN_OPS: Record<string, [name: string, fn: (a: number, b: number) => number]> = {
+  '&': ['AND', (a, b) => a & b],
+  '|': ['OR', (a, b) => a | b],
+  '^': ['XOR', (a, b) => a ^ b],
+};
+
+/** First use of &, |, ^ or ~ in a film: empty result row, one or two worked columns, then the full result. */
+function splitColumnOp(o: Opts, b: Beat, seen: Set<string>): Beat[] {
+  const { w } = o;
+  const k = b.rows.findIndex((r) => r.line);
+  const unary = k < 0 ? b.rows.findIndex((r, j) => j > 0 && r.op === '~' && unsignedOf(r.v, w) === unsignedOf(~b.rows[j - 1].v, w)) : -1;
+  const at = k >= 2 ? k : unary;
+  if (at < 0) return [b];
+  const res = b.rows[at];
+  const ops = unary >= 0 ? [b.rows[at - 1]] : [b.rows[at - 2], b.rows[at - 1]];
+  const op = unary >= 0 ? '~' : ops[1].op ?? '';
+  const fn = op === '~' ? (x: number) => ~x : COLUMN_OPS[op]?.[1];
+  if (!fn || b.whole || seen.has(op) || (unary < 0 && ops[0].op) || unsignedOf(fn(ops[0].v, ops[1]?.v ?? 0), w) !== unsignedOf(res.v, w)) return [b];
+  seen.add(op);
+  const all = Array.from({ length: w }, (_, i) => w - 1 - i);
+  const a = (c: number) => bitOf(ops[0].v, c);
+  const y = (c: number) => (ops[1] ? bitOf(ops[1].v, c) : 0);
+  // most telling columns: a 1 from differing inputs, a 0 despite some input 1
+  const best = (r: number, score: (c: number) => number) => all.filter((c) => bitOf(res.v, c) === r).sort((p, q) => score(q) - score(p))[0];
+  const pick = [best(1, (c) => +(a(c) !== y(c))), best(0, (c) => a(c) | y(c))].filter((c): c is number => c !== undefined).slice(0, op === '~' ? 1 : 2);
+  const name = op === '~' ? 'NOT' : COLUMN_OPS[op][0];
+  const step = (shown: number[], hot?: number): BR[] =>
+    b.rows.map((r, j) => {
+      if (j === at) return { ...r, hide: all.filter((c) => !shown.includes(c)), hl: hot === undefined ? [] : [hot], sub: shown.length < w ? '?' : r.sub, tone: shown.length < w ? 'default' : r.tone, detail: undefined };
+      if (hot !== undefined && ops.includes(r)) return { ...r, hl: [hot] };
+      return r;
+    });
+  const colNote = (c: number) => (op === '~' ? `Bit ${c}: ~${a(c)} = ${bitOf(res.v, c)}. Every column just flips.` : `Bit ${c}: ${a(c)} ${op} ${y(c)} = ${bitOf(res.v, c)}.`);
+  const pending: Row[] = [[res.label, '?']];
+  const out: Beat[] = [{ note: `${name}, one column at a time: fill in ${res.label}.`, rows: step([]), panel: pending, title: b.title }];
+  pick.forEach((c, n) => out.push({ note: colNote(c), rows: step(pick.slice(0, n + 1), c), panel: pending, title: b.title }));
+  out.push(b);
+  return out;
+}
+
+/** set while a demo builds its first preset: only that one teaches operators column by column */
+let teachColumns = true;
+
 function bitFrames(o: Opts, beats: Beat[], title = 'Bits'): Frame[] {
   const f = new Film();
-  for (const b of beats) f.add(b.note, drawBits(o, b.rows, b.title), b.panel ? panel(title, b.panel) : undefined);
+  const seen = new Set<string>();
+  for (const b of teachColumns ? beats.flatMap((x) => splitColumnOp(o, x, seen)) : beats) f.add(b.note, drawBits(o, b.rows, b.title), b.panel ? panel(title, b.panel) : undefined);
   return f.frames;
 }
 
@@ -387,7 +440,14 @@ function bitDemo(slug: string, title: string, summary: string, inputs: Record<st
     group: G,
     summary,
     inputs: Object.entries(inputs).map(([id, [label]]) => ({ id, label, data: { k: id } })),
-    build: ({ k }: { k: string }) => inputs[k][1](),
+    build: ({ k }: { k: string }) => {
+      teachColumns = k === Object.keys(inputs)[0];
+      try {
+        return inputs[k][1]();
+      } finally {
+        teachColumns = true;
+      }
+    },
   });
 }
 
@@ -703,8 +763,8 @@ function runningXor(nums: number[], w: number, intro: string, outro: string, det
   let acc = 0;
   nums.forEach((v, i) => {
     acc ^= v;
-    if (i === nums.length - 1 || i % 2 === 1)
-      beats.push({ note: `After ${i + 1} values the accumulator is ${acc}.`, rows: [...nums.slice(0, i + 1).map((x, j) => R(labels?.[j] ?? String(x), x, { op: j ? '^' : undefined })), R('acc', acc, { line: true, tone: 'write' })], panel: [['acc', acc]] });
+    if (i > 0)
+      beats.push({ note: `acc ^= ${labels?.[i] ?? v}: acc is now ${acc}.`, rows: [...nums.slice(0, i + 1).map((x, j) => R(labels?.[j] ?? String(x), x, { op: j ? '^' : undefined })), R('acc', acc, { line: true, tone: 'write' })], panel: [['acc', acc]] });
   });
   beats.push({ note: outro, rows: [...nums.map((x, j) => R(labels?.[j] ?? String(x), x, { op: j ? '^' : undefined })), R('result', acc, { line: true, tone: 'ok', detail })], panel: [['result', acc, 'ok']] });
   return bitFrames({ w }, beats, 'XOR');
@@ -721,9 +781,10 @@ bitDemo('bits-xor', 'XOR tricks', 'Pairs cancel: Single Number, Missing Number, 
     () =>
       bitFrames({ w: 4 }, [
         { note: 'Swap a = 12 and b = 10 without a temporary.', rows: [R('a', 12), R('b', 10)], panel: [['a', 12], ['b', 10]] },
-        { note: 'a ^= b stores the difference mask in a.', rows: [R('a', 12 ^ 10, { tone: 'write' }), R('b', 10)], panel: [['a', 12 ^ 10]] },
-        { note: 'b ^= a turns b into the original a.', rows: [R('a', 12 ^ 10), R('b', 12, { tone: 'write' })], panel: [['b', 12]] },
-        { note: 'a ^= b turns a into the original b. A party trick: std::swap is as fast and safe with aliasing.', rows: [R('a', 10, { tone: 'ok', detail: DT.swap }), R('b', 12, { tone: 'ok' })], panel: [['a', 10, 'ok'], ['b', 12, 'ok']] },
+        { note: 'a ^= b: a now holds the bits where a and b differ.', rows: [R('a', 12), R('b', 10, { op: '^' }), R('a', 12 ^ 10, { line: true, tone: 'write' })], panel: [['a', 12 ^ 10]] },
+        { note: 'b ^= a: (a ^ b) ^ b cancels b, leaving the original a.', rows: [R('b', 10), R('a', 12 ^ 10, { op: '^' }), R('b', 12, { line: true, tone: 'write' })], panel: [['b', 12]] },
+        { note: 'a ^= b: (a ^ b) ^ a cancels a, leaving the original b.', rows: [R('a', 12 ^ 10), R('b', 12, { op: '^' }), R('a', 10, { line: true, tone: 'write' })], panel: [['a', 10]] },
+        { note: 'Swapped. A party trick: std::swap is as fast, and safe when a and b alias.', rows: [R('a', 10, { tone: 'ok', detail: DT.swap }), R('b', 12, { tone: 'ok' })], panel: [['a', 10, 'ok'], ['b', 12, 'ok']] },
       ], 'XOR swap'),
   ],
   range: [
@@ -795,11 +856,12 @@ bitDemo('bits-single2', 'Single Number II & III', 'Split by the lowest differing
       let o = 0;
       let t = 0;
       const beats: Beat[] = [{ note: 'ones holds bits seen once (mod 3), twos bits seen twice. Both start at 0.', rows: [R('ones', 0), R('twos', 0)], panel: [['state', '00']] }];
-      for (const x of nums) {
+      nums.forEach((x, n) => {
         o = (o ^ x) & ~t;
+        beats.push({ note: `Read ${x} (#${n + 1}). ones = (ones ^ x) & ~twos: bits seen once, unless already in twos.`, rows: [R('x', x), R('ones', o, { tone: 'write' }), R('twos', t)], panel: [['ones', o], ['twos', t]] });
         t = (t ^ x) & ~o;
-        beats.push({ note: `Read ${x}: ones = (ones ^ x) & ~twos, then twos = (twos ^ x) & ~ones.`, rows: [R('x', x), R('ones', o, { tone: 'write' }), R('twos', t, { tone: 'write' })], panel: [['ones', o], ['twos', t]] });
-      }
+        beats.push({ note: 'twos = (twos ^ x) & ~ones: bits seen twice. A third sighting clears both.', rows: [R('x', x), R('ones', o), R('twos', t, { tone: 'write' })], panel: [['ones', o], ['twos', t]] });
+      });
       beats.push({ note: `A bit seen three times clears from both. ones = ${o} is the answer.`, rows: [R('ones', o, { tone: 'ok', detail: DT.single2 }), R('twos', t)], panel: [['answer', o, 'ok']] });
       return bitFrames({ w: 4 }, beats, 'State machine');
     },
@@ -816,9 +878,10 @@ bitDemo('bits-reverse', 'Reverse, complement, patterns', 'Reverse Bits by loop a
       let x = n;
       let r = 0;
       for (let i = 1; i <= 8; i++) {
-        r = ((r << 1) | (x & 1)) & 0xff;
+        const low = x & 1;
+        r = ((r << 1) | low) & 0xff;
         x >>= 1;
-        if (i % 3 === 0 || i === 8) beats.push({ note: `After ${i} steps r = ${r}.`, rows: [R('n', x), R('r', r, { tone: i === 8 ? 'ok' : 'write', detail: i === 8 ? DT.reverse : undefined })], panel: [['i', i], ['r', r]] });
+        beats.push({ note: `Step ${i}: n & 1 is ${low}. Shift r left and put it in; shift n right.`, rows: [R('n', x), R('r', r, { tone: i === 8 ? 'ok' : 'write', hl: [0], detail: i === 8 ? DT.reverse : undefined })], panel: [['i', i], ['r', r]] });
       }
       beats.push({ note: `Reversed: ${reverseBits(n, 8)}. For many calls, cache a 256-entry byte table.`, rows: [R('input', n), R('reversed', reverseBits(n, 8), { tone: 'ok', detail: DT.reverse })], panel: [['result', reverseBits(n, 8), 'ok']] });
       return bitFrames({ w: 8 }, beats, 'Reverse bits');
@@ -870,7 +933,9 @@ bitDemo('bits-arith', 'Arithmetic with bits', 'Add with XOR and carries (LC 371)
       while (b) {
         const s = a ^ b;
         const c = (a & b) << 1;
-        beats.push({ note: `a ^ b adds without carries, (a & b) << 1 is the carries: ${s} and ${c}.`, rows: [R('a', a), R('b', b), R('a ^ b', s, { line: true, tone: 'write' }), R('carry', c, { tone: c ? 'warn' : 'ok' })], panel: [['sum', s], ['carry', c]] });
+        beats.push({ note: `a ^ b adds every column but drops the carries: ${s}.`, rows: [R('a', a), R('b', b, { op: '^' }), R('a ^ b', s, { line: true, tone: 'write' })], panel: [['sum', s]] });
+        beats.push({ note: c ? `1 + 1 columns carry into the next column: (a & b) << 1 = ${c}.` : 'No column has 1 + 1, so there is no carry.', rows: [R('a', a), R('b', b, { op: '&' }), R('carry', c, { op: '<<1', line: true, tone: c ? 'warn' : 'ok', hl: ones(c, 8) })], panel: [['sum', s], ['carry', c]], whole: true });
+        if (c) beats.push({ note: `Now add the carry: a = ${s}, b = ${c}. Repeat.`, rows: [R('a', s, { tone: 'write' }), R('b', c, { tone: 'write' })], panel: [['a', s], ['b', c]] });
         a = s;
         b = c;
       }
@@ -886,7 +951,8 @@ bitDemo('bits-arith', 'Arithmetic with bits', 'Add with XOR and carries (LC 371)
       return bitFrames({ w: 8 }, [
         { note: 'Divide 43 by 5 without / (LC 29): long division in base 2.', rows: [R('dividend', a), R('divisor', b)], panel: [['q', 0]] },
         { note: '5 << 3 = 40 is the largest shifted divisor that fits.', rows: [R('dividend', a), R('5 << 3', b << 3, { tone: 'current' }), R('5 << 4', b << 4, { tone: 'fail' })], panel: [['k', 3]] },
-        { note: 'Subtract it and add 1 << 3 to the quotient. 3 is left, less than 5.', rows: [R('dividend', a), R('5 << 3', b << 3, { op: '−' }), R('remainder', a - (b << 3), { line: true, tone: 'write' }), R('q', 8, { tone: 'ok', detail: DT.divide })], panel: [['q', divide(a, b), 'ok'], ['r', a % b]] },
+        { note: 'Subtract it: 43 − 40 leaves 3.', rows: [R('dividend', a), R('5 << 3', b << 3, { op: '−' }), R('remainder', a - (b << 3), { line: true, tone: 'write' })], panel: [['r', a - (b << 3)]] },
+        { note: 'Add 1 << 3 to the quotient. 3 is less than 5, so stop: 43 / 5 = 8.', rows: [R('remainder', a - (b << 3)), R('q', 8, { tone: 'ok', hl: [3], detail: DT.divide })], panel: [['q', divide(a, b), 'ok'], ['r', a % b]] },
         { note: 'Handle signs separately and clamp INT_MIN / −1, the one overflow case.', rows: [R('q', divide(a, b), { tone: 'ok' })], panel: [['INT_MIN / −1', 'INT_MAX']] },
       ], 'LC 29');
     },
@@ -993,7 +1059,11 @@ bitDemo('bits-subsets', 'Masks as subsets', 'Enumerate subsets (LC 78), iterate 
       const rows = (k: number) => [R('m', m, { tone: 'current' }), ...subs.slice(0, k).map((s) => R(`s = ${s}`, s, { tone: 'write', detail: DT.submask }))];
       return bitFrames({ w: 4 }, [
         { note: 'List every submask of m = 1011: subsets of its set bits.', rows: rows(0), panel: [['popcount', popcount(m)]] },
-        { note: 's = (s − 1) & m steps down to the next smaller submask.', rows: rows(3), panel: [['seen', 3]] },
+        ...subs.map((v, k): Beat => ({
+          note: k ? `(${subs[k - 1]} − 1) & m = ${v}: −1 borrows through the low bits, & m drops the bits m doesn’t have.` : `Start with s = m = ${v}.`,
+          rows: rows(k + 1).map((r, j) => (j === k + 1 ? { ...r, tone: 'current' as Tone } : r)),
+          panel: [['s', v], ['seen', k + 1]],
+        })),
         { note: `All ${subs.length} non-empty submasks, in descending order. Over every mask this totals 3^n.`, rows: rows(subs.length), panel: [['submasks', subs.length, 'ok'], ['all masks', '3^n']] },
       ], 'Submasks');
     },
@@ -1008,7 +1078,8 @@ bitDemo('bits-subsets', 'Masks as subsets', 'Enumerate subsets (LC 78), iterate 
       while (seq.length < 7) seq.push(gosper(seq[seq.length - 1]));
       return bitFrames({ w: 5 }, [
         { note: 'Walk all 3-of-5 combinations in order, starting from 00111.', rows: [R('x', x)], panel: [['k', 3]] },
-        { note: 'c = x & −x is the lowest set bit, r = x + c carries the lowest block of 1s up.', rows: [R('x', x), R('c', c, { tone: 'current' }), R('r = x + c', r, { tone: 'write' })], panel: [['c', c], ['r', r]] },
+        { note: 'c = x & −x is the lowest set bit.', rows: [R('x', x), R('c', c, { tone: 'current' })], panel: [['c', c]] },
+        { note: 'r = x + c carries the lowest block of 1s up by one place.', rows: [R('x', x), R('c', c, { op: '+' }), R('r', r, { line: true, tone: 'write' })], panel: [['c', c], ['r', r]] },
         { note: '((r ^ x) >> 2) / c refills the leftover 1s at the bottom; OR with r.', rows: [R('x', x), R('next', gosper(x), { tone: 'ok', detail: DT.gosper })], panel: [['next', gosper(x), 'ok']] },
         { note: 'Repeat for every combination, each with popcount 3.', rows: seq.map((v) => R(String(v), v, { tone: 'write' })), panel: [['C(5,3)', 10]] },
       ], 'Gosper');
@@ -1252,7 +1323,8 @@ bitDemo('bits-bitset', 'Bitsets, parity & hardware', 'Parity by folding, std::bi
       return bitFrames({ w: 8 }, [
         { note: 'Parity is 1 when the number of set bits is odd.', rows: [R('x', x0)], panel: [['popcount', popcount(x0)]] },
         { note: 'Fold: x ^= x >> 4 XORs the high nibble into the low one.', rows: [R('x', x0), R('x ^ x>>4', x1, { tone: 'write', hl: [0, 1, 2, 3] })], panel: [['low nibble', x1 & 15]] },
-        { note: 'Fold by 2 and by 1: bit 0 now holds the XOR of all 8 bits.', rows: [R('x', x0), R('x ^ x>>4', x1), R('x ^ x>>2', x2), R('x ^ x>>1', x3, { tone: 'ok', hl: [0], detail: DT.parity })], panel: [['parity', parity(x0), 'ok']] },
+        { note: 'Fold by 2: the low 2 bits now hold the XOR of the nibble halves.', rows: [R('x', x0), R('x ^ x>>4', x1), R('x ^ x>>2', x2, { tone: 'write', hl: [0, 1] })], panel: [['low 2 bits', x2 & 3]] },
+        { note: 'Fold by 1: bit 0 now holds the XOR of all 8 bits.', rows: [R('x', x0), R('x ^ x>>4', x1), R('x ^ x>>2', x2), R('x ^ x>>1', x3, { tone: 'ok', hl: [0], detail: DT.parity })], panel: [['parity', parity(x0), 'ok']] },
       ], 'Parity');
     },
   ],
