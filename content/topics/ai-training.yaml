@@ -1,0 +1,48 @@
+id: ai-training
+title: "Pretraining"
+group: ai
+icon: trending-down
+order: 5
+summary: "Next-token cross-entropy, the training loop, and sampling from what was learned."
+info: "Pretraining is one self-supervised task at scale: predict the next token. Every position of every sequence is a training example. Hands-on: ~/workspace/llm-references/hello-llm-training."
+algos: [ai-train]
+lessons:
+  - id: loss
+    title: "Next-token loss"
+    minutes: 3
+    algo: ai-train
+    steps:
+      - title: "The task"
+        body: "Predict the next token of real text."
+        input: "loss"
+        check: { metric: manual }
+      - title: "Cross-entropy"
+        body: "Loss = \u2212log p(correct token); uniform guessing costs log V."
+        input: "loss"
+        check: { metric: manual }
+
+  - id: loop
+    title: "The training loop"
+    minutes: 4
+    algo: ai-train
+    steps:
+      - title: "Batch"
+        body: "B windows of T tokens; targets shifted by one."
+        input: "loop"
+        check: { metric: manual }
+      - title: "Forward, loss, backward"
+        body: "One pass predicts every position at once."
+        check: { metric: manual }
+      - title: "AdamW"
+        body: "Per-parameter adaptive steps, hundreds of thousands of times."
+        check: { metric: manual }
+
+  - id: sampling
+    title: "Sampling"
+    minutes: 3
+    algo: ai-train
+    steps:
+      - title: "Temperature"
+        body: "Divide logits by T: low is safe, high is creative."
+        input: "sample"
+        check: { metric: manual }

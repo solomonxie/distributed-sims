@@ -1,0 +1,55 @@
+id: ai-rag
+title: "Retrieval-augmented generation"
+group: ai
+icon: book-open-check
+order: 12
+summary: "Ingest, retrieve, rerank and ground answers in your documents, with every request/response shown."
+info: "RAG answers from your documents instead of the model\u2019s memory: chunk and embed them once, then per question retrieve the best chunks and put them in the prompt. Retrieval quality decides answer quality. Hands-on: ~/workspace/llm-references/hello-rag."
+algos: [ai-rag]
+lessons:
+  - id: ingest
+    title: "Ingest"
+    minutes: 3
+    algo: ai-rag
+    steps:
+      - title: "Chunk"
+        body: "Overlapping chunks so answers aren\u2019t cut in half."
+        input: "ingest"
+        check: { metric: manual }
+      - title: "Embed and store"
+        body: "Vectors plus text and metadata."
+        check: { metric: manual }
+
+  - id: query
+    title: "A query, hop by hop"
+    minutes: 4
+    algo: ai-rag
+    steps:
+      - title: "Embed the question"
+        body: "Same model as the documents."
+        input: "query"
+        check: { metric: manual }
+      - title: "Retrieve"
+        body: "Nearest chunks from the vector store."
+        watch: "Every request and response between components."
+        input: "query"
+        check: { metric: manual }
+      - title: "Generate"
+        body: "Answer only from the context, with citations."
+        check: { metric: manual }
+
+  - id: hybrid
+    title: "Hybrid search & reranking"
+    minutes: 4
+    algo: ai-rag
+    steps:
+      - title: "Two retrievers"
+        body: "Vector for meaning, BM25 for exact terms."
+        input: "hybrid"
+        check: { metric: manual }
+      - title: "Rerank"
+        body: "A cross-encoder reorders the top 20."
+        check: { metric: manual }
+      - title: "Evaluate retrieval"
+        body: "Recall@k, separately from answer quality."
+        check: { metric: manual }

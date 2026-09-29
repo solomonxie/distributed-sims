@@ -1,0 +1,50 @@
+id: ai-finetune
+title: "Fine-tuning: full, LoRA, QLoRA"
+group: ai
+icon: sliders-horizontal
+order: 6
+summary: "Teach a pretrained model new facts or style, and what each method trains and stores."
+info: "Full fine-tuning updates every weight. LoRA freezes the base and learns a low-rank update B\u00b7A; QLoRA does the same over a 4-bit base so it fits one GPU. Hands-on: ~/workspace/llm-references/hello-finetune."
+algos: [ai-lora]
+lessons:
+  - id: full
+    title: "Full fine-tuning"
+    minutes: 3
+    algo: ai-lora
+    steps:
+      - title: "Every weight"
+        body: "All parameters and optimizer state are trained."
+        input: "full"
+        check: { metric: manual }
+      - title: "Cost"
+        body: "About 4\u00d7 the model size in memory, and a full copy per task."
+        check: { metric: manual }
+
+  - id: lora
+    title: "LoRA"
+    minutes: 4
+    algo: ai-lora
+    steps:
+      - title: "Low-rank update"
+        body: "\u0394W = B\u00b7A with rank r, beside a frozen W."
+        input: "lora"
+        check: { metric: manual }
+      - title: "Tiny"
+        body: "Well under 1% of the parameters train."
+        check: { metric: manual }
+      - title: "Serve"
+        body: "Merge into W, or swap adapters per request."
+        check: { metric: manual }
+
+  - id: qlora
+    title: "QLoRA"
+    minutes: 3
+    algo: ai-lora
+    steps:
+      - title: "4-bit base"
+        body: "The frozen base is quantized; the adapter trains in bf16."
+        input: "qlora"
+        check: { metric: manual }
+      - title: "One GPU"
+        body: "A 7B model fine-tunes on 24 GB."
+        check: { metric: manual }

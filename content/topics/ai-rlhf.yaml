@@ -1,0 +1,51 @@
+id: ai-rlhf
+title: "RLHF & DPO"
+group: ai
+icon: thumbs-up
+order: 7
+summary: "Tuning on human preferences: reward models, PPO with a KL leash, and DPO."
+info: "Preference tuning teaches a model which of two answers people prefer. RLHF trains a reward model and optimises against it with PPO; DPO gets there with one loss on the pairs. Hands-on: ~/workspace/llm-references/hello-rlhf (toy task: more A is better)."
+algos: [ai-rlhf]
+lessons:
+  - id: reward
+    title: "Preferences & reward models"
+    minutes: 3
+    algo: ai-rlhf
+    steps:
+      - title: "Pairs"
+        body: "Chosen and rejected answers to the same prompt."
+        input: "ppo"
+        check: { metric: manual }
+      - title: "Bradley\u2013Terry"
+        body: "Train r so the chosen answer scores higher."
+        check: { metric: manual }
+
+  - id: ppo
+    title: "PPO with a KL penalty"
+    minutes: 4
+    algo: ai-rlhf
+    steps:
+      - title: "Sample and score"
+        body: "The policy answers, the reward model scores."
+        input: "ppo"
+        check: { metric: manual }
+      - title: "Stay close"
+        body: "A KL penalty stops reward hacking."
+        check: { metric: manual }
+      - title: "Clipped update"
+        body: "PPO moves the policy in small, safe steps."
+        check: { metric: manual }
+
+  - id: dpo
+    title: "DPO"
+    minutes: 3
+    algo: ai-rlhf
+    steps:
+      - title: "No reward model"
+        body: "One loss straight on the preference pairs."
+        input: "dpo"
+        check: { metric: manual }
+      - title: "Margin"
+        body: "Raise chosen, lower rejected, relative to a frozen reference."
+        input: "dpo"
+        check: { metric: manual }

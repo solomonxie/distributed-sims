@@ -1,0 +1,52 @@
+id: ai-inference
+title: "Inference & decoding"
+group: ai
+icon: play
+order: 9
+summary: "From logits to text: greedy, top-k, top-p, prefill vs decode, and the KV cache."
+info: "Generation is a loop: forward, pick a token, append, repeat. The KV cache keeps past keys and values so each step is cheap, but it becomes the main memory cost at scale. Hands-on: ~/workspace/llm-references/hello-inference."
+algos: [ai-decode]
+lessons:
+  - id: strategies
+    title: "Decoding strategies"
+    minutes: 4
+    algo: ai-decode
+    steps:
+      - title: "Greedy"
+        body: "Always the top token."
+        input: "strategies"
+        check: { metric: manual }
+      - title: "Top-k and top-p"
+        body: "Keep the likely few, then sample."
+        watch: "Top-p adapts to how confident the model is."
+        input: "strategies"
+        check: { metric: manual }
+
+  - id: kv-cache
+    title: "Prefill, decode & the KV cache"
+    minutes: 4
+    algo: ai-decode
+    steps:
+      - title: "Prefill"
+        body: "The whole prompt in one parallel pass."
+        input: "kv"
+        check: { metric: manual }
+      - title: "Decode"
+        body: "One token per pass, reusing cached keys and values."
+        check: { metric: manual }
+      - title: "Two metrics"
+        body: "Time to first token vs time per token."
+        check: { metric: manual }
+
+  - id: kv-memory
+    title: "KV-cache memory"
+    minutes: 3
+    algo: ai-decode
+    steps:
+      - title: "Per token"
+        body: "Half a megabyte for Llama-7B in fp16."
+        input: "memory"
+        check: { metric: manual }
+      - title: "At scale"
+        body: "Long contexts \u00d7 batches outgrow the weights; GQA and paging help."
+        check: { metric: manual }

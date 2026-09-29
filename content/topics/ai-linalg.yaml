@@ -1,0 +1,111 @@
+id: ai-linalg
+title: "Linear algebra for ML"
+group: ai
+icon: grid-3x3
+order: 0.1
+summary: "Vectors, dot products and matrix products: the handful of operations every model is built from."
+info: "A neural network is mostly matrix multiplication. Inputs, embeddings and activations are vectors; weights are matrices; a batch is a matrix too. Learn to read shapes, compute a product by hand, and see why GPUs are built for this. Hands-on: ~/workspace/llm-references/hello-neuralnet."
+algos: [ai-vectors, ai-matmul, ai-elementwise, ai-batch-gpu]
+lessons:
+  - id: vectors
+    title: "Vectors"
+    minutes: 3
+    algo: ai-vectors
+    steps:
+      - title: "A list of numbers"
+        body: "A vector is an ordered list, like [3, 2]; its length is how many numbers it holds."
+        input: "vector"
+        check: { metric: manual }
+      - title: "An arrow"
+        body: "The same numbers are an arrow in space. Adding vectors adds entry by entry, tip to tail."
+        watch: "a + b lands where the two arrows chain."
+        check: { metric: manual }
+
+  - id: dot
+    title: "The dot product"
+    minutes: 4
+    algo: ai-vectors
+    steps:
+      - title: "Sum of products"
+        body: "Multiply matching entries and add them: [1,2,3]·[4,−5,6] = 4 − 10 + 18 = 12."
+        input: "dot"
+        check: { metric: manual }
+      - title: "Similarity"
+        body: "Divide by both lengths and you get cosine similarity: +1 same direction, 0 unrelated, −1 opposite."
+        input: "similarity"
+        check: { metric: manual }
+      - title: "Projection"
+        body: "How far a reaches along b. Attention scores measure the same thing between queries and keys."
+        input: "projection"
+        check: { metric: manual }
+
+  - id: matvec
+    title: "Matrix × vector: a layer"
+    minutes: 3
+    algo: ai-matmul
+    steps:
+      - title: "Rows dot the input"
+        body: "Each output is one row of W dotted with x. A layer with 2 inputs and 3 outputs is a 3×2 matrix."
+        watch: "One row lights up per output."
+        input: "matvec"
+        check: { metric: manual }
+
+  - id: matmul
+    title: "Matrix × matrix, cell by cell"
+    minutes: 5
+    algo: ai-matmul
+    steps:
+      - title: "Row times column"
+        body: "C[i][j] is row i of A dotted with column j of B. Watch the running sum build C[0][0]."
+        input: "matmul"
+        check: { metric: manual }
+      - title: "The shape rule"
+        body: "(m×k)(k×n) = (m×n): inner sizes must match and disappear. A mismatch is the classic shape error."
+        input: "shapes"
+        check: { metric: manual }
+      - title: "Transpose"
+        body: "Rows become columns. Q·Kᵀ in attention uses it to line shapes up."
+        input: "transpose"
+        check: { metric: manual }
+
+  - id: elementwise
+    title: "Element-wise ops & broadcasting"
+    minutes: 4
+    algo: ai-elementwise
+    steps:
+      - title: "Cell by cell"
+        body: "+, −, * and activations like ReLU work on each number on its own; * is not a matrix product."
+        input: "elementwise"
+        check: { metric: manual }
+      - title: "Broadcasting"
+        body: "A 1×n bias row is stretched over every row of the batch without copying."
+        input: "broadcast"
+        check: { metric: manual }
+
+  - id: norms-softmax
+    title: "Norms & softmax"
+    minutes: 4
+    algo: ai-elementwise
+    steps:
+      - title: "Length and unit vectors"
+        body: "The norm is √(sum of squares); dividing by it gives a unit vector. LayerNorm normalises every token."
+        input: "norm"
+        check: { metric: manual }
+      - title: "Scores to probabilities"
+        body: "Softmax: exponentiate, sum, divide. The biggest score gets most of the probability."
+        input: "softmax"
+        check: { metric: manual }
+
+  - id: batch-gpu
+    title: "Batches & the GPU"
+    minutes: 3
+    algo: ai-batch-gpu
+    steps:
+      - title: "A batch is a matrix"
+        body: "Stack examples as rows and one product handles them all, with identical results per row."
+        input: "batch"
+        check: { metric: manual }
+      - title: "Parallel cells"
+        body: "Every output cell is an independent dot product, so a GPU computes thousands at once."
+        input: "gpu"
+        check: { metric: manual }

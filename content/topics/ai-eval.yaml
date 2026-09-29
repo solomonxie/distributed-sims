@@ -1,0 +1,44 @@
+id: ai-eval
+title: "Evaluation"
+group: ai
+icon: clipboard-check
+order: 14
+summary: "Grading LLM systems: string checks, LLM-as-judge, pairwise comparison and regression tracking."
+info: "You can\u2019t improve what you don\u2019t measure. Treat prompts and models like code: a versioned eval set, cheap deterministic checks where possible, a validated judge where not, and a regression gate. Hands-on: ~/workspace/llm-references/hello-eval."
+algos: [ai-eval]
+lessons:
+  - id: checks
+    title: "Deterministic checks"
+    minutes: 3
+    algo: ai-eval
+    steps:
+      - title: "Eval set"
+        body: "Real inputs and what a good answer must contain."
+        input: "suite"
+        check: { metric: manual }
+      - title: "String checks"
+        body: "Exact, contains, regex, JSON schema."
+        check: { metric: manual }
+
+  - id: judge
+    title: "LLM as judge"
+    minutes: 3
+    algo: ai-eval
+    steps:
+      - title: "Rubric"
+        body: "A second model scores against a rubric."
+        input: "suite"
+        check: { metric: manual }
+      - title: "Pairwise"
+        body: "Compare two versions in both orders."
+        check: { metric: manual }
+
+  - id: regressions
+    title: "Regression tracking"
+    minutes: 2
+    algo: ai-eval
+    steps:
+      - title: "Per version"
+        body: "Store results per prompt/model version; drops block the change."
+        input: "suite"
+        check: { metric: manual }

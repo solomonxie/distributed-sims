@@ -1,0 +1,114 @@
+id: ai-langchain
+title: "LangChain"
+group: ai
+icon: link
+order: 13.1
+summary: "Prompts, LCEL chains, structured output, tool calling, RAG and tracing, with every call between app, model and tools shown."
+info: "LangChain wraps models, prompts, parsers, retrievers and tools in one Runnable interface (invoke, batch, stream) and composes them with |. The model never runs anything itself: it returns text or tool-call requests. Hands-on: ~/workspace/llm-references/hello-langchain (Ollama, no API key). The general agent loop is in AI → Agents & tool use."
+algos: [lc-chain, lc-tools, lc-rag, lc-memory]
+lessons:
+  - id: prompts
+    title: "Models & prompt templates"
+    minutes: 3
+    algo: lc-chain
+    steps:
+      - title: "Messages with holes"
+        body: "A ChatPromptTemplate turns a dict of variables into system and human messages."
+        input: "template"
+        check: { metric: manual }
+      - title: "The raw reply"
+        body: "Calling the model directly returns an AIMessage wrapper, not a string."
+        watch: "Step 5: the AIMessage."
+        input: "template"
+        check: { metric: manual }
+
+  - id: lcel
+    title: "LCEL: prompt | model | parser"
+    minutes: 4
+    algo: lc-chain
+    steps:
+      - title: "Pipes"
+        body: "Every piece is a Runnable, so prompt | llm | parser is one Runnable too."
+        input: "lcel"
+        check: { metric: manual }
+      - title: "Output flows on"
+        body: "Each Runnable output is the next one input; the parser returns a plain string."
+        input: "lcel"
+        check: { metric: manual }
+      - title: "batch()"
+        body: "The same chain runs several inputs concurrently and returns results in input order."
+        input: "batch"
+        check: { metric: manual }
+
+  - id: structured
+    title: "Structured output"
+    minutes: 3
+    algo: lc-chain
+    steps:
+      - title: "Schema as a tool"
+        body: "with_structured_output turns a Pydantic class into a JSON schema the model must fill in."
+        input: "structured"
+        check: { metric: manual }
+      - title: "Typed result"
+        body: "The JSON arguments are validated into a MovieReview object."
+        input: "structured"
+        check: { metric: manual }
+
+  - id: tools
+    title: "Tool calling, message by message"
+    minutes: 5
+    algo: lc-tools
+    steps:
+      - title: "bind_tools"
+        body: "The model sees each tool name, description and argument schema."
+        input: "both"
+        check: { metric: manual }
+      - title: "It only asks"
+        body: "The model replies with tool_calls; your code runs them and returns ToolMessages."
+        watch: "Two calls, two ToolMessages."
+        input: "both"
+        check: { metric: manual }
+      - title: "Final answer"
+        body: "The whole conversation goes back and the model answers in text."
+        input: "both"
+        check: { metric: manual }
+      - title: "Routing by description"
+        body: "A math question gets only the add tool: nothing is hard-coded."
+        input: "add"
+        check: { metric: manual }
+
+  - id: rag
+    title: "Retrieval & a RAG chain"
+    minutes: 5
+    algo: lc-rag
+    steps:
+      - title: "Ingest"
+        body: "Documents are split, embedded and stored as vectors."
+        input: "ingest"
+        check: { metric: manual }
+      - title: "Retrieve"
+        body: "The question is embedded with the same model and the nearest chunk comes back."
+        input: "query"
+        check: { metric: manual }
+      - title: "Grounded answer"
+        body: "The chunk goes into the prompt and the model answers from it."
+        input: "query"
+        check: { metric: manual }
+      - title: "Out of scope"
+        body: "The store always returns something; the prompt must allow saying the context does not cover it."
+        input: "offtopic"
+        check: { metric: manual }
+
+  - id: memory-tracing
+    title: "Chat history & tracing"
+    minutes: 4
+    algo: lc-memory
+    steps:
+      - title: "Stateless model"
+        body: "History is a list the app resends every turn, so tokens grow each turn."
+        input: "history"
+        check: { metric: manual }
+      - title: "Callbacks"
+        body: "Each Runnable reports start and end events; LangSmith builds a run tree in the background."
+        input: "trace"
+        check: { metric: manual }

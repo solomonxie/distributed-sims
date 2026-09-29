@@ -1,0 +1,139 @@
+id: ai-transformer-deep
+title: "Transformer architecture, step by step"
+group: ai
+icon: layers
+order: 4.5
+summary: "One tiny example (\"the cat sat down\", d_model 8, 2 heads) through every matrix of a transformer: embeddings, Q/K/V, attention, heads, the block, the next token."
+info: "Every number on screen is computed: embedding rows, positional sines, X·W_Q, Q·Kᵀ cell by cell, the causal mask, softmax rows, the weighted mix of V, split and merged heads, LayerNorm, the GELU feed-forward and the logits. Shapes are tracked the whole way. Hands-on: ~/workspace/llm-references/hello-transformer and karpathy-microgpt."
+algos: [tx-embed, tx-qkv, tx-sdpa, tx-mha, tx-block, tx-block-math, tx-generate, tx-shapes]
+lessons:
+  - id: embeddings
+    title: "Tokens → embeddings + positions"
+    minutes: 4
+    algo: tx-embed
+    steps:
+      - title: "Embedding lookup"
+        body: "Each token id selects one row of the embedding matrix E. No arithmetic, just indexing."
+        watch: "Row 1 of E becomes the vector for cat."
+        input: "lookup"
+        check: { metric: manual }
+      - title: "Add positions"
+        body: "Attention ignores order, so each position adds its own sine and cosine pattern. The sum is X, 4×8."
+        input: "position"
+        check: { metric: manual }
+
+  - id: qkv
+    title: "Q, K, V projections"
+    minutes: 4
+    algo: tx-qkv
+    steps:
+      - title: "Queries"
+        body: "Q = X·W_Q, (4×8)·(8×8) = (4×8). A query says what a token is looking for."
+        input: "query"
+        check: { metric: manual }
+      - title: "Keys"
+        body: "K = X·W_K. A key says what a token offers to be matched against."
+        input: "key"
+        check: { metric: manual }
+      - title: "Values"
+        body: "V = X·W_V. A value is the content a token passes on once someone attends to it."
+        input: "value"
+        check: { metric: manual }
+
+  - id: attention
+    title: "Scaled dot-product attention, cell by cell"
+    minutes: 6
+    algo: tx-sdpa
+    steps:
+      - title: "Scores = Q·Kᵀ"
+        body: "Every query is dotted with every key, filling a 4×4 table one cell at a time."
+        watch: "The Q row and Kᵀ column light up for each cell."
+        input: "scores"
+        check: { metric: manual }
+      - title: "Scale and mask"
+        body: "Divide by √d_k so the softmax does not saturate, then set the future (upper triangle) to −∞."
+        input: "scale"
+        check: { metric: manual }
+      - title: "Softmax each row"
+        body: "Each row becomes weights that are non-negative and sum to 1. Masked cells are exactly 0."
+        input: "softmax"
+        check: { metric: manual }
+      - title: "Mix the values"
+        body: "Output row i is a weighted sum of the V rows token i may see. The arrows show who reads from whom."
+        input: "mix"
+        check: { metric: manual }
+
+  - id: multi-head
+    title: "Multi-head attention"
+    minutes: 5
+    algo: tx-mha
+    steps:
+      - title: "Split into heads"
+        body: "Q, K and V (4×8) are viewed as 2 heads of 4 columns each. It is a reshape, no new weights."
+        input: "split"
+        check: { metric: manual }
+      - title: "Heads attend in parallel"
+        body: "Each head runs its own attention with √d_head, and learns a different pattern."
+        watch: "Compare which token down attends to in each head."
+        input: "heads"
+        check: { metric: manual }
+      - title: "Concat and project"
+        body: "Head outputs are concatenated back to 4×8 and multiplied by W_O to mix what the heads found."
+        input: "concat"
+        check: { metric: manual }
+
+  - id: block
+    title: "The block, following the data"
+    minutes: 3
+    algo: tx-block
+    steps:
+      - title: "Attention, residual, LayerNorm, FFN, residual, LayerNorm"
+        body: "Tap each box for its code. The output has the same 4×8 shape as the input, so blocks stack."
+        input: "flow"
+        check: { metric: manual }
+
+  - id: layernorm-ffn
+    title: "LayerNorm and the feed-forward network"
+    minutes: 4
+    algo: tx-block-math
+    steps:
+      - title: "LayerNorm"
+        body: "Each row is shifted to mean 0 and scaled to variance 1, whatever the residual produced."
+        input: "layernorm"
+        check: { metric: manual }
+      - title: "FFN with GELU"
+        body: "Each token alone goes 8 → 32 → GELU → 8. Most of a block's parameters live here."
+        input: "ffn"
+        check: { metric: manual }
+
+  - id: next-token
+    title: "Stacking blocks and predicting the next token"
+    minutes: 4
+    algo: tx-generate
+    steps:
+      - title: "Stack N blocks"
+        body: "Each block refines the same 4×8 matrix; real models stack 12 to 100+."
+        input: "stack"
+        check: { metric: manual }
+      - title: "Logits and softmax"
+        body: "The last row is projected onto the vocabulary and softmaxed. Greedy decoding takes the top word."
+        input: "logits"
+        check: { metric: manual }
+      - title: "The generation loop"
+        body: "Append the token and run again. Re-reading the prefix each time is what the KV cache avoids (see Inference & decoding)."
+        input: "loop"
+        check: { metric: manual }
+
+  - id: shapes
+    title: "Shapes and parameters cheat sheet"
+    minutes: 3
+    algo: tx-shapes
+    steps:
+      - title: "Shapes through a block"
+        body: "B batch, T tokens, C width, h heads. Scores are T×T per head, which is why long contexts are expensive."
+        input: "shapes"
+        check: { metric: manual }
+      - title: "Parameter count"
+        body: "4·C² for attention plus about 8·C² for the FFN: about 7 million per block at GPT-2 small width."
+        input: "params"
+        check: { metric: manual }

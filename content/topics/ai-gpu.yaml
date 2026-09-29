@@ -1,0 +1,54 @@
+id: ai-gpu
+title: "GPUs & faster decoding"
+group: ai
+icon: cpu
+order: 11
+summary: "The GPU memory hierarchy, the roofline, and speculative decoding."
+info: "Decoding is limited by how fast weights stream from HBM, not by arithmetic. Most speed-ups (batching, quantization, speculative decoding) do more useful work per byte loaded. Hands-on: ~/workspace/llm-references/hello-gpu and hello-speculative-decoding."
+algos: [ai-gpu, ai-spec]
+lessons:
+  - id: hierarchy
+    title: "Memory hierarchy"
+    minutes: 3
+    algo: ai-gpu
+    steps:
+      - title: "HBM to registers"
+        body: "Each level is smaller and faster."
+        input: "hierarchy"
+        check: { metric: manual }
+      - title: "Tiling"
+        body: "Reuse each tile loaded into shared memory many times."
+        check: { metric: manual }
+
+  - id: roofline
+    title: "The roofline"
+    minutes: 4
+    algo: ai-gpu
+    steps:
+      - title: "Two ceilings"
+        body: "Compute peak, or intensity \u00d7 bandwidth."
+        input: "roofline"
+        check: { metric: manual }
+      - title: "Decode vs prefill"
+        body: "One is memory-bound, the other compute-bound."
+        input: "roofline"
+        check: { metric: manual }
+
+  - id: speculative
+    title: "Speculative decoding"
+    minutes: 4
+    algo: ai-spec
+    steps:
+      - title: "Draft"
+        body: "A small model guesses 4 tokens."
+        input: "round"
+        check: { metric: manual }
+      - title: "Verify"
+        body: "One target pass accepts with probability min(1, p/q)."
+        watch: "The first rejection discards the rest."
+        input: "round"
+        check: { metric: manual }
+      - title: "Speedup"
+        body: "Tokens per target pass depend on acceptance \u03b1."
+        input: "speedup"
+        check: { metric: manual }
