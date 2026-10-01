@@ -5,7 +5,7 @@ language: cpp
 icon: braces
 order: 1
 summary: The language from zero. Types, variables, control flow, functions, arrays, strings, pointers, headers, I/O, exceptions and time.
-info: Every lesson steps through a small program line by line, showing the variables on the stack, blocks on the heap and what gets printed. Tap any box marked i for a plain explanation and a short code sample. The goal is a correct mental model of what each line does, which is what makes the later topics (OOP, STL, big projects) click.
+info: Simple lessons step through a small program and show the variables, heap blocks and output. The hard ones (pointers above all) draw memory itself instead. Every variable is a box with an address, pointers are arrows, and each * is a hop you can watch. Tap any box marked i for a plain explanation and a short code sample.
 algos: [basics-types, basics-vars, basics-control, basics-functions, basics-arrays, basics-pointers, basics-structs, basics-headers, basics-preprocessor, basics-io, basics-exceptions, basics-chrono]
 lessons:
   - id: types
@@ -106,15 +106,26 @@ lessons:
 
   - id: pointers
     title: Pointers & references
-    minutes: 6
+    minutes: 9
     algo: basics-pointers
     steps:
       - title: Address and dereference
-        body: "&x is x's address, *p is the object at that address."
+        body: Every variable is a box with an address. A pointer is a box that holds another box's address.
+        watch: p's value matches x's address. *p follows that arrow.
         input: basics
         check: { metric: manual }
+      - title: Pointer to pointer
+        body: A pointer has its own address too, so another pointer can hold it. Read **pp one * at a time.
+        watch: Each * is one hop along an arrow.
+        input: ptr2
+        check: { metric: manual }
+      - title: Why int**
+        body: A function gets copies of its arguments. To change the caller's pointer, pass the pointer's address.
+        watch: With int* the copy changes and the 42 leaks; with int** the write lands in p.
+        input: outparam
+        check: { metric: manual }
       - title: Pointer arithmetic
-        body: p + 1 moves one element. a[i] means *(a + i). One-past-the-end marks the stop.
+        body: p + 1 moves one element, not one byte. a[i] means *(a + i). Nothing stops you walking past the end.
         input: arith
         check: { metric: manual }
       - title: nullptr and dangling
@@ -122,7 +133,7 @@ lessons:
         input: nullptr
         check: { metric: manual }
       - title: References
-        body: An alias that must be bound at creation, can't be null and can't be re-pointed.
+        body: A reference is no new box, just a second name on an existing one. It can't be null or re-pointed.
         input: refs
         check: { metric: manual }
 

@@ -8,6 +8,7 @@ import { boardDemo, N } from '../machine/lib/board';
 import type { Board } from '../machine/lib/board';
 import { codeMapFrames } from '../machine/lib/code';
 import type { CodeMap } from '../machine/lib/code';
+import { Mem, memDemo } from '../machine/lib/mem';
 
 const G = 'cpp-basics';
 
@@ -339,79 +340,104 @@ traceDemo('basics-arrays', 'Arrays & strings', 'C arrays and decay, std::array, 
 });
 
 // ---------------- pointers & references ----------------
-traceDemo('basics-pointers', 'Pointers & references', 'Address-of and dereference, pointer arithmetic over arrays, nullptr, and references as aliases.', {
-  basics: [
-    'Pointers',
-    {
-      code: ['int x = 5;', 'int* p = &x;    // p holds x\'s address', '*p = 7;         // write through p', 'int y = 9;', 'p = &y;         // re-point', 'int** pp = &p;  // pointer to pointer'],
-      steps: [
-        { note: 'x is an int somewhere in memory, say at 0x7ffc10.', line: 0, heap: [['x', 'x = 5', undefined, '@0x7ffc10']] },
-        { note: '&x is x’s address. p stores it: p points to x.', line: 1, heap: [['x', 'x = 5', undefined, '@0x7ffc10']], vars: [['p', '0x7ffc10', 'accent', 'x']] },
-        { note: '*p follows the pointer. Writing *p = 7 changes x.', line: 2, heap: [['x', 'x = 7', 'write', '@0x7ffc10']], vars: [['p', '0x7ffc10', 'accent', 'x']] },
-        { note: 'A pointer can be re-pointed at another object.', line: [3, 4], heap: [['x', 'x = 7', undefined, '@0x7ffc10'], ['y', 'y = 9', 'current', '@0x7ffc14']], vars: [['p', '0x7ffc14', 'accent', 'y']] },
-        { note: 'Pointers are values too, so you can point at a pointer.', line: 5, heap: [['x', 'x = 7'], ['y', 'y = 9'], ['p', 'p = 0x7ffc14', 'current']], vars: [['pp', '&p', 'accent', 'p']] },
-      ],
-      stackTitle: 'pointers',
-      heapTitle: 'memory',
-      details: {
-        p: { title: 'int*', text: 'A variable holding an address. & takes an address, * dereferences it.', code: 'int x = 5;\nint* p = &x;\nstd::cout << p << " " << *p; // 0x7ffc10 5' },
-        x: { title: 'Pointee', text: 'The object the pointer refers to. The pointer doesn’t own it or keep it alive.' },
-        pp: { title: 'Pointer to pointer', text: 'Used by C APIs that return a pointer through a parameter.', code: 'void make(int** out) { *out = new int(1); }' },
-      },
-    },
-  ],
-  arith: [
-    'Pointer arithmetic',
-    {
-      code: ['int a[4] = {10, 20, 30, 40};', 'int* p = a;', 'p + 1;          // next int: +4 bytes', '*(p + 2);       // same as a[2]', 'int* end = a + 4;', 'for (int* q = a; q != end; ++q)', '  std::cout << *q << " ";'],
-      steps: [
-        { note: 'p points at a[0].', line: [0, 1], heap: [['a0', 'a[0] = 10', 'current', '0x1000'], ['a1', 'a[1] = 20', undefined, '0x1004'], ['a2', 'a[2] = 30', undefined, '0x1008'], ['a3', 'a[3] = 40', undefined, '0x100C']], vars: [['p', '0x1000', 'accent', 'a0']] },
-        { note: 'p + 1 moves one element, not one byte. For int that is 4 bytes.', line: 2, heap: [['a0', 'a[0] = 10', undefined, '0x1000'], ['a1', 'a[1] = 20', 'current', '0x1004'], ['a2', 'a[2] = 30', undefined, '0x1008'], ['a3', 'a[3] = 40', undefined, '0x100C']], vars: [['p + 1', '0x1004', 'accent', 'a1']] },
-        { note: 'a[i] is defined as *(a + i).', line: 3, heap: [['a0', 'a[0] = 10'], ['a1', 'a[1] = 20'], ['a2', 'a[2] = 30', 'write'], ['a3', 'a[3] = 40']], vars: [['*(p + 2)', '30', 'accent', 'a2']] },
-        { note: 'A one-past-the-end pointer marks where to stop. Iterators work the same way.', line: [4, 5, 6], heap: [['a0', 'a[0] = 10', 'visited'], ['a1', 'a[1] = 20', 'visited'], ['a2', 'a[2] = 30', 'visited'], ['a3', 'a[3] = 40', 'visited'], ['end', 'one past the end', 'muted', '0x1010']], vars: [['q', '0x1010 == end', 'ok', 'end']], out: '10 20 30 40 ' },
-      ],
-      heapTitle: 'array a',
-      details: {
-        p: { title: 'Element pointer', text: 'Adding n moves n * sizeof(T) bytes.', code: 'double* d = arr;\nd + 1; // +8 bytes' },
-        end: { title: 'One past the end', text: 'Legal to form and compare, never to dereference. This is the begin/end convention of every STL container.', code: 'for (auto it = v.begin(); it != v.end(); ++it)' },
-        out: OUT,
-      },
-    },
-  ],
-  nullptr: [
-    'nullptr & dangling',
-    {
-      code: ['int* p = nullptr;', 'if (p) *p = 1;          // guarded', '*p = 1;                 // crash', 'int* q;', '{ int t = 3; q = &t; }', '*q;                     // dangling!'],
-      steps: [
-        { note: 'nullptr means points at nothing. Always test before dereferencing a pointer that may be null.', line: [0, 1], vars: [['p', 'nullptr', 'muted']] },
-        { note: 'Dereferencing null is undefined behaviour, usually a segfault at address 0.', line: 2, vars: [['p', 'nullptr', 'fail']], rows: [['signal', 'SIGSEGV', 'fail']] },
-        { note: 'q points at t, which lives only inside the braces.', line: [3, 4], heap: [['t', 't = 3', 'write']], vars: [['q', '&t', 'accent', 't']] },
-        { note: 't is gone but q still holds its old address. Reading it is undefined.', line: 5, heap: [['t', 'dead stack slot', 'fail']], vars: [['q', 'dangling', 'fail', 't']], rows: [['detect', '-fsanitize=address']] },
-      ],
-      details: {
-        p: { title: 'nullptr', text: 'The typed null pointer literal. Replaces NULL and 0, which are just integers.', code: 'void f(int);\nvoid f(char*);\nf(NULL);    // calls f(int)!\nf(nullptr); // calls f(char*)' },
-        q: { title: 'Dangling pointer', text: 'Points to an object whose lifetime ended. Most memory bugs are this.', code: 'int* bad() {\n  int x = 1;\n  return &x; // warning: address of local\n}' },
-        t: { title: 'Expired object', text: 'Its stack slot is reused by the next call.' },
-      },
-    },
-  ],
-  refs: [
-    'References',
-    {
-      code: ['int x = 5;', 'int& r = x;     // r IS x', 'r = 8;          // x becomes 8', 'int y = 1;', 'r = y;          // copies y into x!', 'int& bad;       // error: must bind'],
-      steps: [
-        { note: 'A reference is another name for an existing object. It must be bound when declared.', line: [0, 1], heap: [['x', 'x = 5']], vars: [['r', 'alias of x', 'accent', 'x']] },
-        { note: 'Using r is using x.', line: 2, heap: [['x', 'x = 8', 'write']], vars: [['r', 'alias of x', 'accent', 'x']] },
-        { note: 'A reference can’t be re-seated. r = y assigns y’s value to x.', line: [3, 4], heap: [['x', 'x = 1', 'warn'], ['y', 'y = 1']], vars: [['r', 'still x', 'accent', 'x']] },
-        { note: 'No null references and no unbound ones, which is why APIs prefer T& when an object is required.', line: 5, vars: [['bad', 'compile error', 'fail']] },
-      ],
-      heapTitle: 'objects',
-      details: {
-        r: { title: 'Reference (T&)', text: 'An alias. Must be initialised, can’t be null, can’t be re-bound. Compiled like a pointer that is always dereferenced.', code: 'int x = 5;\nint& r = x;\nr++;       // x == 6\n&r == &x;  // true' },
-        x: { title: 'Referent', text: 'The object the reference names. It must outlive the reference.' },
-      },
-    },
-  ],
+const PD: Record<string, Detail> = {
+  x: { title: 'A box in memory', text: 'Every variable occupies bytes at some address. Real addresses look like 0x7ffd5c3a1e4c; short ones are used here.', code: 'int x = 5;\nstd::cout << &x;  // 0x7ffd5c3a1e4c' },
+  p: { title: 'int*', text: 'A box whose value is an address. & reads an address, * follows one.', code: 'int x = 5;\nint* p = &x;\n*p = 7;      // x == 7' },
+  pp: { title: 'int**', text: 'A box holding the address of a pointer. Each * follows one arrow.', code: 'int** pp = &p;\n*pp   // p\n**pp  // x' },
+  out: { title: 'Parameter', text: 'A new box in the callee’s frame, initialised with a copy of the argument.', code: 'void make(int* out);   // copy of a pointer\nvoid make(int** out);  // address of the caller’s pointer\nvoid make(int*& out);  // C++: reference to it' },
+  h: { title: 'Heap block', text: 'Made by new, lives until delete. If no pointer leads to it any more, it can never be freed: a leak.', code: 'int* p = new int(42);\ndelete p;' },
+  q: { title: 'Dangling pointer', text: 'Still holds an address, but the box there was released. Most memory bugs are this.', code: 'int* f() {\n  int t = 3;\n  return &t;  // warning: address of local\n}' },
+};
+
+function ptrBasics() {
+  const m = new Mem({ panel: 'Pointers', details: PD }).region('main', 'main() · stack frame');
+  m.v('x', 'main', 0, 'x', '0x10', '5').snap('x is a box in memory. Every box has an address, shown above it.', 'int x = 5;');
+  m.v('p', 'main', 1, 'p', '0x18', '0x10', { to: 'x' }).snap('&x reads x’s address. p is a box too, and it stores that number.', 'int* p = &x;', { fly: ['x.addr', 'p'], eq: 'p = &x = 0x10', rows: [['&x', '0x10']] });
+  m.snap('p’s value matches x’s address, in the same colour. The arrow just draws that match.', 'int* p = &x;', { eq: 'p = &x = 0x10', rows: [['p', '0x10'], ['&x', '0x10']] });
+  m.snap('*p means: take the address stored in p…', '*p = 7;', { finger: 'p', eq: '*p  →  *(0x10)', rows: [['p', '0x10']] });
+  m.set('x', '7').snap('…and go to the box at that address. Writing *p changes x without naming it.', '*p = 7;', { finger: 'x', eq: '*(0x10)  →  x = 7', rows: [['*p', 'x']] });
+  m.v('y', 'main', 2, 'y', '0x20', '9').snap('Another int, y, at 0x20.', 'int y = 9;', { finger: null });
+  m.set('p', '0x20', 'y').snap('Assigning p itself just stores a different address. x is untouched.', 'p = &y;', { fly: ['y.addr', 'p'], eq: 'p = &y = 0x20', rows: [['p', '0x20'], ['x', '7']] });
+  return m;
+}
+
+function ptrToPtr() {
+  const m = new Mem({ panel: 'Pointers', details: PD }).region('main', 'main() · stack frame');
+  m.v('x', 'main', 0, 'x', '0x10', '5').v('y', 'main', 1, 'y', '0x14', '6').v('p', 'main', 2, 'p', '0x18', '0x10', { to: 'x' });
+  m.snap('Start from what we know: p holds x’s address.', 'int* p = &x;');
+  m.v('pp', 'main', 3, 'pp', '0x20', '0x18', { lv: 2, to: 'p' }).snap('p is a box with its own address, 0x18. pp stores that, so pp points at a pointer.', 'int** pp = &p;', { fly: ['p.addr', 'pp'], eq: 'pp = &p = 0x18', rows: [['pp', '0x18']] });
+  m.snap('Read **pp one * at a time. Start at pp.', '**pp = 9;', { finger: 'pp', eq: '**pp = 9', rows: [['pp', '0x18']] });
+  m.snap('The first * follows pp’s arrow and lands on p. So *pp is p itself.', '**pp = 9;', { finger: 'p', eq: '*(*pp) = 9  →  *p = 9', rows: [['pp', '0x18'], ['*pp', 'p = 0x10']] });
+  m.set('x', '9').snap('The second * follows p’s arrow to x. **pp = 9 writes x.', '**pp = 9;', { finger: 'x', eq: '*p = 9  →  x = 9', rows: [['pp', '0x18'], ['*pp', 'p = 0x10'], ['**pp', 'x = 9', 'ok']] });
+  m.snap('Now only one *. Start at pp again.', '*pp = &y;', { finger: 'pp', eq: '*pp = &y' });
+  m.set('p', '0x14', 'y').snap('One * stops at p, so the assignment re-points p. Through pp you can change where p points.', '*pp = &y;', { finger: 'p', fly: ['y.addr', 'p'], eq: '*pp = &y  →  p = &y', rows: [['*pp', 'p = 0x14'], ['**pp', 'y = 6']] });
+  return m;
+}
+
+function ptrOut() {
+  const m = new Mem({ panel: 'Out-parameter', details: PD }).region('main', 'main() · stack frame');
+  m.v('p', 'main', 0, 'p', '0x7f0', 'null', { lv: 1 }).snap('main wants make() to give p a new int.', 'int* p = nullptr;');
+  m.region('make', 'make(int* out) · stack frame').v('out', 'make', 0, 'out', '0x7c0', 'null', { lv: 1 });
+  m.snap('Arguments are copied. out is a new box holding a copy of p’s value.', 'make(p);', { fly: ['p', 'out'] });
+  m.region('heap', 'heap').v('h', 'heap', 2, '', '0x500', '42').set('out', '0x500', 'h');
+  m.snap('new puts 42 on the heap, and out points at it. p is still null.', 'out = new int(42);', { rows: [['out', '0x500'], ['p', 'null', 'warn']] });
+  m.kill('make', 'make() returned').snap('make returns and out disappears. p never changed, and nothing points at the 42: a leak.', '}', { hot: { h: 'fail', p: 'warn' }, rows: [['p', 'null', 'fail'], ['leaked', '4 B', 'fail']] });
+  m.drop('make').drop('heap').set('p', 'null');
+  m.snap('Fix: give make the address of p, not a copy of its value.', 'void make(int** out);');
+  m.region('make', 'make(int** out) · stack frame').v('out', 'make', 0, 'out', '0x7c0', '0x7f0', { lv: 2, to: 'p' });
+  m.snap('out now holds 0x7f0, p’s own address, so out points at p.', 'make(&p);', { fly: ['p.addr', 'out'], rows: [['out', '0x7f0 (&p)']] });
+  m.snap('*out follows that arrow…', '*out = new int(42);', { finger: 'out' });
+  m.region('heap', 'heap').v('h', 'heap', 2, '', '0x500', '42').set('p', '0x500', 'h');
+  m.snap('…to p, and the heap address is written into p itself.', '*out = new int(42);', { finger: 'p', rows: [['*out', 'p = 0x500', 'ok']] });
+  m.kill('make', 'make() returned').snap('make returns and p keeps the int. C APIs hand back pointers this way.', '}', { finger: null, rows: [['p', '0x500', 'ok'], ['C++ style', 'return it, or int*&']] });
+  return m;
+}
+
+function ptrArith() {
+  const m = new Mem({ panel: 'Pointer arithmetic', details: PD }).region('arr', 'int a[4] · 4 bytes each', { tight: true });
+  ['10', '20', '30', '40'].forEach((v, i) => m.v(`a${i}`, 'arr', i, `a[${i}]`, '0x' + (16 + i * 4).toString(16), v));
+  m.snap('An array is boxes side by side. Each int is 4 bytes, so addresses go up by 4.', 'int a[4] = {10, 20, 30, 40};');
+  m.region('ptrs', 'pointers').v('p', 'ptrs', 0, 'p', '0x30', '0x10', { to: 'a0' });
+  m.snap('The array name turns into the address of its first box.', 'int* p = a;', { fly: ['a0.addr', 'p'], rows: [['p', '0x10']] });
+  m.set('p', '0x14', 'a1').snap('p + 1 moves one int, not one byte: 0x10 becomes 0x14.', '++p;', { rows: [['p', '0x10 + 1×4 = 0x14']] });
+  m.snap('p[2] is *(p + 2): from p, step two boxes, then read.', 'int v = p[2];', { finger: 'a3', rows: [['p + 2', '0x14 + 2×4 = 0x1c'], ['p[2]', '40', 'ok']] });
+  m.v('end', 'arr', 4, 'a+4', '0x20', '', {}).snap('a + 4 is one past the end. Comparing with it is fine, reading it is not.', 'for (int* q = a; q != a + 4; ++q)', { finger: null, hot: { end: 'muted' }, rows: [['end', '0x20']] });
+  m.v('junk', 'arr', 5, '???', '0x24', '7781').snap('Nothing stops p[4]. It reads whatever lies past the array: undefined behaviour.', 'int bad = p[4];   // 0x14 + 16', { finger: 'junk', hot: { end: 'muted', junk: 'fail' }, rows: [['p[4]', '0x24', 'fail']] });
+  return m;
+}
+
+function ptrDangling() {
+  const m = new Mem({ panel: 'Null & dangling', details: PD }).region('main', 'main() · stack frame');
+  m.v('q', 'main', 0, 'q', '0x7f0', 'null', { lv: 1 }).snap('nullptr is address 0, where no box ever lives. There is no arrow to follow.', 'int* q = nullptr;');
+  m.snap('*q tries to follow a missing arrow. The OS stops the program: segmentation fault.', '*q = 1;', { finger: 'q', hot: { q: 'fail' }, rows: [['signal', 'SIGSEGV', 'fail']] });
+  m.region('f', 'f() · stack frame').v('t', 'f', 0, 't', '0x7c0', '3');
+  m.snap('Call f(). Its frame holds a local t at 0x7c0.', 'int t = 3;   // inside f()', { finger: null });
+  m.set('q', '0x7c0', 't').snap('f returns t’s address, and q stores it.', 'q = f();     // return &t;', { fly: ['t.addr', 'q'] });
+  m.kill('f', 'f() returned · slots free').snap('f returns and its frame is released. q still holds 0x7c0, but nothing lives there.', '}', { rows: [['q', '0x7c0', 'warn']] });
+  m.revive('f', 'g() · stack frame · same slots').v('n', 'f', 0, 'n', '0x7c0', '99').set('q', '0x7c0', 'n');
+  m.snap('The next call reuses the same addresses. g’s local n now sits at 0x7c0.', 'g();', { hot: { q: 'warn' } });
+  m.snap('*q reads 99, not 3. A dangling pointer reads whatever moved in.', 'int v = *q;', { finger: 'n', hot: { q: 'warn', n: 'fail' }, rows: [['*q', '99', 'fail'], ['detect', '-fsanitize=address']] });
+  return m;
+}
+
+function ptrRefs() {
+  const m = new Mem({ panel: 'References', details: PD }).region('main', 'main() · stack frame');
+  m.v('x', 'main', 0, 'x', '0x10', '5').snap('One int, x.', 'int x = 5;');
+  m.rename('x', 'x, r').snap('A reference makes no new box. r is a second name on x’s box.', 'int& r = x;', { hot: { x: 'accent' }, rows: [['&r == &x', 'true']] });
+  m.set('x', '8').snap('Anything done to r is done to x.', 'r = 8;', { eq: 'r = 8  →  x = 8', rows: [['x', '8']] });
+  m.v('y', 'main', 1, 'y', '0x14', '1').snap('Another int, y.', 'int y = 1;');
+  m.set('x', '1').snap('r can’t be re-pointed. r = y copies y’s value into x.', 'r = y;', { fly: ['y', 'x'], eq: 'r = y  →  x = y', rows: [['x', '1', 'warn'], ['r still names', 'x']] });
+  m.v('p', 'main', 2, 'p', '0x18', '0x10', { to: 'x' }).snap('A pointer is its own box: it can change targets or be null. A reference can do neither.', 'int* p = &x;', { rows: [['pointer', 'own box, re-pointable'], ['reference', 'another name']] });
+  return m;
+}
+
+memDemo(G, 'basics-pointers', 'Pointers & references', 'Boxes, addresses and arrows: & and *, pointer to pointer, out-parameters, pointer arithmetic, dangling pointers and references.', {
+  basics: ['Address & *', ptrBasics],
+  ptr2: ['Pointer to pointer', ptrToPtr],
+  outparam: ['Why int**', ptrOut],
+  arith: ['Pointer arithmetic', ptrArith],
+  nullptr: ['nullptr & dangling', ptrDangling],
+  refs: ['References', ptrRefs],
 });
 
 // ---------------- structs, enums, aliases, namespaces ----------------
