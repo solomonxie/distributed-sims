@@ -50,7 +50,14 @@ export function dot(id: string, x: number, y: number, tone: Tone = 'accent', lab
 /** Accumulates frames for one demo run. */
 export class Film {
   frames: Frame[] = [];
-  add(note: string, shapes: Shape[], p?: { title: string; rows: PanelRow[] }) {
+  /** `from`: shape id → where (and how) it starts; a copy is placed in the previous frame so the shape glides in */
+  add(note: string, shapes: Shape[], p?: { title: string; rows: PanelRow[] }, from?: Record<string, { x: number; y: number } & Record<string, unknown>>) {
+    const last = this.frames[this.frames.length - 1];
+    if (from && last)
+      for (const [id, at] of Object.entries(from)) {
+        const s = shapes.find((x) => x.id === id);
+        if (s && !last.shapes.some((x) => x.id === id) && (s.t === 'dot' || s.t === 'text' || s.t === 'rect')) last.shapes.push({ ...s, ...at });
+      }
     this.frames.push(p ? { note, shapes, panel: p } : { note, shapes });
   }
 }
@@ -92,4 +99,17 @@ export function code(lines: string[], y0: number, lh: number, hi: number[], x = 
     out.push(text(`${prefix}${i}`, x, y, l, { align: 'left', size: lh >= 38 ? 26 : 24, mono: true, tone: l.trim().startsWith('//') ? 'muted' : undefined }));
   });
   return out;
+}
+
+/** One demo whose inputs each build their own frames, so scene kinds can mix: `inputs[id] = [chip label, build]`. */
+export function framesDemo(group: string, slug: string, title: string, summary: string, inputs: Record<string, [label: string, build: () => Frame[]]>, details?: Record<string, Detail>) {
+  machineDemo({
+    slug,
+    title,
+    group,
+    summary,
+    inputs: Object.entries(inputs).map(([id, [label]]) => ({ id, label, data: { k: id } })),
+    build: ({ k }: { k: string }) => inputs[k][1](),
+    details,
+  });
 }
