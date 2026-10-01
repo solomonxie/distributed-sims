@@ -1,5 +1,5 @@
 // Headless preview (CanvasKit, no simulator): render algorithm/machine frames to PNGs for visual review.
-// usage: npx tsx scripts/preview-frames.ts <outDir> [slug[:frameIdx] ...]
+// usage: npx tsx scripts/preview-frames.ts <outDir> [slug[:frameIdx] | slug@input ...]  (slug@input renders every frame)
 import { readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { LoadSkiaWeb } from '@shopify/react-native-skia/lib/commonjs/web/LoadSkiaWeb';
 import { algo } from '../../engine/src';
@@ -26,11 +26,13 @@ async function main() {
   const pal: Record<string, string> = { default: c.text2, muted: c.text3, accent: c.accent, ok: c.ok, warn: c.warn, fail: c.fail, protocol: c.protocol, read: c.read, write: c.write, visited: c.text3, current: c.write, path: c.ok };
   const col = { surface: c.surface2, canvas: c.canvas, text: c.text, text2: c.text2 };
   const want = process.argv.slice(3);
-  const demos = algo.allDemos().filter(d => !want.length || want.some(w => w.split(':')[0] === d.slug));
+  const slugOf = (w: string) => w.split(/[:@]/)[0];
+  const demos = algo.allDemos().filter(d => !want.length || want.some(w => slugOf(w) === d.slug));
   for (const d of demos) {
-    const fr = algo.frames(d);
-    const spec = want.find(w => w.split(':')[0] === d.slug);
-    const idxs = spec?.includes(':') ? [Number(spec.split(':')[1])] : [0, Math.floor(fr.length / 2), fr.length - 1];
+    const spec = want.find(w => slugOf(w) === d.slug);
+    const input = spec?.includes('@') ? d.inputs.find(x => x.id === spec.split('@')[1]) : undefined;
+    const fr = algo.frames(d, input?.data);
+    const idxs = input ? fr.map((_, i) => i) : spec?.includes(':') ? [Number(spec.split(':')[1])] : [0, Math.floor(fr.length / 2), fr.length - 1];
     for (const i of idxs) {
       const f = fr[Math.min(i, fr.length - 1)];
       const size = 720;
@@ -43,7 +45,7 @@ async function main() {
       canvas.restore();
       surface.flush();
       const png = surface.makeImageSnapshot().encodeToBytes();
-      writeFileSync(`${out}/${d.slug}-${String(i).padStart(2, '0')}.png`, png);
+      writeFileSync(`${out}/${d.slug}${input ? '@' + input.id : ''}-${String(i).padStart(2, '0')}.png`, png);
     }
   }
   console.log(`rendered ${demos.length} demos → ${out}`);
