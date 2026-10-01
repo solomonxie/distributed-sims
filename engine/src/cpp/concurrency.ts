@@ -5,6 +5,7 @@ import { boardFrames, N } from '../machine/lib/board';
 import type { Board } from '../machine/lib/board';
 import { traceFrames } from '../machine/lib/trace';
 import type { Trace } from '../machine/lib/trace';
+import { Mem } from '../machine/lib/mem';
 
 const G = 'cpp-concurrency';
 const all = (ids: string[], tone: Tone) => Object.fromEntries(ids.map((id) => [id, tone]));
@@ -114,72 +115,60 @@ demo('conc-threads', 'Threads & lifetime', 'std::thread start and join, detach a
 });
 
 // ---------------- races & mutexes ----------------
-const RACE_NODES = [
-  N('ta', 40, 300, 280, 100, 'thread A', 'core 0'),
-  N('mem', 360, 300, 280, 100, 'counter', '41'),
-  N('tb', 680, 300, 280, 100, 'thread B', 'core 1'),
-  N('a1', 40, 440, 280, 80, 'load', 'A'),
-  N('a2', 40, 540, 280, 80, 'add', 'A'),
-  N('a3', 40, 640, 280, 80, 'store', 'A'),
-  N('b1', 680, 440, 280, 80, 'load', 'B'),
-  N('b2', 680, 540, 280, 80, 'add', 'B'),
-  N('b3', 680, 640, 280, 80, 'store', 'B'),
-  N('mx', 360, 500, 280, 110, 'std::mutex', 'free'),
-  N('res', 40, 800, 920, 130, 'result'),
-];
-const OPS = ['a1', 'a2', 'a3', 'b1', 'b2', 'b3'];
+
+const RD: Record<string, Detail> = {
+  counter: D.counter,
+  m: D['std::mutex'],
+  ra: { title: 'Register (core 0)', text: 'Arithmetic happens in registers, not in memory. ++counter is load, add, store.', code: 'mov eax, [counter]\nadd eax, 1\nmov [counter], eax' },
+  rb: { title: 'Register (core 1)', text: 'Thread B’s own copy of the value. Nothing tells it A already loaded the same number.', code: 'mov eax, [counter]\nadd eax, 1\nmov [counter], eax' },
+};
+
+function threeRows(title: string) {
+  return new Mem({ panel: title, details: RD }).region('A', 'thread A · core 0 register').region('mem', 'shared memory').region('B', 'thread B · core 1 register');
+}
+
+function raceScene() {
+  const m = threeRows('Race');
+  m.v('ra', 'A', 1, 'eax', 'core 0', '—').v('counter', 'mem', 1, 'counter', '0x900', '41').v('rb', 'B', 1, 'eax', 'core 1', '—');
+  m.snap('counter is 41, and both threads are about to run ++counter.', '++counter;   // in thread A and thread B', { rows: [['expected', 43]] });
+  m.set('ra', '41').snap('++counter is three steps. First A loads 41 into its register.', 'mov eax, [counter]   ; A', { fly: ['counter', 'ra'] });
+  m.set('rb', '41').snap('Before A writes back, B loads too. It also sees 41.', 'mov eax, [counter]   ; B', { fly: ['counter', 'rb'], hot: { rb: 'warn' } });
+  m.set('ra', '42').set('rb', '42').snap('Each adds 1 in its own register: 42 and 42.', 'add eax, 1   ; A and B');
+  m.set('counter', '42').snap('A stores 42.', 'mov [counter], eax   ; A', { fly: ['ra', 'counter'] });
+  m.set('counter', '42').snap('B stores 42 on top. Two increments, but counter only went up by one.', 'mov [counter], eax   ; B', { fly: ['rb', 'counter'], hot: { counter: 'fail' }, rows: [['expected', 43], ['got', 42, 'fail']] });
+  m.snap('Over a million loops thousands vanish. It is a data race, undefined behaviour; TSan reports it.', 'g++ -fsanitize=thread race.cpp', { hot: { counter: 'fail' }, rows: [['counter', '1,318,442 of 2,000,000', 'fail'], ['detector', 'TSan']] });
+  return m;
+}
+
+function mutexScene() {
+  const m = threeRows('Mutex');
+  m.v('ra', 'A', 1, 'eax', 'core 0', '—').v('counter', 'mem', 1, 'counter', '0x900', '41').v('m', 'mem', 3, 'mutex m', '0x940', 'free').v('rb', 'B', 1, 'eax', 'core 1', '—');
+  m.snap('Same counter, now guarded by a mutex.', 'std::mutex m;');
+  m.set('m', 'A holds').snap('A locks m first.', 'std::lock_guard lk(m);   // A', { hot: { m: 'accent' } });
+  m.set('rb', 'waiting').snap('B calls lock() too. m is taken, so B sleeps.', 'std::lock_guard lk(m);   // B', { hot: { m: 'accent', rb: 'warn' }, rows: [['B', 'blocked', 'warn']] });
+  m.set('ra', '42').snap('A loads 41 and adds 1, with no one to interfere.', 'mov eax, [counter]; add eax, 1   ; A', { fly: ['counter', 'ra'], hot: { m: 'accent', rb: 'warn' } });
+  m.set('counter', '42').snap('A stores 42.', 'mov [counter], eax   ; A', { fly: ['ra', 'counter'], hot: { m: 'accent', rb: 'warn' } });
+  m.set('m', 'B holds').set('rb', '—').snap('A’s guard unlocks at the brace. B wakes up and takes m.', '}   // ~lock_guard: unlock', { hot: { m: 'accent' } });
+  m.set('rb', '43').snap('B loads 42, so it computes 43.', 'mov eax, [counter]; add eax, 1   ; B', { fly: ['counter', 'rb'], hot: { m: 'accent' } });
+  m.set('counter', '43').set('m', 'free').snap('Nothing lost. The price: a lock and unlock per ++, and m bouncing between cores.', 'mov [counter], eax   ; B', { fly: ['rb', 'counter'], hot: { counter: 'ok' }, rows: [['counter', 43, 'ok'], ['cost', '~13× slower here', 'warn']] });
+  return m;
+}
+
+function atomicScene() {
+  const m = threeRows('Atomic');
+  m.v('ra', 'A', 1, 'eax', 'core 0', '—').v('counter', 'mem', 1, 'counter', '0x900', '41').v('rb', 'B', 1, 'eax', 'core 1', '—');
+  m.snap('counter is now a std::atomic<int>.', 'std::atomic<int> counter{41};');
+  m.set('counter', '42').set('ra', 'old 41').snap('fetch_add is one instruction. The core locks the cache line, then reads, adds and writes.', 'lock xadd [counter], eax   ; A', { hot: { counter: 'write' } });
+  m.set('rb', 'waits').snap('B’s fetch_add has to wait for that line. It can’t slip in between.', 'lock xadd [counter], eax   ; B', { hot: { rb: 'warn' } });
+  m.set('counter', '43').set('rb', 'old 42').snap('Then B runs and sees 42. Both increments count, with no mutex.', 'lock xadd [counter], eax   ; B', { hot: { counter: 'ok' }, rows: [['counter', 43, 'ok']] });
+  m.snap('Perfect for one counter or flag. When several variables must change together, use a mutex.', 'counter.fetch_add(1, std::memory_order_relaxed);', { rows: [['use for', 'counters, flags'], ['not for', 'multi-field updates', 'warn']] });
+  return m;
+}
 
 demo('conc-race', 'Data races & mutexes', 'counter++ from two threads loses updates; lock_guard and std::atomic fix it at different costs.', {
-  race: [
-    'Data race',
-    B({
-      panel: 'Race',
-      codeTitle: 'race.cpp',
-      code: ['int counter = 0;', 'void work() { for (int i = 0; i < N; ++i) ++counter; }', 'std::thread a(work), b(work);', 'a.join(); b.join();'],
-      nodes: RACE_NODES,
-      edges: ['ta>mem', 'tb>mem'],
-      beats: [
-        { note: 'Two threads each add 1 to counter a million times. You would expect 2,000,000.', hl: [0, 1, 2], hide: [...OPS, 'mx', 'res'], rows: [['expected', '2,000,000']] },
-        { note: '++counter is three steps: load into a register, add, store back.', hl: [1], hot: { a1: 'read', a2: 'write', a3: 'write' }, sub: { a1: 'eax = 41', a2: 'eax = 42', a3: 'pending' }, hide: ['b1', 'b2', 'b3', 'mx', 'res'], rows: [['instructions', 3]] },
-        { note: 'B loads before A stores, so both threads read 41.', hot: { a1: 'read', b1: 'warn' }, sub: { a1: 'eax = 41', a2: 'eax = 42', a3: 'pending', b1: 'eax = 41', b2: 'eax = 42', b3: 'pending' }, hide: ['mx', 'res'], rows: [['both read', 41, 'warn']] },
-        { note: 'Both store 42, so one increment is lost. It happens thousands of times per run.', hot: { a3: 'fail', b3: 'fail', mem: 'fail', res: 'fail' }, sub: { mem: '42 (not 43)', a1: 'eax = 41', a2: 'eax = 42', a3: 'store 42', b1: 'eax = 41', b2: 'eax = 42', b3: 'store 42' }, label: { res: 'counter = 1,318,442' }, hide: ['mx'], rows: [['lost updates', '681,558', 'fail']] },
-        { note: 'A data race is undefined behaviour, not just a wrong number. Build with -fsanitize=thread to catch it.', hot: { res: 'fail' }, label: { res: 'ThreadSanitizer: data race' }, sub: { mem: 'racy' }, hide: ['mx', ...OPS], rows: [['detector', 'TSan']] },
-      ],
-    }),
-  ],
-  mutex: [
-    'lock_guard',
-    B({
-      panel: 'Mutex',
-      codeTitle: 'mutex.cpp',
-      code: ['std::mutex m;', 'void work() {', '  for (int i = 0; i < N; ++i) {', '    std::lock_guard lk(m);   // unlocks at }', '    ++counter; } }'],
-      nodes: RACE_NODES,
-      edges: ['ta>mem', 'tb>mem'],
-      beats: [
-        { note: 'Each increment now happens inside a lock_guard on m.', hl: [0, 3], hot: { mx: 'current' }, hide: [...OPS, 'res'], rows: [['critical section', '++counter']] },
-        { note: 'A locks m and does load, add, store.', hot: { mx: 'write', a1: 'read', a2: 'write', a3: 'write' }, sub: { mx: 'owned by A', a1: 'eax = 41', a2: 'eax = 42', a3: 'store 42', mem: '42' }, hide: ['b2', 'b3', 'res'], label: { b1: 'lock()' }, rows: [['owner', 'A']] },
-        { note: 'B blocks in lock() until A’s guard unlocks at the closing brace.', hot: { b1: 'warn', mx: 'write' }, sub: { mx: 'owned by A', b1: 'waiting', mem: '42' }, label: { b1: 'lock()' }, hide: ['b2', 'b3', 'res', 'a1', 'a2', 'a3'], rows: [['B', 'blocked', 'warn']] },
-        { note: 'Then B gets its turn and reads 42. No update is lost.', hot: { mx: 'write', b1: 'read', b2: 'write', b3: 'write', res: 'ok' }, sub: { mx: 'owned by B', b1: 'eax = 42', b2: 'eax = 43', b3: 'store 43', mem: '43' }, label: { res: 'counter = 2,000,000' }, hide: ['a1', 'a2', 'a3'], rows: [['result', 'correct', 'ok']] },
-        { note: 'Correct, but two million lock and unlock pairs, and the mutex bounces between cores. Keep critical sections short.', hot: { mx: 'warn', res: 'ok' }, label: { res: '~40 ms (vs 3 ms racy)' }, hide: OPS, rows: [['cost', 'contention', 'warn']] },
-      ],
-    }),
-  ],
-  atomic: [
-    'std::atomic',
-    B({
-      panel: 'Atomic',
-      codeTitle: 'atomic.cpp',
-      code: ['std::atomic<int> counter{0};', 'void work() {', '  for (int i = 0; i < N; ++i)', '    counter.fetch_add(1, std::memory_order_relaxed);', '}'],
-      nodes: [...RACE_NODES.filter((n) => n.id !== 'mx'), N('at', 360, 500, 280, 110, 'std::atomic', 'lock xadd')],
-      edges: ['ta>mem', 'tb>mem'],
-      beats: [
-        { note: 'For a single counter, an atomic is enough.', hl: [0], hot: { at: 'current' }, hide: [...OPS, 'res'], rows: [['mutex', 'none']] },
-        { note: 'fetch_add is one indivisible read-modify-write. No other core can slip in between.', hl: [3], hot: { a1: 'write', at: 'write' }, label: { a1: 'lock xadd' }, sub: { a1: '41 → 42', mem: '42' }, hide: ['a2', 'a3', 'b2', 'b3', 'b1', 'res'], rows: [['instructions', 1]] },
-        { note: 'B’s xadd waits for the cache line, then sees 42.', hot: { b1: 'write', at: 'write' }, label: { a1: 'lock xadd', b1: 'lock xadd' }, sub: { a1: '41 → 42', b1: '42 → 43', mem: '43' }, hide: ['a2', 'a3', 'b2', 'b3', 'res'], rows: [['lost updates', 0, 'ok']] },
-        { note: 'Relaxed is fine for a pure counter. Use a mutex once several variables must change together.', hot: { res: 'ok' }, label: { res: 'counter = 2,000,000' }, hide: OPS, rows: [['use for', 'counters, flags']] },
-      ],
-    }),
-  ],
+  race: ['Data race', () => raceScene().frames()],
+  mutex: ['lock_guard', () => mutexScene().frames()],
+  atomic: ['std::atomic', () => atomicScene().frames()],
 });
 
 // ---------------- deadlock ----------------
