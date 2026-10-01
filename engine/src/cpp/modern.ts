@@ -1,7 +1,8 @@
 // Modern C++ (group cpp-modern): auto, lambdas, std::function, smart pointers, move & forwarding, templates, variadics,
 // concepts, constexpr, optional/variant/expected, ranges, coroutines, exception safety, filesystem.
 import type { Detail } from '../algo/frames';
-import { machineDemo } from '../machine/lib/draw';
+import { framesDemo, machineDemo } from '../machine/lib/draw';
+import { Mem, memDemo } from '../machine/lib/mem';
 import { boardDemo as demo, N } from '../machine/lib/board';
 import type { Board } from '../machine/lib/board';
 import { traceFrames } from '../machine/lib/trace';
@@ -140,77 +141,120 @@ const UP = D('std::unique_ptr', 'Sole owner of a heap object. Same size as a raw
 const SP = D('std::shared_ptr', 'Two pointers: one to the object, one to a control block holding the strong and weak counts. The last strong owner deletes the object.', 'auto a = std::make_shared<Widget>();\nauto b = a;          // strong = 2\na.reset();           // strong = 1');
 const CB = D('Control block', 'Heap block with the strong count, the weak count and the deleter. Counts change with atomic increments, so copying a shared_ptr is not free.', '// make_shared: one allocation for\n// control block + object together');
 const WP = D('std::weak_ptr', 'Observes without owning: bumps only the weak count. lock() gives a shared_ptr if the object is still alive.', 'std::weak_ptr<Node> parent;\nif (auto p = parent.lock()) use(*p);');
-traceDemo('mod-smart', 'Smart pointers in depth', 'unique_ptr ownership transfer, shared_ptr control blocks and reference counts, weak_ptr breaking cycles.', {
-  unique: [
-    'unique_ptr',
-    {
-      code: ['auto p = std::make_unique<Widget>(42);', 'auto q = std::move(p);      // transfer', 'take(std::move(q));         // sink function', '// take() ends: Widget deleted'],
-      details: { p: UP, q: UP, w: D('Widget', 'The heap object. Exactly one unique_ptr owns it at any moment.') },
-      steps: [
-        { line: 0, note: 'p owns a Widget on the heap.', vars: [['p', 'unique_ptr', 'current', 'w']], heap: [['w', 'Widget{42}', 'write', 'owner: p']], rows: [['owners', 1]] },
-        { line: 1, note: 'Ownership moves to q. p becomes null; there is never a second owner.', vars: [['p', 'nullptr', 'visited'], ['q', 'unique_ptr', 'current', 'w']], heap: [['w', 'Widget{42}', 'default', 'owner: q']], rows: [['owners', 1]] },
-        { line: 2, note: 'Passing unique_ptr by value to a function transfers ownership into it.', vars: [['p', 'nullptr', 'visited'], ['q', 'nullptr', 'visited'], ['arg', 'unique_ptr', 'current', 'w']], heap: [['w', 'Widget{42}', 'default', 'owner: take()']], rows: [['owners', 1]] },
-        { line: 3, note: 'When the owner goes out of scope the Widget is deleted. No leaks, no double delete, zero overhead.', vars: [['p', 'nullptr', 'visited'], ['q', 'nullptr', 'visited']], heap: [['w', '(deleted)', 'ok']], rows: [['leaks', 0, 'ok']] },
-      ],
-    },
-  ],
-  shared: [
-    'shared_ptr & control block',
-    {
-      code: ['auto a = std::make_shared<Widget>();', 'auto b = a;             // strong 2', '{ auto c = b; }         // 3, then 2', 'a.reset(); b.reset();   // 0: delete'],
-      details: { a: SP, b: SP, c: SP, cb: CB, w: D('Widget', 'With make_shared it sits in the same allocation as the control block.') },
-      steps: [
-        { line: 0, note: 'make_shared makes one allocation holding the control block and the Widget.', vars: [['a', 'shared_ptr', 'current', 'cb']], heap: [['cb', 'control block', 'write', 'strong 1 · weak 0'], ['w', 'Widget', 'write']], rows: [['strong', 1]] },
-        { line: 1, note: 'Copying bumps the strong count with an atomic increment.', vars: [['a', 'shared_ptr', 'default', 'cb'], ['b', 'shared_ptr', 'current', 'cb']], heap: [['cb', 'control block', 'write', 'strong 2 · weak 0'], ['w', 'Widget']], rows: [['strong', 2]] },
-        { line: 2, note: 'c adds one and drops it again at the brace.', vars: [['a', 'shared_ptr', 'default', 'cb'], ['b', 'shared_ptr', 'default', 'cb'], ['c', 'shared_ptr (scoped)', 'visited', 'cb']], heap: [['cb', 'control block', 'write', 'strong 3 → 2'], ['w', 'Widget']], rows: [['strong', 2]] },
-        { line: 3, note: 'When the last strong owner lets go, the Widget is destroyed.', vars: [['a', 'nullptr', 'visited'], ['b', 'nullptr', 'visited']], heap: [['cb', 'control block', 'visited', 'strong 0'], ['w', '(destroyed)', 'ok']], rows: [['strong', 0, 'ok']] },
-        { note: 'Prefer unique_ptr; use shared_ptr only for genuinely shared ownership. Pass it by const& when you don’t need a copy.', vars: [], heap: [['cb', '(freed)', 'visited']], rows: [['copy cost', 'atomic inc/dec', 'warn']] },
-      ],
-    },
-  ],
-  weak: [
-    'Cycles & weak_ptr',
-    {
-      code: ['struct Node { std::shared_ptr<Node> next;', '              std::weak_ptr<Node> prev; };', 'auto a = std::make_shared<Node>();', 'auto b = std::make_shared<Node>();', 'a->next = b; b->prev = a;   // weak back-link', 'a.reset(); b.reset();'],
-      details: { na: D('Node A', 'Owns B through a shared_ptr.'), nb: D('Node B', 'Points back to A with a weak_ptr, so it doesn’t keep A alive.'), a: SP, b: SP, prev: WP },
-      steps: [
-        { line: [2, 3], note: 'Two nodes, each owned by a local shared_ptr.', vars: [['a', 'shared_ptr', 'default', 'na'], ['b', 'shared_ptr', 'default', 'nb']], heap: [['na', 'Node A', 'default', 'strong 1'], ['nb', 'Node B', 'default', 'strong 1']] },
-        { line: 4, note: 'A owns B, and B points back to A. If prev were a shared_ptr they would own each other.', vars: [['a', 'shared_ptr', 'default', 'na'], ['b', 'shared_ptr', 'default', 'nb']], heap: [['na', 'Node A', 'default', 'strong 1 · weak 1'], ['nb', 'Node B', 'current', 'strong 2']] },
-        { line: 5, note: 'With two shared_ptrs, dropping a and b would leave both counts at 1 forever: a leak.', vars: [['a', 'nullptr', 'visited'], ['b', 'nullptr', 'visited']], heap: [['na', 'Node A (if cycle)', 'fail', 'strong 1: leaked'], ['nb', 'Node B (if cycle)', 'fail', 'strong 1: leaked']], rows: [['with shared prev', 'leak', 'fail']] },
-        { line: 5, note: 'With a weak back-link, A reaches 0 and dies, which releases B. Use weak_ptr for back-references and caches.', vars: [['a', 'nullptr', 'visited'], ['b', 'nullptr', 'visited']], heap: [['na', '(destroyed)', 'ok'], ['nb', '(destroyed)', 'ok']], rows: [['with weak prev', 'freed', 'ok']] },
-      ],
-    },
-  ],
+const SD: Record<string, Detail> = {
+  p: UP,
+  q: UP,
+  arg: UP,
+  w: D('Widget on the heap', 'Exactly one unique_ptr points at it. When that owner dies, it is deleted.'),
+  a: SP,
+  b: SP,
+  c: SP,
+  cb: CB,
+  sw: D('Widget', 'With make_shared it sits in the same allocation as the control block.'),
+  na: D('Node A', 'Its strong count is how many shared_ptrs point at it. It dies at 0.'),
+  nb: D('Node B', 'Owned by A’s next and by the local b.'),
+  bprev: WP,
+  anext: SP,
+};
+
+function smartUnique() {
+  const m = new Mem({ panel: 'unique_ptr', details: SD }).region('main', 'main() · stack frame').region('heap', 'heap');
+  m.v('w', 'heap', 1, 'Widget', '0x500', '42').v('p', 'main', 0, 'p', '0x7f0', '0x500', { to: 'w' });
+  m.snap('p owns a Widget. One arrow into it means one owner.', 'auto p = std::make_unique<Widget>(42);', { rows: [['owners', 1]] });
+  m.v('q', 'main', 1, 'q', '0x7f8', '0x500', { to: 'w' }).set('p', 'null', null);
+  m.snap('Moving hands the arrow over: q points at it and p becomes null. Still one owner.', 'auto q = std::move(p);', { fly: ['p', 'q'], rows: [['owners', 1], ['p', 'null']] });
+  m.snap('A copy would make two owners that both delete. The compiler refuses.', 'auto r = q;   // error: copy deleted', { hot: { q: 'fail' }, rows: [['copy', 'compile error', 'fail']] });
+  m.region('take', 'take(unique_ptr<Widget> arg) · stack frame').v('arg', 'take', 0, 'arg', '0x7c0', '0x500', { to: 'w' }).set('q', 'null', null);
+  m.snap('Passing by value moves ownership into the function.', 'take(std::move(q));', { fly: ['q', 'arg'], rows: [['owner', 'take()']] });
+  m.kill('take', 'take() returned').free('w');
+  m.snap('When take returns, arg is destroyed and deletes the Widget. No leak, no double delete.', '}   // ~unique_ptr → delete', { rows: [['leaks', 0, 'ok'], ['overhead', 'same as a raw pointer', 'ok']] });
+  return m;
+}
+
+function smartShared() {
+  const m = new Mem({ panel: 'shared_ptr', details: SD }).region('main', 'main() · stack frame').region('heap', 'heap · one allocation', { tight: true });
+  m.v('cb', 'heap', 1, 'control', '0x500', 'strong 1').v('sw', 'heap', 2, 'Widget', '0x510', '{…}').v('a', 'main', 0, 'a', '0x7f0', '0x500', { to: 'cb' });
+  m.snap('make_shared puts a control block next to the Widget. Its count is the number of shared_ptrs.', 'auto a = std::make_shared<Widget>();', { rows: [['strong', 1]] });
+  m.v('b', 'main', 1, 'b', '0x7f8', '0x500', { to: 'cb' }).set('cb', 'strong 2');
+  m.snap('Copying adds an arrow, and the count goes up by an atomic increment.', 'auto b = a;', { fly: ['a', 'b'], rows: [['strong', 2]] });
+  m.region('blk', '{ inner block }').v('c', 'blk', 2, 'c', '0x7d0', '0x500', { to: 'cb' }).set('cb', 'strong 3');
+  m.snap('One more copy inside a block: 3 arrows, count 3.', '{ auto c = b;', { rows: [['strong', 3]] });
+  m.kill('blk', 'block ended').set('cb', 'strong 2');
+  m.snap('At the brace c is destroyed, and the count drops back to 2.', '}', { rows: [['strong', 2]] });
+  m.drop('blk').set('a', 'null', null).set('cb', 'strong 1');
+  m.snap('reset() removes a’s arrow. The Widget lives on, because b still points at it.', 'a.reset();', { rows: [['strong', 1]] });
+  m.set('b', 'null', null).set('cb', 'strong 0').free('cb').free('sw');
+  m.snap('The last arrow is gone, so the count hits 0 and the Widget is destroyed.', 'b.reset();', { rows: [['strong', 0, 'ok'], ['copy cost', 'atomic inc/dec', 'warn']] });
+  return m;
+}
+
+function smartWeak() {
+  const m = new Mem({ panel: 'Cycles', details: SD }).region('main', 'main() · stack frame').region('heap', 'heap');
+  const nodes = (weak: boolean) => {
+    m.v('na', 'heap', 0, 'Node A', '0x500', 'strong 1').v('anext', 'heap', 1, 'A.next', '0x508', 'null', { lv: 1 });
+    m.v('nb', 'heap', 3, 'Node B', '0x600', 'strong 1').v('bprev', 'heap', 4, 'B.prev', '0x608', 'null', { lv: 1, weak });
+    m.v('a', 'main', 0, 'a', '0x7f0', '0x500', { to: 'na' }).v('b', 'main', 3, 'b', '0x7f8', '0x600', { to: 'nb' });
+  };
+  nodes(false);
+  m.snap('Two nodes, each owned by a local shared_ptr.', 'auto a = make_shared<Node>(), b = make_shared<Node>();', { rows: [['A', 'strong 1'], ['B', 'strong 1']] });
+  m.set('anext', '0x600', 'nb').set('nb', 'strong 2').snap('A.next owns B, so B’s count is 2.', 'a->next = b;', { rows: [['B', 'strong 2']] });
+  m.set('bprev', '0x500', 'na').set('na', 'strong 2').snap('If B.prev is a shared_ptr too, A’s count becomes 2. Each node now owns the other.', 'b->prev = a;   // shared_ptr', { rows: [['A', 'strong 2'], ['B', 'strong 2']] });
+  m.set('a', 'null', null).set('b', 'null', null).set('na', 'strong 1').set('nb', 'strong 1');
+  m.snap('Drop a and b. Each count only falls to 1, held up by the other node: both leak.', 'a.reset(); b.reset();', { hot: { na: 'fail', nb: 'fail' }, rows: [['leaked', 'A and B', 'fail']] });
+  m.drop('heap').region('heap', 'heap');
+  nodes(true);
+  m.set('anext', '0x600', 'nb').set('nb', 'strong 2').set('bprev', '0x500', 'na');
+  m.snap('Fix: make B.prev a weak_ptr. It points at A without counting, so A stays at 1.', 'std::weak_ptr<Node> prev;', { rows: [['A', 'strong 1'], ['B', 'strong 2']] });
+  m.set('a', 'null', null).set('na', 'strong 0').free('na').free('anext').set('nb', 'strong 1');
+  m.snap('Dropping a takes A to 0, so A dies, and its next releases B.', 'a.reset();', { rows: [['A', 'destroyed', 'ok'], ['B', 'strong 1']] });
+  m.set('b', 'null', null).set('nb', 'strong 0').free('nb').free('bprev');
+  m.snap('Dropping b frees B. Use weak_ptr for back-links, parents and caches.', 'b.reset();', { rows: [['leaks', 0, 'ok']] });
+  return m;
+}
+
+memDemo(G, 'mod-smart', 'Smart pointers in depth', 'Ownership drawn as arrows: unique_ptr hands its one arrow over, shared_ptr counts arrows, weak_ptr points without counting.', {
+  unique: ['unique_ptr', smartUnique],
+  shared: ['shared_ptr & control block', smartShared],
+  weak: ['Cycles & weak_ptr', smartWeak],
 });
 
 // ---------------- move & forwarding ----------------
-traceDemo('mod-move', 'Move semantics & perfect forwarding', 'lvalues vs rvalues, what std::move really does, the rule of five, and std::forward in generic factories.', {
-  rvalue: [
-    'lvalue vs rvalue',
-    {
-      code: ['void take(const std::string& s);  // copies if it keeps s', 'void take(std::string&& s);       // may steal s', 'std::string a = "a long string on the heap";', 'take(a);                // lvalue → const&', 'take(a + "!");          // temporary → &&', 'take(std::move(a));     // cast to && → steal'],
-      details: { a: D('lvalue', 'Anything with a name you can take the address of. Overload resolution picks const& for it.'), tmp: D('rvalue', 'A temporary about to die. Its resources can be stolen safely.', 'std::string f();\ntake(f());   // rvalue'), mv: D('std::move', 'Just a cast to T&&. It moves nothing by itself; the && overload chosen afterwards does the stealing.', 'template <class T>\nT&& move(T& x) { return static_cast<T&&>(x); }') },
-      steps: [
-        { line: 2, note: 'a is an lvalue: it has a name and lives on.', vars: [['a', '"a long string…"', 'current']], rows: [['category', 'lvalue']] },
-        { line: 3, note: 'Passing a picks the const& overload. If take keeps it, that is a copy.', vars: [['a', '"a long string…"', 'default']], rows: [['overload', 'const&'], ['allocations', 1, 'warn']] },
-        { line: 4, note: 'a + "!" is a temporary, an rvalue, so the && overload runs and can steal its buffer.', vars: [['a', '"a long string…"'], ['tmp', 'temporary', 'write']], rows: [['overload', '&&'], ['allocations', 0, 'ok']] },
-        { line: 5, note: 'std::move(a) is only a cast that says you are done with a. The && overload then steals.', vars: [['a', '"" (moved-from)', 'visited'], ['mv', 'string&& → a', 'ok']], rows: [['overload', '&&'], ['a after', 'valid, empty', 'warn']] },
-      ],
-    },
-  ],
-  rule5: [
-    'Rule of five',
-    {
-      code: ['class Buffer {', '  char* p; size_t n;', ' public:', '  Buffer(Buffer&& o) noexcept', '    : p(std::exchange(o.p, nullptr)), n(o.n) {}', '  ~Buffer() { delete[] p; }', '};  // + copy ctor, copy =, move ='],
-      details: { src: D('Moved-from object', 'After the move its pointer is null, so its destructor deletes nothing.'), dst: D('noexcept move', 'vector only uses your move constructor when growing if it is noexcept; otherwise it copies to stay exception-safe.', 'Buffer(Buffer&&) noexcept;\n// = default works when members are movable'), blk: D('The buffer', 'Only one Buffer owns it at a time.') },
-      steps: [
-        { line: [0, 1], note: 'A class that owns raw memory must define all five: destructor, copy and move constructors, copy and move assignment.', vars: [['src', 'p → blk · n 64', 'current', 'blk']], heap: [['blk', '64 bytes']], rows: [['special members', 5]] },
-        { line: [3, 4], note: 'The move constructor takes o’s pointer and nulls it out, so ownership moves.', vars: [['src', 'p = nullptr', 'visited'], ['dst', 'p → blk · n 64', 'write', 'blk']], heap: [['blk', '64 bytes', 'ok']], rows: [['allocations', 0, 'ok']] },
-        { line: 5, note: 'Both destructors run, but only dst frees the block. No double delete.', vars: [['src', 'p = nullptr', 'visited'], ['dst', 'p → blk', 'default', 'blk']], heap: [['blk', '64 bytes']], rows: [['deletes', 1, 'ok']] },
-        { line: 6, note: 'Better still is the rule of zero: hold a vector or unique_ptr and write none of the five.', vars: [['dst', 'std::vector<char> buf', 'ok']], rows: [['hand-written members', 0, 'ok']] },
-      ],
-    },
-  ],
+const MD: Record<string, Detail> = {
+  a: D('std::string', 'A small object holding a pointer, a size and a capacity. Long text lives in a heap buffer.', 'sizeof(std::string);  // 32 on libstdc++'),
+  buf: D('Heap buffer', 'The characters. Copying a string copies these; moving just hands over the pointer.'),
+  buf2: D('Second buffer', 'A copy allocates its own buffer and copies every byte.'),
+  c: D('Moved-into string', 'Took a’s pointer and size. No allocation, no byte copied.'),
+  src: D('Moved-from object', 'After the move its pointer is null, so its destructor deletes nothing.'),
+  dst: D('noexcept move', 'vector only uses your move constructor when growing if it is noexcept; otherwise it copies to stay exception-safe.', 'Buffer(Buffer&&) noexcept;\n// = default works when members are movable'),
+  blk: D('The buffer', 'Only one Buffer owns it at a time.'),
+};
+
+function moveRvalue() {
+  const m = new Mem({ panel: 'Copy vs move', details: MD }).region('main', 'main() · stack frame').region('heap', 'heap');
+  m.v('buf', 'heap', 0, 'chars', '0x500', '"a long…"').v('a', 'main', 0, 'a', '0x7f0', '0x500', { to: 'buf' });
+  m.snap('A long string keeps its characters on the heap. a just holds a pointer to them.', 'std::string a = "a long string…";', { rows: [['heap buffers', 1]] });
+  m.v('buf2', 'heap', 2, 'chars', '0x540', '"a long…"').v('b', 'main', 1, 'b', '0x810', '0x540', { to: 'buf2' });
+  m.snap('Copying allocates a second buffer and copies every byte.', 'std::string b = a;        // copy', { fly: ['buf', 'buf2'], rows: [['allocations', 1, 'warn'], ['bytes copied', 'all']] });
+  m.v('c', 'main', 2, 'c', '0x830', '0x500', { to: 'buf' }).set('a', 'empty', null);
+  m.snap('Moving copies only the pointer, then empties a. The characters never move.', 'std::string c = std::move(a);', { fly: ['a', 'c'], rows: [['allocations', 0, 'ok'], ['bytes copied', 0, 'ok']] });
+  m.snap('a is still a valid, empty string you can reuse. std::move was only a cast that allowed the steal.', 'a = "reuse me";   // fine', { hot: { a: 'visited' }, rows: [['std::move', 'cast to &&'], ['the move ctor', 'does the stealing']] });
+  return m;
+}
+
+function moveRule5() {
+  const m = new Mem({ panel: 'Rule of five', details: MD }).region('main', 'main() · stack frame').region('heap', 'heap');
+  m.v('blk', 'heap', 1, '64 bytes', '0x500', 'data…').v('src', 'main', 0, 'src.p', '0x7f0', '0x500', { to: 'blk' });
+  m.snap('Buffer owns raw memory through p, so it must write all five special members.', 'class Buffer { char* p; size_t n; … };', { rows: [['special members', 5]] });
+  m.v('dst', 'main', 2, 'dst.p', '0x810', '0x500', { to: 'blk' });
+  m.snap('The move constructor copies src’s pointer…', 'Buffer(Buffer&& o) noexcept : p(o.p)', { fly: ['src', 'dst'], rows: [['owners', 2, 'warn']] });
+  m.set('src', 'null', null);
+  m.snap('…and sets src’s to null. Exactly one owner again.', '  { o.p = nullptr; }   // std::exchange', { rows: [['owners', 1, 'ok']] });
+  m.free('src').snap('src’s destructor runs delete[] on null, which does nothing.', '~Buffer() { delete[] p; }   // src', { rows: [['deletes', 0]] });
+  m.free('dst').free('blk').snap('dst’s destructor frees the block, once. Simpler still: hold a vector and write none of the five.', '~Buffer() { delete[] p; }   // dst', { rows: [['deletes', 1, 'ok'], ['rule of zero', 'std::vector<char>', 'ok']] });
+  return m;
+}
+
+const FWD: Record<string, [label: string, trace: Trace]> = {
   forward: [
     'Perfect forwarding',
     {
@@ -224,6 +268,11 @@ traceDemo('mod-move', 'Move semantics & perfect forwarding', 'lvalues vs rvalues
       ],
     },
   ],
+};
+framesDemo(G, 'mod-move', 'Move semantics & perfect forwarding', 'Copy vs move drawn in memory: who points at the heap buffer, what std::move really does, the rule of five, and std::forward.', {
+  rvalue: ['Copy vs move', () => moveRvalue().frames()],
+  rule5: ['Rule of five', () => moveRule5().frames()],
+  forward: [FWD.forward[0], () => traceFrames(FWD.forward[1])],
 });
 
 // ---------------- templates ----------------

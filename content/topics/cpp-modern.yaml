@@ -77,8 +77,8 @@ lessons:
     minutes: 6
     algo: mod-move
     steps:
-      - title: lvalues and rvalues
-        body: Temporaries bind to &&, so their resources can be stolen. std::move is only a cast.
+      - title: Copy vs move
+        body: A copy allocates a new buffer and copies every byte. A move hands over the pointer and leaves the source empty. std::move is only a cast that permits it.
         input: rvalue
         check: { metric: manual }
       - title: Rule of five, rule of zero

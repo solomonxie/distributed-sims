@@ -6,6 +6,7 @@ import { boardDemo as demo, N } from '../machine/lib/board';
 import type { Board } from '../machine/lib/board';
 import { traceFrames } from '../machine/lib/trace';
 import type { Trace } from '../machine/lib/trace';
+import { Mem, memDemo } from '../machine/lib/mem';
 
 const G = 'cpp-stl';
 const D = (title: string, text: string, code?: string): Detail => ({ title, text, code });
@@ -348,37 +349,45 @@ boardDemo('stl-iterators', 'Iterators', 'Iterator categories (what each containe
     },
   ],
 });
-traceDemo('stl-invalidation', 'Iterator invalidation', 'Which operations invalidate iterators, and the classic erase-while-iterating bug.', {
-  pushback: [
-    'push_back',
-    {
-      code: ['std::vector<int> v{1, 2, 3};   // cap 3', 'auto it = v.begin();', 'v.push_back(4);                // reallocates', 'std::cout << *it;               // UB'],
-      details: {
-        it: D('Iterator into a vector', 'For vector it is essentially a pointer into the heap block. Any reallocation leaves it pointing at freed memory.', 'auto it = v.begin();\nv.push_back(x);  // it may dangle\nit = v.begin();  // re-fetch after'),
-        old: D('Freed block', 'The old storage was deallocated during reallocation.'),
-        nb: D('New block', 'Elements were moved here; only fresh iterators point at it.'),
-      },
-      steps: [
-        { line: 0, note: 'A full vector: size 3, capacity 3.', vars: [['v', 'size 3 · cap 3', 'default', 'old']], heap: [['old', '1 2 3']], out: '' },
-        { line: 1, note: 'it points at the first element.', vars: [['v', 'size 3 · cap 3', 'default', 'old'], ['it', '&v[0]', 'current', 'old']], heap: [['old', '1 2 3']], out: '' },
-        { line: 2, note: 'push_back reallocates. v moves to a new block and the old one is freed.', vars: [['v', 'size 4 · cap 6', 'write', 'nb'], ['it', 'old address', 'fail', 'old']], heap: [['old', '1 2 3', 'visited', 'freed'], ['nb', '1 2 3 4', 'write']], out: '' },
-        { line: 3, note: 'Dereferencing it reads freed memory: undefined behaviour. ASan reports heap-use-after-free.', vars: [['v', 'size 4 · cap 6', 'default', 'nb'], ['it', 'dangling', 'fail', 'old']], heap: [['old', '??? (freed)', 'fail'], ['nb', '1 2 3 4']], out: '1?  or garbage, or a crash', rows: [['bug', 'use-after-free', 'fail']] },
-      ],
-    },
-  ],
-  erase: [
-    'Erase while iterating',
-    {
-      code: ['for (auto it = v.begin(); it != v.end(); ) {', '  if (*it % 2 == 0) it = v.erase(it);', '  else ++it;', '}', '// or: std::erase_if(v, is_even);  // C++20'],
-      details: { it: D('Using erase’s return value', 'erase invalidates the erased iterator and everything after it, but returns a valid iterator to the next element.', 'it = v.erase(it);  // correct\nv.erase(it); ++it; // bug') },
-      steps: [
-        { line: 0, note: 'Remove even numbers from 1 2 4 5.', vars: [['v', '1 2 4 5'], ['it', '→ 1', 'current']], rows: [['size', 4]] },
-        { line: 1, note: 'At 2: erase shifts 4 and 5 left. The old it is invalid, so take the one erase returns.', vars: [['v', '1 4 5', 'write'], ['it', '→ 4', 'current']], rows: [['size', 3]] },
-        { line: 1, note: 'At 4: erase again, and don’t ++ afterwards or 5 would be skipped.', vars: [['v', '1 5', 'write'], ['it', '→ 5', 'current']], rows: [['size', 2]] },
-        { line: 4, note: 'C++20 std::erase_if does all of this in one call and in O(n).', vars: [['v', '1 5', 'ok'], ['it', 'end', 'visited']], rows: [['vector: invalidates', 'erased + after'], ['map: invalidates', 'erased only']] },
-      ],
-    },
-  ],
+const ID: Record<string, Detail> = {
+  it: D('Iterator into a vector', 'For vector it is essentially a pointer into the heap block. Any reallocation leaves it pointing at freed memory.', 'auto it = v.begin();\nv.push_back(x);  // it may dangle\nit = v.begin();  // re-fetch after'),
+  data: D('vector internals', 'Three words on the stack: a pointer to the heap block, the size and the capacity.', 'sizeof(std::vector<int>);  // 24'),
+  o0: D('Freed block', 'The old storage, released during reallocation.'),
+  n0: D('New block', 'Elements were moved here. Only fresh iterators point at it.'),
+};
+
+function invPushBack() {
+  const m = new Mem({ panel: 'Invalidation', details: ID }).region('main', 'main() · stack frame').region('old', 'heap · block of 3', { tight: true });
+  ['1', '2', '3'].forEach((v, i) => m.v(`o${i}`, 'old', i, `[${i}]`, '0x' + (0x500 + i * 4).toString(16), v));
+  m.v('data', 'main', 0, 'v.data', '0x7f0', '0x500', { to: 'o0' }).v('size', 'main', 1, 'size', '0x7f8', '3').v('cap', 'main', 2, 'capacity', '0x800', '3');
+  m.snap('A full vector: 3 elements in a heap block with room for exactly 3.', 'std::vector<int> v{1, 2, 3};', { rows: [['size', 3], ['capacity', 3]] });
+  m.v('it', 'main', 4, 'it', '0x808', '0x500', { to: 'o0' }).snap('An iterator into a vector is basically a pointer to an element.', 'auto it = v.begin();', { fly: ['o0.addr', 'it'] });
+  m.region('new', 'heap · new block of 6', { tight: true });
+  ['1', '2', '3', '4', '', ''].forEach((v, i) => m.v(`n${i}`, 'new', i, i < 4 ? `[${i}]` : '', '0x' + (0x600 + i * 4).toString(16), v));
+  m.set('data', '0x600', 'n0').set('size', '4').set('cap', '6').kill('old', 'old block · freed');
+  m.snap('No room, so push_back allocates a bigger block, moves the elements over and frees the old one.', 'v.push_back(4);', { hot: { n4: 'muted', n5: 'muted' }, rows: [['size', 4], ['capacity', 6], ['old block', 'freed', 'warn']] });
+  m.snap('it still holds 0x500, inside the freed block. Reading it is use-after-free.', 'std::cout << *it;', { finger: 'o0', hot: { n4: 'muted', n5: 'muted', o0: 'fail' }, rows: [['bug', 'heap-use-after-free', 'fail'], ['detect', '-fsanitize=address']] });
+  m.set('it', '0x600', 'n0').snap('Re-fetch iterators after anything that can reallocate. reserve() up front avoids the move.', 'it = v.begin();', { finger: null, hot: { n4: 'muted', n5: 'muted' }, rows: [['it', 'valid', 'ok']] });
+  return m;
+}
+
+function invErase() {
+  const m = new Mem({ panel: 'Erase while iterating', details: ID }).region('v', 'heap · v', { tight: true }).region('main', 'iterator');
+  ['1', '2', '4', '5'].forEach((v, i) => m.v(`e${i}`, 'v', i, `[${i}]`, '0x' + (0x500 + i * 4).toString(16), v));
+  m.v('it', 'main', 0, 'it', '0x7f0', '0x500', { to: 'e0' });
+  m.snap('Remove the even numbers. it starts at 1.', 'for (auto it = v.begin(); it != v.end(); )', { rows: [['size', 4]] });
+  m.set('it', '0x504', 'e1').snap('1 is odd, so step forward.', '  else ++it;');
+  m.set('e1', '4').set('e2', '5').gone('e3');
+  m.snap('erase shifts 4 and 5 left. It returns an iterator to the element now in that slot: 4.', '  if (*it % 2 == 0) it = v.erase(it);', { finger: 'e1', rows: [['size', 3]] });
+  m.set('e1', '5').gone('e2');
+  m.snap('4 is even too, so erase again. A ++ after erase here would have skipped 5.', '  if (*it % 2 == 0) it = v.erase(it);', { finger: 'e1', rows: [['size', 2]] });
+  m.set('it', 'end', null).snap('5 is odd, and ++it reaches end. In C++20, std::erase_if(v, is_even) does it in one call.', '  else ++it;', { finger: null, rows: [['v', '1 5', 'ok'], ['map/set erase', 'only the erased one invalid']] });
+  return m;
+}
+
+memDemo(G, 'stl-invalidation', 'Iterator invalidation', 'Iterators are pointers into the container’s memory: reallocation leaves them in a freed block, and erase shifts what they point at.', {
+  pushback: ['push_back', invPushBack],
+  erase: ['Erase while iterating', invErase],
 });
 
 // ---------------- algorithms ----------------
