@@ -4,6 +4,7 @@ import { machineDemo } from '../machine/lib/draw';
 import { boardFrames, N } from '../machine/lib/board';
 import type { Board } from '../machine/lib/board';
 import { traceFrames } from '../machine/lib/trace';
+import { Io, ioDemo } from '../machine/lib/io';
 import type { Trace } from '../machine/lib/trace';
 
 const G = 'cpp-network';
@@ -317,127 +318,92 @@ demo('net-threads', 'Thread per connection', 'One client at a time, then a threa
   ],
 });
 
-// ---------------- non-blocking ----------------
-const NB_NODES = [N('lp', 200, 60, 600, 120, 'event loop', 'one thread'), ...[0, 1, 2, 3, 4].map((i) => N(`s${i}`, 40 + i * 186, 300, 170, 110, `fd ${i + 5}`)), N('res', 40, 560, 920, 130, 'result')];
-const sIds = [0, 1, 2, 3, 4].map((i) => `s${i}`);
-demo('net-nonblock', 'Non-blocking I/O', 'Blocking recv stalls a thread; O_NONBLOCK returns EAGAIN; polling every socket wastes CPU, so we need readiness notification.', {
-  blocking: [
-    'Blocking',
-    B({
-      panel: 'I/O',
-      nodes: NB_NODES,
-      edges: sIds.map((s) => `lp>${s}`),
-      beats: [
-        { note: 'One thread wants to serve five sockets.', hot: { lp: 'current' }, hide: ['res'], rows: [['sockets', 5]] },
-        { note: 'It calls recv() on fd 5, which has no data, and sleeps.', hot: { s0: 'warn', 'lp>s0': 'accent' }, sub: { lp: 'blocked in recv(5)' }, hide: ['res'], rows: [['thread', 'asleep', 'warn']] },
-        { note: 'Meanwhile data arrives on fd 8, and nobody reads it.', hot: { s3: 'read', s0: 'warn', res: 'fail' }, sub: { s3: 'data!', lp: 'blocked in recv(5)' }, label: { res: 'one idle client blocks everyone' }, rows: [['served', 0, 'fail']] },
-      ],
-    }),
-  ],
-  eagain: [
-    'O_NONBLOCK',
-    B({
-      panel: 'I/O',
-      codeTitle: 'nonblock.cpp',
-      code: ['fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK);', 'ssize_t n = recv(fd, buf, sizeof buf, 0);', 'if (n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK))', '  /* nothing yet: go do something else */;'],
-      nodes: [...NB_NODES.map((n) => (n.id === 'lp' ? { ...n, y: 250 } : n.id === 'res' ? { ...n, y: 720 } : { ...n, y: 480 }))],
-      edges: sIds.map((s) => `lp>${s}`),
-      beats: [
-        { note: 'Set O_NONBLOCK on every socket.', hl: [0], hot: all(sIds, 'current'), hide: ['res'], rows: [['mode', 'non-blocking']] },
-        { note: 'recv() on an empty socket now returns -1 with errno EAGAIN immediately.', hl: [1, 2], hot: { s0: 'visited', 'lp>s0': 'accent' }, sub: { s0: 'EAGAIN' }, hide: ['res'], rows: [['recv(5)', 'EAGAIN']] },
-        { note: 'EAGAIN isn’t an error, it means try later. The thread moves on to the next socket.', hl: [3], hot: { s3: 'ok', 'lp>s3': 'accent' }, sub: { s0: 'EAGAIN', s3: 'read 212 B' }, hide: ['res'], rows: [['served', 1, 'ok']] },
-        { note: 'The same applies to send() when the send buffer is full, and to accept() with no pending connection.', hot: { res: 'ok' }, label: { res: 'recv · send · accept all return EAGAIN' }, rows: [['calls', 'never sleep']] },
-      ],
-    }),
-  ],
-  polling: [
-    'Polling everything',
-    B({
-      panel: 'I/O',
-      nodes: [...NB_NODES, N('cpu', 40, 760, 920, 130, 'CPU', '')],
-      edges: sIds.map((s) => `lp>${s}`),
-      beats: [
-        { note: 'Naive fix: loop over every socket forever, trying recv() on each.', hot: { ...all(sIds, 'visited'), lp: 'current' }, sub: each(sIds, 'EAGAIN'), hide: ['res'], label: { cpu: '100% of a core' }, rows: [['syscalls/s', 'millions', 'warn']] },
-        { note: 'With 10,000 mostly idle sockets, almost every call returns EAGAIN.', hot: { cpu: 'fail' }, label: { cpu: '100% of a core', res: '99.9% wasted syscalls' }, rows: [['useful', '0.1%', 'fail']] },
-        { note: 'We need the kernel to tell us which sockets are ready. That’s select, poll, and epoll.', hot: { lp: 'ok', res: 'ok' }, label: { res: 'readiness notification', cpu: 'idle when idle' }, rows: [['next', 'epoll']] },
-      ],
-    }),
-  ],
+// ---------------- non-blocking & epoll (I/O scenes) ----------------
+const IOD: Record<string, Detail> = {
+  socket: { title: 'Socket receive buffer', text: 'The kernel stores arriving bytes here until your program calls recv(). It fills even while nobody is reading.', code: 'char buf[4096];\nssize_t n = recv(fd, buf, sizeof buf, 0);  // copies out of this buffer' },
+  thread: { title: 'Your thread', text: 'Runs one call at a time. A blocking call can park it inside the kernel until that one socket has data.', code: 'for (;;) {\n  ssize_t n = recv(fd, buf, sizeof buf, 0);\n  handle(buf, n);\n}' },
+  ready: { title: 'Ready list entry', text: 'The kernel added this fd when bytes arrived. epoll_wait hands back exactly these.', code: 'int n = epoll_wait(ep, evs, 64, -1);\nfor (int i = 0; i < n; ++i) handle(evs[i].data.fd);' },
+};
+const FDS = ['fd 5', 'fd 6', 'fd 7', 'fd 8'];
+
+function nbBlocking() {
+  const io = new Io(FDS, { details: IOD });
+  io.thread(null, 'ready to serve').snap('One thread serves four connections. Each socket has a kernel buffer where arriving bytes wait.', [['threads', 1], ['sockets', 4]]);
+  io.thread('fd 5', 'asleep', 'recv(fd 5)', 'muted').cpuUse('sleep', 2).snap('recv(fd 5) finds the buffer empty, so the kernel puts the thread to sleep.', [['thread', 'blocked', 'warn']]);
+  io.in('fd 8', 2).mark('fd 8', 'warn', 'waiting').cpuUse('sleep', 3).snap('2 KB arrive for fd 8 and sit there. The thread is still stuck inside recv(fd 5).', [['waiting', 'fd 8', 'warn']]);
+  io.in('fd 6', 1).mark('fd 6', 'warn', 'waiting').cpuUse('sleep', 3).snap('Now fd 6 waits too. One quiet client has stalled everyone else.', [['waiting', 'fd 6, fd 8', 'fail']]);
+  io.in('fd 5', 1).read('fd 5', 1).thread('fd 5', 'running', 'recv(fd 5) → 1 KB', 'ok').cpuUse('work', 1).snap('Only when fd 5 gets data does recv return. The others are served late.', [['waited', 'whole time fd 5 was quiet', 'fail']]);
+  return io;
+}
+
+function nbEagain() {
+  const io = new Io(FDS, { details: IOD });
+  io.in('fd 8', 2).thread(null, 'ready to serve').snap('Same four sockets, but now each is set to O_NONBLOCK. fd 8 already has 2 KB.', [['mode', 'O_NONBLOCK']]);
+  io.thread('fd 5', 'EAGAIN', 'recv(fd 5) → -1', 'warn').cpuUse('waste').snap('recv(fd 5) on an empty buffer returns -1 at once, with errno EAGAIN: nothing yet, try later.', [['recv(fd 5)', 'EAGAIN', 'warn']]);
+  io.thread('fd 6', 'EAGAIN', 'recv(fd 6) → -1', 'warn').cpuUse('waste').snap('The thread isn’t stuck, so it moves on. fd 6 is empty too.', [['recv(fd 6)', 'EAGAIN', 'warn']]);
+  io.thread('fd 7', 'EAGAIN', 'recv(fd 7) → -1', 'warn').cpuUse('waste').snap('fd 7: EAGAIN.');
+  io.read('fd 8', 2).thread('fd 8', 'running', 'recv(fd 8) → 2 KB', 'ok').cpuUse('work', 2).snap('fd 8 has bytes, so recv returns them right away. No one waited on fd 5’s silence.', [['served', 'fd 8', 'ok']]);
+  return io;
+}
+
+function nbPolling() {
+  const io = new Io(FDS, { details: IOD });
+  io.thread(null, 'spinning').snap('Naive loop: try recv() on every socket, forever.', [['loop', 'for each fd: recv()']]);
+  for (const fd of FDS) io.thread(fd, 'EAGAIN', `recv(${fd}) → -1`, 'warn').cpuUse('waste');
+  io.snap('Nothing has arrived, so every call returns EAGAIN. Round one burned the CPU for nothing.', [['useful', 0, 'fail']]);
+  io.cpuUse('waste', 8).snap('And again, and again. The core stays at 100% doing nothing.', [['calls/s', 'millions', 'fail']]);
+  io.in('fd 7', 1).read('fd 7', 1).thread('fd 7', 'running', 'recv(fd 7) → 1 KB', 'ok').cpuUse('work').cpuUse('waste', 3).snap('Once in a while a call finds data. With 10,000 idle sockets that’s 1 call in 10,000.', [['useful', '0.01%', 'fail']]);
+  io.thread(null, 'wish', 'tell me who is ready', 'accent').snap('What we want: sleep, and let the kernel say which sockets have data. That is epoll.', [['next', 'epoll']]);
+  return io;
+}
+
+function epLoop() {
+  const io = new Io(FDS, { epoll: true, details: IOD });
+  io.thread(null, 'setup', 'epoll_ctl(ADD, each fd)', 'accent').snap('Register every socket once with epoll_ctl. The kernel now watches them for you.', [['watched', 4]]);
+  io.thread(null, 'asleep', 'epoll_wait()', 'muted').cpuUse('sleep', 4).snap('The thread sleeps in epoll_wait. Idle sockets cost no CPU.', [['CPU', '0%', 'ok']]);
+  io.in('fd 6', 1).in('fd 8', 2).ready(['fd 6', 'fd 8']).thread(null, 'woken', 'epoll_wait() → 2', 'accent').cpuUse('sleep').snap('Bytes land on fd 6 and fd 8. The kernel puts them on the ready list and wakes the thread.', [['ready', 2]]);
+  io.read('fd 6', 1).ready(['fd 8']).thread('fd 6', 'running', 'recv(fd 6) → 1 KB', 'ok').cpuUse('work').snap('It handles just those: fd 6 first…');
+  io.read('fd 8', 2).ready([]).thread('fd 8', 'running', 'recv(fd 8) → 2 KB', 'ok').cpuUse('work', 2).snap('…then fd 8. Not one call wasted on fd 5 or fd 7.', [['wasted calls', 0, 'ok']]);
+  io.thread(null, 'asleep', 'epoll_wait()', 'muted').cpuUse('sleep', 3).snap('Back to sleep. CPU now follows traffic, not the number of connections.', [['cost', 'O(ready)', 'ok']]);
+  return io;
+}
+
+function epLevel(edge: boolean) {
+  const io = new Io(FDS, { epoll: true, details: IOD });
+  io.in('fd 6', 4).ready(['fd 6']).thread(null, 'woken', 'epoll_wait() → fd 6', 'accent').cpuUse('sleep', 2).snap(`4 KB arrive on fd 6, registered as ${edge ? 'EPOLLIN | EPOLLET (edge)' : 'EPOLLIN (level)'}.`, [['mode', edge ? 'edge-triggered' : 'level-triggered']]);
+  io.read('fd 6', 1).ready([]).thread('fd 6', 'running', 'recv(fd 6, 1 KB)', 'ok').cpuUse('work').snap('The handler reads only 1 KB and returns to the loop. 3 KB are left.', [['left', '3 KB', 'warn']]);
+  if (!edge) {
+    io.ready(['fd 6']).thread(null, 'woken', 'epoll_wait() → fd 6', 'accent').snap('Level-triggered: bytes are still there, so fd 6 is reported again right away.', [['reported again', 'yes', 'ok']]);
+    io.read('fd 6', 3).ready([]).thread('fd 6', 'running', 'recv(fd 6) → 3 KB', 'ok').cpuUse('work', 2).snap('The rest gets read on the next turn. Forgiving; the price is extra wakeups.', [['bug risk', 'low', 'ok']]);
+  } else {
+    io.thread(null, 'asleep', 'epoll_wait()', 'muted').mark('fd 6', 'fail', 'stuck').cpuUse('sleep', 4).snap('Edge-triggered reports only new arrivals. No new bytes, no report: 3 KB sit unread.', [['stalled', 'fd 6', 'fail']]);
+    io.mark('fd 6').in('fd 6', 1).ready(['fd 6']).thread(null, 'woken', 'epoll_wait() → fd 6', 'accent').cpuUse('sleep').snap('It only wakes when the client sends more. Fix: on every wakeup, read until EAGAIN.');
+    io.read('fd 6', 4).ready([]).thread('fd 6', 'drained', 'recv… until EAGAIN', 'ok').cpuUse('work', 3).snap('Loop recv until it returns EAGAIN. Then the buffer is empty and the next edge will come.', [['rule', 'drain to EAGAIN', 'ok']]);
+  }
+  return io;
+}
+
+function epAccept() {
+  const io = new Io(['fd 3', '+fd 9', '+fd 10', '+fd 11'], { epoll: true, unit: 'conn', cap: 4, details: { ...IOD, 'fd 3': { title: 'Listening socket', text: 'Its queue holds finished handshakes waiting for accept(). Readable means at least one is waiting.', code: 'int lfd = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0);\nbind(lfd, …); listen(lfd, SOMAXCONN);' } } });
+  io.thread(null, 'asleep', 'epoll_wait()', 'muted').cpuUse('sleep', 2).snap('The listening socket, fd 3, is in epoll too. Its buffer holds waiting connections.', [['listening', 'fd 3']]);
+  io.in('fd 3', 3).ready(['fd 3']).thread(null, 'woken', 'epoll_wait() → fd 3', 'accent').cpuUse('sleep').snap('Three clients connect at once. The kernel queues them and marks fd 3 ready.', [['pending', 3]]);
+  io.read('fd 3', 1).open('fd 9').mark('fd 9', 'write', 'new').ready([]).thread('fd 3', 'running', 'accept4() → fd 9', 'ok').cpuUse('work').snap('accept4 takes one connection and returns a new socket, fd 9.', [['accepted', 1]]);
+  io.mark('fd 9').read('fd 3', 2).open('fd 10').open('fd 11').mark('fd 10', 'write', 'new').mark('fd 11', 'write', 'new').thread('fd 3', 'running', 'accept4() ×2, then EAGAIN', 'ok').cpuUse('work', 2).snap('Keep accepting until EAGAIN, so one wakeup takes the whole burst.', [['accepted', 3, 'ok']]);
+  io.mark('fd 10').mark('fd 11').thread(null, 'asleep', 'epoll_wait()', 'muted').cpuUse('sleep', 2).snap('Each new fd is already non-blocking and gets added to epoll. Back to waiting on all of them.', [['watched', 4, 'ok']]);
+  return io;
+}
+
+ioDemo(G, 'net-nonblock', 'Non-blocking I/O', 'Watch one thread serve four sockets: blocking recv parks it, O_NONBLOCK returns EAGAIN, and polling everything burns a core.', {
+  blocking: ['Blocking', nbBlocking],
+  eagain: ['O_NONBLOCK', nbEagain],
+  polling: ['Polling everything', nbPolling],
 });
 
-// ---------------- epoll ----------------
-const EP_NODES = [
-  N('cl', 40, 40, 920, 100, 'client', '10,000 connections'),
-  N('ep', 40, 230, 440, 130, 'epoll', 'interest: 10,001 fds'),
-  N('rl', 520, 230, 440, 130, 'ready list', 'empty'),
-  N('w', 280, 440, 440, 110, 'epoll_wait()'),
-  N('lp', 280, 630, 440, 110, 'event loop', 'one thread'),
-  N('res', 40, 830, 920, 120, 'result'),
-];
-demo('net-epoll', 'epoll event loop', 'epoll_create1/ctl/wait, the ready list, level- vs edge-triggered, and accepting in a loop.', {
-  loop: [
-    'The loop',
-    B({
-      panel: 'epoll',
-      nodes: EP_NODES,
-      edges: ['cl>ep', 'ep>rl', 'rl>w', 'w>lp'],
-      beats: [
-        { note: 'Register every socket once with epoll_ctl(ADD). The kernel keeps the interest set.', hot: { ep: 'current' }, hide: ['res'], rows: [['registered', '10,001']] },
-        { note: 'The loop calls epoll_wait() and sleeps. Idle connections cost nothing.', hot: { w: 'current', lp: 'visited' }, sub: { lp: 'asleep' }, hide: ['res'], rows: [['CPU', '0%', 'ok']] },
-        { note: 'Data arrives on 3 sockets. The kernel puts them on the ready list and wakes the loop.', hot: { rl: 'write', 'ep>rl': 'accent', 'rl>w': 'accent' }, sub: { rl: 'fd 17, 942, 6031' }, hide: ['res'], rows: [['ready', 3]] },
-        { note: 'epoll_wait returns just those 3. The loop handles each and goes back to waiting.', hot: { lp: 'ok', 'w>lp': 'accent' }, sub: { rl: 'fd 17, 942, 6031', lp: 'handle 3, then wait' }, hide: ['res'], rows: [['work', 'O(ready)', 'ok']] },
-        { note: 'select and poll rescan the whole set on every call. epoll’s cost grows with activity, not with idle connections.', hot: { res: 'ok' }, label: { res: 'select: O(n) per call · epoll: O(ready)' }, rows: [['scales to', '100k+ conns', 'ok']] },
-      ],
-    }),
-  ],
-  lt: [
-    'Level-triggered',
-    B({
-      panel: 'epoll',
-      codeTitle: 'lt.cpp',
-      code: ['ev.events = EPOLLIN;                // level-triggered', 'epoll_ctl(ep, EPOLL_CTL_ADD, fd, &ev);', 'n = recv(fd, buf, 1024, 0);          // reads part'],
-      nodes: EP_NODES.slice(1),
-      edges: ['ep>rl', 'rl>w', 'w>lp'],
-      beats: [
-        { note: 'Level-triggered is the default: an fd is reported as long as it has unread data.', hl: [0, 1], hot: { ep: 'current' }, hide: ['res'], rows: [['mode', 'LT']] },
-        { note: '4 KB arrive, and the loop reads only 1 KB.', hl: [2], hot: { lp: 'current', rl: 'write' }, sub: { rl: 'fd 17: 4 KB' }, hide: ['res'], rows: [['left', '3 KB']] },
-        { note: 'Next epoll_wait reports fd 17 again, because data is still there.', hot: { rl: 'write', w: 'current' }, sub: { rl: 'fd 17: 3 KB' }, hide: ['res'], rows: [['reported again', 'yes', 'ok']] },
-        { note: 'Forgiving and easy to get right. The cost is extra wakeups if you read in small pieces.', hot: { res: 'ok' }, label: { res: 'safe default' }, rows: [['bug risk', 'low', 'ok']] },
-      ],
-    }),
-  ],
-  et: [
-    'Edge-triggered',
-    B({
-      panel: 'epoll',
-      codeTitle: 'et.cpp',
-      code: ['ev.events = EPOLLIN | EPOLLET;      // edge-triggered', 'for (;;) {                           // drain!', '  n = recv(fd, buf, sizeof buf, 0);', '  if (n < 0 && errno == EAGAIN) break; }'],
-      nodes: EP_NODES.slice(1),
-      edges: ['ep>rl', 'rl>w', 'w>lp'],
-      beats: [
-        { note: 'Edge-triggered reports an fd only when new data arrives, once per change.', hl: [0], hot: { ep: 'current' }, hide: ['res'], rows: [['mode', 'ET']] },
-        { note: 'Read just 1 KB of 4 KB and return, and epoll never tells you about fd 17 again.', hot: { rl: 'fail', lp: 'fail' }, sub: { rl: 'empty (3 KB stuck)', lp: 'waits forever' }, hide: ['res'], rows: [['stalled conn', 1, 'fail']] },
-        { note: 'With ET you must loop recv() until EAGAIN every time. Same for accept() and send().', hl: [1, 2, 3], hot: { lp: 'ok', rl: 'ok' }, sub: { rl: 'drained', lp: 'read to EAGAIN' }, hide: ['res'], rows: [['rule', 'drain to EAGAIN', 'ok']] },
-        { note: 'ET saves wakeups, but one busy socket can starve others if you drain it all. Cap reads per turn.', hot: { res: 'warn' }, label: { res: 'fairness: max 64 KB per fd per turn' }, rows: [['used by', 'nginx, most C10K servers']] },
-      ],
-    }),
-  ],
-  accept: [
-    'Accepting',
-    B({
-      panel: 'epoll',
-      codeTitle: 'accept.cpp',
-      code: ['// listening fd is in epoll too', 'while ((c = accept4(lfd, 0, 0,', '         SOCK_NONBLOCK | SOCK_CLOEXEC)) >= 0)', '  add_conn(ep, c);   // epoll_ctl ADD, new Conn', '// errno == EAGAIN: queue empty'],
-      nodes: [N('lf', 40, 240, 440, 120, 'listen fd 3', 'readable = pending'), N('ep', 520, 240, 440, 120, 'epoll'), N('lp', 280, 440, 440, 110, 'event loop'), N('cn', 280, 620, 440, 110, 'Conn', 'fd 104 … 131'), N('res', 40, 820, 920, 120, 'result')],
-      edges: ['lf>ep', 'ep>lp', 'lp>cn'],
-      beats: [
-        { note: 'The listening socket goes into epoll too. Readable means connections are waiting.', hl: [0], hot: { lf: 'current', 'lf>ep': 'accent' }, hide: ['cn', 'res'], rows: [['pending', 28]] },
-        { note: 'Accept in a loop until EAGAIN, so a burst of 28 is taken in one wakeup.', hl: [1, 2, 4], hot: { lp: 'current', 'ep>lp': 'accent' }, hide: ['cn', 'res'], rows: [['accepted', 28, 'ok']] },
-        { note: 'accept4 sets non-blocking and close-on-exec atomically, saving two fcntl calls per connection.', hl: [2], hot: { cn: 'write', 'lp>cn': 'accent' }, hide: ['res'], rows: [['syscalls saved', '2 per conn', 'ok']] },
-        { note: 'Each new fd gets a Conn object and is registered with epoll.', hl: [3], hot: { cn: 'ok', res: 'ok' }, label: { res: '28 new Conns in 1 wakeup' }, rows: [['EMFILE', 'handle: stop accepting', 'warn']] },
-      ],
-    }),
-  ],
+ioDemo(G, 'net-epoll', 'epoll event loop', 'Sleep until the kernel says which sockets have data: the ready list, level- vs edge-triggered, and accepting a burst.', {
+  loop: ['The loop', epLoop],
+  lt: ['Level-triggered', () => epLevel(false)],
+  et: ['Edge-triggered', () => epLevel(true)],
+  accept: ['Accepting', epAccept],
 });
 
 // ---------------- connection state machine & partial I/O ----------------

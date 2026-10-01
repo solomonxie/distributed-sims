@@ -22,9 +22,18 @@ hello_cmake, hello_webserver, c10k-challenge).
 - Demo group = topic id (`machine-cpp` keeps its own); listed under
   Animations → Languages.
 - Every lesson opens one demo; steps switch its presets (`step.input`).
+- Hard concepts: picture first, not a line-by-line listing. Show the
+  machine state, make each step one visible event (a hop, a copy, a packet
+  landing), and keep the code to a one-line caption.
 - Drawing helpers (`engine/src/machine/lib/`): `trace.ts` (code + stack +
   heap + output), `board.ts` (box/arrow scenes, `boardDemo`, `N`),
-  `code.ts` (source ↔ asm).
+  `code.ts` (source ↔ asm), `mem.ts` (memory map: addressed boxes in
+  stack/heap regions, pointer arrows, a highlight that hops per `*`, values
+  that glide; `memDemo`), `io.ts` (socket buffers filling, one thread
+  moving or sleeping, epoll ready list, CPU-time strip; `ioDemo`),
+  `framesDemo` in `draw.ts` (mix scene kinds per input).
+- Memory-map lessons: `basics-pointers`, `mod-smart`, `mod-move`,
+  `stl-invalidation`, `conc-race`. I/O lessons: `net-nonblock`, `net-epoll`.
 - Tap-to-explain: boxes carry `detail` { title, text, code }. Set on
   board nodes, trace vars/blocks, or `machineDemo({ details })` keyed by
   box label.
