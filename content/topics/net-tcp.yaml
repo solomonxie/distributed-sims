@@ -64,6 +64,8 @@ lessons:
         body: One ACK confirms everything before it. Delayed ACK sends one per two segments.
         check: { metric: manual }
 
+  - ref: cpp-network/byte-stream
+
   - id: teardown
     title: Teardown & TIME_WAIT
     minutes: 4

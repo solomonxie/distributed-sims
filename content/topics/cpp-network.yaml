@@ -38,6 +38,8 @@ lessons:
         body: listen(fd, SOMAXCONN), raise net.core.somaxconn, and accept until EAGAIN. Check drops with ss -lnt.
         check: { metric: manual }
 
+  - ref: network/accept-queue
+
   - id: byte-stream
     title: TCP is a byte stream
     minutes: 5
@@ -115,6 +117,8 @@ lessons:
         body: Few threads, many sockets. Non-blocking I/O plus a readiness API (epoll on Linux, kqueue on macOS).
         check: { metric: manual }
 
+  - ref: cpp-performance/context-switch
+
   - id: nonblocking
     title: Non-blocking I/O
     minutes: 4
@@ -132,6 +136,8 @@ lessons:
         body: Looping over 10,000 sockets burns CPU on EAGAIN. Ask the kernel which ones are ready.
         input: polling
         check: { metric: manual }
+
+  - ref: machine-host-networking/packet-path
 
   - id: epoll
     title: The epoll event loop
@@ -181,6 +187,8 @@ lessons:
         body: Track last activity per Conn and close idle or stuck ones from a timer (timerfd or a timer wheel).
         check: { metric: manual }
 
+  - ref: net-tcp/nagle
+
   - id: backpressure
     title: Backpressure & slow clients
     minutes: 5
@@ -198,6 +206,8 @@ lessons:
         body: Bound pending output per connection and apply a documented policy when it's exceeded.
         input: bounded
         check: { metric: manual }
+
+  - ref: net-tcp/flow-control
 
   - id: churn-limits
     title: Churn, fd hygiene & OS limits
@@ -253,3 +263,5 @@ lessons:
         body: sendfile, writev and batching. Profile with perf and strace -c before tuning.
         input: zerocopy
         check: { metric: manual }
+
+  - ref: cpp-performance/zero-copy

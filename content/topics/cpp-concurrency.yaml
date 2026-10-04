@@ -148,19 +148,7 @@ lessons:
         body: Plain atomic operations are sequentially consistent. Weaken the order only with a measured reason and a comment.
         check: { metric: manual }
 
-  - id: false-sharing
-    title: False sharing
-    minutes: 3
-    algo: conc-atomics
-    steps:
-      - title: Independent data, shared line
-        body: Two counters in one 64-byte cache line make two cores fight over it though they never share a variable.
-        input: falseshare
-        check: { metric: manual }
-      - title: Pad hot per-thread data
-        body: alignas(64), or std::hardware_destructive_interference_size, gives each its own line.
-        watch: Line transfers drop to zero.
-        check: { metric: manual }
+  - ref: cpp-performance/false-sharing
 
   - id: readers-writers
     title: Readers, writers & snapshots

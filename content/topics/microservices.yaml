@@ -125,6 +125,8 @@ lessons:
         body: When orders-2 restarts, it needs 5 good probes in a row before it gets traffic again.
         check: { metric: 'eventMatch:orders-2 healthy', op: '>=', value: 1 }
 
+  - ref: kubernetes/probes-explained
+
   - id: boundaries
     title: Modular monolith vs distributed monolith
     minutes: 4

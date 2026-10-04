@@ -55,6 +55,8 @@ lessons:
         body: NXDOMAIN is cached too, so creating a record after a failed lookup takes a while to show up.
         check: { metric: manual }
 
+  - ref: network/dns-failover
+
   - id: anycast
     title: Anycast
     minutes: 3

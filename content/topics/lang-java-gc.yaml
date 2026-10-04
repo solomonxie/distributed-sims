@@ -41,3 +41,5 @@ lessons:
         body: "Concurrent marking and relocation with load barriers keep pauses below a millisecond."
         input: zgc
         check: { metric: manual }
+
+  - ref: machine-memory/why-p99-bad

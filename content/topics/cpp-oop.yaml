@@ -117,6 +117,8 @@ lessons:
         input: vdtor
         check: { metric: manual }
 
+  - ref: machine-cpp/virtual
+
   - id: interfaces
     title: Abstract classes & interfaces
     minutes: 4

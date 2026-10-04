@@ -84,6 +84,8 @@ lessons:
         input: pyramid
         check: { metric: manual }
 
+  - ref: machine-cpp/ub
+
   - id: sanitizers
     title: Sanitizers in depth
     minutes: 6

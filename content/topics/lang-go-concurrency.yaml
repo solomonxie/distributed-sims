@@ -22,6 +22,8 @@ lessons:
         body: "A goroutine starts with a 2 KB stack and switches in about 100 ns without entering the kernel. Tens of thousands is normal."
         check: { metric: manual }
 
+  - ref: cpp-performance/context-switch
+
   - id: stealing
     title: "Work stealing, syscalls & the netpoller"
     minutes: 4

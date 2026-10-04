@@ -48,14 +48,4 @@ lessons:
         watch: ~6 ms of pure switching per burst, and p99 climbs.
         check: { metric: manual }
 
-  - id: zero-copy-serving
-    title: Zero-copy serving
-    minutes: 2
-    algo: bus-dma
-    steps:
-      - title: Two copies
-        body: A proxy that read()s a file and write()s it to a socket copies every byte twice through the CPU.
-        check: { metric: manual }
-      - title: sendfile
-        body: Switch to "sendfile()". The NIC reads page-cache pages directly and the CPU copies nothing.
-        check: { metric: manual }
+  - ref: machine-chips-buses/dma-zero-copy

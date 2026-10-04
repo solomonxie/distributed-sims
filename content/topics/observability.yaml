@@ -112,16 +112,4 @@ lessons:
         body: A correlation id in every log line, span and queue message is the highest-leverage observability investment.
         check: { metric: manual }
 
-  - id: async-context
-    title: Tracing across a queue
-    minutes: 3
-    algo: sd-tel-trace
-    steps:
-      - title: Propagated
-        body: traceparent flows through every synchronous hop, and through the queue only because the producer injects it into message headers.
-        input: sync
-        check: { metric: manual }
-      - title: Broken
-        body: One client that drops headers starts a new, unrelated trace on the consumer side. That is where incidents go dark.
-        input: broken
-        check: { metric: manual }
+  - ref: sd-telemetry/trace-context

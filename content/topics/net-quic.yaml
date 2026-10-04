@@ -37,6 +37,8 @@ lessons:
         body: Resumed connections send the request in the first packet. Replayable, so only for idempotent requests.
         check: { metric: manual }
 
+  - ref: net-tcp/hol
+
   - id: streams
     title: Independent streams
     minutes: 3

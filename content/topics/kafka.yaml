@@ -72,6 +72,8 @@ lessons:
         body: B's records wait up to 20ms for their batch. linger.ms trades a little latency for throughput.
         check: { metric: p99, target: pb, op: '>', value: 15 }
 
+  - ref: machine-storage/kafka-sequential-io
+
   - id: acks
     title: "acks=1 vs acks=all"
     minutes: 4
@@ -259,6 +261,8 @@ lessons:
       - title: Laggards hurt everyone
         body: A consumer reading old data pulls cold segments from disk and can evict pages the tail readers need.
         check: { metric: manual }
+
+  - ref: machine-paging/page-cache
 
   - id: compaction
     title: "Inside: log compaction"

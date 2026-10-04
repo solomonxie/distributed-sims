@@ -59,7 +59,7 @@ lessons:
         check: { metric: manual }
 
   - id: rpn
-    title: "LC 150 · Evaluate Reverse Polish Notation"
+    title: "Evaluate Reverse Polish Notation"
     minutes: 4
     algo: lc-stack
     steps:

@@ -75,15 +75,4 @@ lessons:
         body: "O(log n)."
         check: { metric: manual }
 
-  - id: bit-tricks
-    title: "Bit tricks (XOR)"
-    minutes: 3
-    algo: bits-xor
-    steps:
-      - title: "XOR cancels pairs"
-        body: "x ^ x = 0 and x ^ 0 = x, so XOR-ing everything leaves the unpaired value (LC 136)."
-        input: "single"
-        check: { metric: manual }
-      - title: "More in Bit manipulation"
-        body: "Masks, popcount, subsets and bitmask DP are in Machine level → Bit manipulation."
-        check: { metric: manual }
+  - ref: machine-bits/xor-tricks

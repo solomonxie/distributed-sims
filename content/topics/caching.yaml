@@ -85,6 +85,8 @@ lessons:
         watch: Redis LFU stays ~8 points higher, and Postgres B sees fewer queries.
         check: { metric: gauge:hitRatio, target: lfu, op: '>=', value: 45 }
 
+  - ref: patterns-design/lru
+
   - id: cdn
     title: CDN and origin shield
     minutes: 4
