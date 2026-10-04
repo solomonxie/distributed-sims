@@ -31,12 +31,15 @@ make test           # content build + validation, engine tests (jest)
 make ios-build      # Release build for a physical iPhone, JS bundled in
 make ios-run        # install + launch on the phone (DEVICE=<udid>, or in gitignored Local.mk)
 make tour           # debug snapshot tour on the phone → PNGs in /tmp/dsims-tour/
+make release        # tests + typecheck, archive, upload to App Store Connect
+make screenshots SHOTS=<dir>  # phone shots → docs/release/screenshots/
 ```
 
 - `engine/` pure-TS discrete-event simulator, algorithm + machine-level frame demos
 - `content/` YAML: catalog, chaos, templates, lessons, problems → `content/dist` via `make content`
 - `app/` bare React Native (no Expo), Skia canvas
-- Signing: put `DEVELOPMENT_TEAM = <team id>` in `app/ios/Local.xcconfig` (gitignored)
+- Signing: `cp app/ios/Local.xcconfig.example app/ios/Local.xcconfig`, set `DEVELOPMENT_TEAM` (gitignored)
+- App Store: `make release` uploads a build; listing, privacy policy, screenshots in [docs/release](docs/release/README.md)
 - Frame previews without a device: `cd app && npx tsx scripts/preview-frames.ts /tmp/frames dijkstra`
 
 ## License

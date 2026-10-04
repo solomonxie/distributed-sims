@@ -72,7 +72,7 @@ export function MySystemsScreen() {
         {loaded && !items.length ? (
           <Empty icon="layers" title="Nothing built yet" body="Start blank, or fork any problem's design.">
             <Button kind="primary" title="New system" icon="plus" onPress={() => create()} />
-            <Button title="Browse problems" onPress={() => nav.navigate('Problems')} />
+            <Button title="Browse distributed systems" onPress={() => nav.navigate('Problems')} />
             <Button kind="text" title="From a template…" onPress={() => templateMenu(nav)} />
           </Empty>
         ) : (
