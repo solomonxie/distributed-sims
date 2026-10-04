@@ -1,10 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ActionSheetIOS, Pressable, ScrollView, StyleSheet, TextInput, View, useWindowDimensions } from 'react-native';
+import { ActionSheetIOS, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { problems, templates, topics, type TopicDef } from '@dsims/content';
-import { algo, type SystemDoc } from '@dsims/engine';
+import type { SystemDoc } from '@dsims/engine';
 import { MiniGraph } from '../ui/MiniGraph';
 import { FrameThumb, thumbFrame } from '../canvas/FrameThumb';
 import type { RootStackParamList } from '../navigation/types';
@@ -20,66 +20,6 @@ import { LANGUAGES, langTopics, type LangId } from '../lib/languages';
 import { ago } from './ProblemScreen';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
-
-/** Hero: resumes the last lesson or animation the user stepped through; a finished lesson points at the next one. */
-function ContinueCard({ nav }: { nav: Nav }) {
-  const { c } = useTheme();
-  const { width } = useWindowDimensions();
-  const v = useProgress(s => s.lastPlayed);
-  const lessons = useProgress(s => s.lessons);
-  const doneIn = useTopicDone();
-  let title: string | undefined;
-  let sub: string | undefined;
-  let open: (() => void) | undefined;
-  let thumb: Thumb | undefined;
-  let progress: number | undefined;
-  if (v?.kind === 'lesson') {
-    const t = topics.find(x => x.id === v.topic);
-    const k = t?.lessons.findIndex(l => l.id === v.lesson) ?? -1;
-    const l = t && (lessons[`${t.id}/${v.lesson}`] ? t.lessons[k + 1] : t.lessons[k]);
-    if (t && l) {
-      title = l.title;
-      sub = `${t.title} · ${doneIn(t)}/${t.lessons.length}`;
-      open = () => openLesson(nav, t, l);
-      thumb = topicThumb(t);
-      progress = doneIn(t) / Math.max(1, t.lessons.length);
-    }
-  } else if (v?.kind === 'demo') {
-    const d = algo.getDemo(v.slug);
-    if (d) {
-      title = d.title;
-      sub = 'Animation';
-      open = () => nav.navigate('AlgorithmPlayer', { slug: v.slug });
-      thumb = demoThumb(v.slug);
-    }
-  }
-  if (!title || !open) return null;
-  const w = width - space.l * 2;
-  return (
-    <Card style={{ marginTop: space.l, overflow: 'hidden' }} onPress={open}>
-      {thumb && <View style={[styles.hero, { backgroundColor: c.canvas, borderBottomColor: c.hairline }]}>{thumb(w, HERO_H)}</View>}
-      <View style={styles.heroBody}>
-        <View style={[styles.play, { backgroundColor: c.accent }]}>
-          <Icon name="play" size={16} color={c.onAccent} />
-        </View>
-        <View style={{ flex: 1, gap: 2 }}>
-          <Text v="caption" color={c.accent}>
-            Continue
-          </Text>
-          <Text v="headline" numberOfLines={2}>
-            {title}
-          </Text>
-          {!!sub && (
-            <Text v="callout" color={c.text2} numberOfLines={1}>
-              {sub}
-            </Text>
-          )}
-        </View>
-      </View>
-      {!!progress && <Progress value={progress} style={styles.heroBar} />}
-    </Card>
-  );
-}
 
 export type TopicGroup = Exclude<TopicDef['group'], 'languages'>;
 export const TOPIC_SECTIONS: { id: TopicGroup; title: string; icon: string }[] = [
@@ -104,7 +44,6 @@ export const STARTERS = [
 ];
 
 type Thumb = (w: number, h: number) => React.ReactNode;
-const HERO_H = 140;
 const graphThumb = (doc?: SystemDoc, seed = 0): Thumb | undefined => (doc ? (w, h) => <MiniGraph doc={doc} width={w} height={h} seed={seed} /> : undefined);
 const demoThumb = (slug?: string): Thumb | undefined => (slug && thumbFrame(slug) ? (w, h) => <FrameThumb slug={slug} width={w} height={h} /> : undefined);
 
@@ -256,10 +195,8 @@ export function HomeScreen() {
         <SearchResults q={q.trim().toLowerCase()} nav={nav} onClear={() => setQ('')} />
       ) : (
         <>
-          <ContinueCard nav={nav} />
-
           {started.length > 0 && (
-            <Section title="In progress">
+            <Section title="Continue learning">
               {started.slice(0, 6).map(t => (
                 <TopicTile key={t.id} t={t} nav={nav} />
               ))}
@@ -393,27 +330,6 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
   },
   cont: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },
-  hero: {
-    height: HERO_H,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    overflow: 'hidden',
-  },
-  heroBody: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    padding: 14,
-  },
-  heroBar: { marginHorizontal: 14, marginBottom: 14 },
-  play: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   cat: {
     height: 104,
     padding: 14,
