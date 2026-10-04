@@ -352,6 +352,27 @@ events:
     appliesTo: [cache, cdn, data-warehouse]
     params: []
     defaultDurationSec: 0
+  - kind: access-random
+    label: Random access
+    description: The loop jumps to random elements, so neighbours in a line go unused
+    group: Data
+    icon: shuffle
+    emoji: "🎲"
+    target: node
+    appliesTo: [cpu-core]
+    params: []
+    defaultDurationSec: null
+  - kind: access-stride
+    label: Strided access
+    description: The loop skips elements, touching a new cache line on every load
+    group: Data
+    icon: footprints
+    emoji: "👣"
+    target: node
+    appliesTo: [cpu-core]
+    params:
+      - { key: stride, label: Stride, kind: number, default: 8, min: 1, max: 64, unit: elements }
+    defaultDurationSec: null
   - kind: corrupt-write
     label: Corrupt write
     description: A write stores garbage; later reads return bad data

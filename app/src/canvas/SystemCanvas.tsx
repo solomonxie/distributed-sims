@@ -787,8 +787,15 @@ function useParticles(flights?: SharedValue<number[]>, simTime?: SharedValue<num
   return flights ? pic : null;
 }
 
+/** hardware designs (CPU core, caches, RAM) run 1 sim ms = 1 CPU cycle */
+let cycleUnit = false;
+export const setCycleUnit = (on: boolean) => {
+  cycleUnit = on;
+};
+
 export function fmtMs(ms: number): string {
   if (!isFinite(ms) || ms <= 0) return '—';
+  if (cycleUnit) return `${Math.max(1, Math.round(ms)).toLocaleString()} cyc`;
   if (ms < 1) return `${ms.toFixed(2)}ms`;
   if (ms < 10) return `${ms.toFixed(1)}ms`;
   if (ms < 1000) return `${Math.round(ms)}ms`;

@@ -85,6 +85,18 @@ const ms = (x: number) => (x < 1 ? x.toFixed(2) : x < 100 ? x.toFixed(1) : Math.
 const HTTP_TEXT: Record<number, string> = { 200: 'OK', 201: 'Created', 202: 'Accepted', 204: 'No Content', 301: 'Moved Permanently', 302: 'Found', 401: 'Unauthorized', 404: 'Not Found', 409: 'Conflict', 429: 'Too Many Requests', 500: 'Internal Server Error', 502: 'Bad Gateway', 503: 'Service Unavailable', 504: 'Gateway Timeout' };
 
 export function wireOf(x: WireCtx): Wire {
+  const hw = (x.msg?.data as any)?.hw ? (x.msg!.data as { c: string; asm: string; addr: string; line: number; note: string }) : undefined;
+  if (hw) {
+    const r = (x.res?.data as any)?.hw ? (x.res!.data as { title?: string; note: string }) : undefined;
+    return {
+      proto: 'cpu',
+      req: [hw.asm, `; ${hw.c}`, `; address ${hw.addr} → cache line ${hw.line}`],
+      res: [`64 B · line ${hw.line}`, ...(r?.title ? [`; ${r.title}`] : [])],
+      status: r?.title ?? `line ${hw.line}`,
+      ok: x.ok,
+      plain: { req: hw.note, res: r?.note ?? '' },
+    };
+  }
   const nodes = x.doc.nodes;
   const from = nodes.find(n => n.id === x.from);
   const to = nodes.find(n => n.id === x.to);

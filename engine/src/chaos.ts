@@ -252,6 +252,8 @@ function edgesFor(w: World, id?: Id) {
 export function label(kind: string): string {
   const map: Record<string, string> = {
     kill: 'Kill',
+    'access-random': 'Random access',
+    'access-stride': 'Strided access',
     slow: 'Slow',
     'cpu-hog': 'CPU hog',
     'gc-pause': 'GC pause',

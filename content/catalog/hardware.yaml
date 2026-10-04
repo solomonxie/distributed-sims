@@ -1,0 +1,28 @@
+# CPU and memory hierarchy as live components. Time unit: 1 ms of sim time = 1 CPU cycle.
+group: { id: hardware, label: Hardware, order: 15 }
+types:
+  - type: cpu-core
+    label: CPU core
+    client: true
+    description: Runs a loop over an array. Each load it issues asks L1 for one 64 B cache line
+    icon: cpu
+    knobs:
+      - { key: pattern, label: Access pattern, kind: enum, default: sequential, options: [sequential, stride, random] }
+      - { key: stride, label: Stride, kind: int, default: 8, min: 1, max: 64, unit: elements, help: Elements skipped per load when the pattern is stride }
+      - { key: workingSetKB, label: Working set, kind: int, default: 64, min: 1, max: 4096, unit: KB, help: Size of the array the loop walks }
+  - type: cpu-cache
+    label: CPU cache
+    description: Keeps recently used 64 B lines close to the core. On a miss it asks the next level and keeps a copy of the line
+    icon: layers
+    knobs:
+      - { key: capacityLines, label: Capacity, kind: int, default: 64, min: 1, max: 65536, unit: lines, help: 64 B each }
+      - { key: latencyCycles, label: Latency, kind: int, default: 4, min: 1, max: 200, unit: cycles }
+      - { key: slots, label: Ports, kind: int, default: 64, min: 1, max: 256, advanced: true }
+  - type: dram
+    label: RAM
+    description: Main memory. Holds everything, but each line takes hundreds of cycles to arrive
+    icon: memory-stick
+    knobs:
+      - { key: latencyCycles, label: Latency, kind: int, default: 300, min: 50, max: 2000, unit: cycles }
+      - { key: slots, label: Channels, kind: int, default: 64, min: 1, max: 256, advanced: true }
+skins: []

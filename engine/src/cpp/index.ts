@@ -8,3 +8,4 @@ import './cmake';
 import './projects';
 import './patterns';
 import './network';
+import './performance';
