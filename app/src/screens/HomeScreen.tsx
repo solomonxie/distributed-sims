@@ -1,17 +1,17 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ActionSheetIOS, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { ActionSheetIOS, Pressable, ScrollView, StyleSheet, TextInput, View, useWindowDimensions } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { problems, templates, topics, type ProblemDef, type TopicDef } from '@dsims/content';
+import { problems, templates, topics, type TopicDef } from '@dsims/content';
 import { algo, type SystemDoc } from '@dsims/engine';
 import { MiniGraph } from '../ui/MiniGraph';
 import { FrameThumb, thumbFrame } from '../canvas/FrameThumb';
 import type { RootStackParamList } from '../navigation/types';
-import { useTheme, space, type as typo } from '../theme';
-import { Button, Card, IconButton, Text } from '../ui/primitives';
+import { useTheme, space, radius, type as typo } from '../theme';
+import { Button, Card, IconButton, Progress, Text } from '../ui/primitives';
 import { Icon } from '../ui/Icon';
-import { Section, Tile } from '../ui/Tile';
+import { Section, SectionHead, Tile, TileGrid, useTileWidth } from '../ui/Tile';
 import { useProgress } from '../state/progress';
 import { useLibrary, blankDoc, forkDoc, saveSystem } from '../state/library';
 import { openLesson } from '../learn/open';
@@ -21,54 +21,77 @@ import { ago } from './ProblemScreen';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
-/** Resumes the last lesson or animation the user stepped through; a finished lesson points at the next one. */
+/** Hero: resumes the last lesson or animation the user stepped through; a finished lesson points at the next one. */
 function ContinueCard({ nav }: { nav: Nav }) {
   const { c } = useTheme();
+  const { width } = useWindowDimensions();
   const v = useProgress(s => s.lastPlayed);
   const lessons = useProgress(s => s.lessons);
+  const doneIn = useTopicDone();
   let title: string | undefined;
+  let sub: string | undefined;
   let open: (() => void) | undefined;
+  let thumb: Thumb | undefined;
+  let progress: number | undefined;
   if (v?.kind === 'lesson') {
     const t = topics.find(x => x.id === v.topic);
     const k = t?.lessons.findIndex(l => l.id === v.lesson) ?? -1;
     const l = t && (lessons[`${t.id}/${v.lesson}`] ? t.lessons[k + 1] : t.lessons[k]);
     if (t && l) {
-      title = `${t.title} › ${l.title}`;
+      title = l.title;
+      sub = `${t.title} · ${doneIn(t)}/${t.lessons.length}`;
       open = () => openLesson(nav, t, l);
+      thumb = topicThumb(t);
+      progress = doneIn(t) / Math.max(1, t.lessons.length);
     }
   } else if (v?.kind === 'demo') {
     const d = algo.getDemo(v.slug);
     if (d) {
       title = d.title;
+      sub = 'Animation';
       open = () => nav.navigate('AlgorithmPlayer', { slug: v.slug });
+      thumb = demoThumb(v.slug);
     }
   }
   if (!title || !open) return null;
+  const w = width - space.l * 2;
   return (
-    <Card style={{ marginTop: space.l }} onPress={open}>
-      <View style={[styles.cont, { alignItems: 'center' }]}>
-        <Icon name="play" size={20} color={c.accent} />
-        <View style={{ flex: 1 }}>
-          <Text v="caption">Continue</Text>
-          <Text numberOfLines={2}>{title}</Text>
+    <Card style={{ marginTop: space.l, overflow: 'hidden' }} onPress={open}>
+      {thumb && <View style={[styles.hero, { backgroundColor: c.canvas, borderBottomColor: c.hairline }]}>{thumb(w, HERO_H)}</View>}
+      <View style={styles.heroBody}>
+        <View style={[styles.play, { backgroundColor: c.accent }]}>
+          <Icon name="play" size={16} color={c.onAccent} />
         </View>
-        <Icon name="chevron-right" size={18} color={c.text3} />
+        <View style={{ flex: 1, gap: 2 }}>
+          <Text v="caption" color={c.accent}>
+            Continue
+          </Text>
+          <Text v="headline" numberOfLines={2}>
+            {title}
+          </Text>
+          {!!sub && (
+            <Text v="callout" color={c.text2} numberOfLines={1}>
+              {sub}
+            </Text>
+          )}
+        </View>
       </View>
+      {!!progress && <Progress value={progress} style={styles.heroBar} />}
     </Card>
   );
 }
 
 export type TopicGroup = Exclude<TopicDef['group'], 'languages'>;
-export const TOPIC_SECTIONS: { id: TopicGroup; title: string }[] = [
-  { id: 'topics', title: 'System design' },
-  { id: 'network', title: 'Network' },
-  { id: 'machine', title: 'Machine level' },
-  { id: 'under-the-hood', title: 'Tech stack' },
+export const TOPIC_SECTIONS: { id: TopicGroup; title: string; icon: string }[] = [
+  { id: 'topics', title: 'Concepts', icon: 'network' },
+  { id: 'network', title: 'Network', icon: 'globe' },
+  { id: 'machine', title: 'Machine level', icon: 'cpu' },
+  { id: 'under-the-hood', title: 'Tech stack', icon: 'layers' },
 ];
 /** topic sections shown after Languages */
-export const LATE_SECTIONS: { id: TopicGroup; title: string }[] = [
-  { id: 'ai', title: 'Machine learning & LLMs' },
-  { id: 'patterns', title: 'Algorithms' },
+export const LATE_SECTIONS: { id: TopicGroup; title: string; icon: string }[] = [
+  { id: 'ai', title: 'ML & LLMs', icon: 'sparkles' },
+  { id: 'patterns', title: 'Algorithms', icon: 'shapes' },
 ];
 
 export const STARTERS = [
@@ -81,6 +104,7 @@ export const STARTERS = [
 ];
 
 type Thumb = (w: number, h: number) => React.ReactNode;
+const HERO_H = 140;
 const graphThumb = (doc?: SystemDoc, seed = 0): Thumb | undefined => (doc ? (w, h) => <MiniGraph doc={doc} width={w} height={h} seed={seed} /> : undefined);
 const demoThumb = (slug?: string): Thumb | undefined => (slug && thumbFrame(slug) ? (w, h) => <FrameThumb slug={slug} width={w} height={h} /> : undefined);
 
@@ -91,12 +115,10 @@ function topicThumb(t: TopicDef): Thumb | undefined {
   const slug = t.lessons.map(l => (l as any).algo as string | undefined).find(Boolean) ?? (t as any).algos?.[0];
   return demoThumb(slug);
 }
-const problemThumb = (p: ProblemDef) => {
-  const d = p.designs.find(x => x.id === 'v2') ?? p.designs[0];
-  return graphThumb(d ? templates[d.template] : undefined, p.order);
-};
-
-const langThumb = (icon: string): Thumb => (_w, h) => <Icon name={icon} size={h * 0.6} />;
+const langThumb =
+  (icon: string): Thumb =>
+  (_w, h) =>
+    <Icon name={icon} size={h * 0.6} />;
 
 const sortedTopics = () => [...topics].sort((a, b) => a.order - b.order);
 
@@ -111,12 +133,6 @@ export function TopicTile({ t, nav }: { t: TopicDef; nav: Nav }) {
   const done = useTopicDone()(t);
   const n = t.lessons.length;
   return <Tile icon={t.icon} title={t.title} thumb={topicThumb(t)} meta={`${done}/${n}`} progress={done / Math.max(1, n)} done={n > 0 && done === n} onPress={() => nav.navigate('Topic', { topicId: t.id })} />;
-}
-
-export function ProblemTile({ p, nav }: { p: ProblemDef; nav: Nav }) {
-  const challenges = useProgress(s => s.challenges);
-  const stars = p.challenges.filter(ch => challenges[`${p.id}/${ch.id}`]?.passed).length;
-  return <Tile icon={p.icon} title={p.title} thumb={problemThumb(p)} meta={`${stars}/${p.challenges.length} ★`} done={p.challenges.length > 0 && stars === p.challenges.length} onPress={() => nav.navigate('Problem', { problemId: p.id })} />;
 }
 
 export function LanguageTile({ id, nav }: { id: LangId; nav: Nav }) {
@@ -136,26 +152,95 @@ export async function createSystem(nav: Nav, slug?: string) {
 
 export function templateMenu(nav: Nav) {
   const avail = STARTERS.filter(s => templates[s.slug]);
-  ActionSheetIOS.showActionSheetWithOptions({ title: 'Start from a template', options: [...avail.map(s => s.label), 'Cancel'], cancelButtonIndex: avail.length }, i => {
-    if (i < avail.length) createSystem(nav, avail[i].slug);
-  });
+  ActionSheetIOS.showActionSheetWithOptions(
+    {
+      title: 'Start from a template',
+      options: [...avail.map(s => s.label), 'Cancel'],
+      cancelButtonIndex: avail.length,
+    },
+    i => {
+      if (i < avail.length) createSystem(nav, avail[i].slug);
+    },
+  );
 }
+
+/** Text-first category card: icon, name, count, progress once started. */
+function CategoryCard({ icon, title, meta, progress, onPress }: { icon: string; title: string; meta: string; progress: number; onPress: () => void }) {
+  const { c } = useTheme();
+  const w = useTileWidth();
+  const done = progress >= 1;
+  return (
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={title} style={({ pressed }) => [styles.cat, { width: w, backgroundColor: c.surface1, borderColor: c.hairline }, pressed && { opacity: 0.75, transform: [{ scale: 0.98 }] }]}>
+      <Icon name={done ? 'circle-check' : icon} size={22} color={done ? c.ok : c.accent} />
+      <View style={{ gap: 6 }}>
+        <Text v="headline" numberOfLines={1}>
+          {title}
+        </Text>
+        <View style={styles.catMeta}>
+          <Text v="callout" color={c.text2}>
+            {meta}
+          </Text>
+          {progress > 0 && <Progress value={progress} color={done ? c.ok : c.accent} style={{ flex: 1 }} />}
+        </View>
+      </View>
+    </Pressable>
+  );
+}
+
+const lessonCount = (ts: TopicDef[]) => ts.reduce((a, t) => a + t.lessons.length, 0);
 
 export function HomeScreen() {
   const { c } = useTheme();
   const nav = useNavigation<Nav>();
   const insets = useSafeAreaInsets();
   const { items: systems, refresh } = useLibrary();
+  const challenges = useProgress(s => s.challenges);
+  const doneIn = useTopicDone();
   const [q, setQ] = useState('');
   useEffect(() => {
     refresh();
   }, [refresh]);
 
   const all = useMemo(sortedTopics, []);
-  const probs = useMemo(() => [...problems].sort((a, b) => a.order - b.order), []);
+  const started = all.filter(t => {
+    const d = doneIn(t);
+    return d > 0 && d < t.lessons.length;
+  });
+  const ratio = (ts: TopicDef[]) => ts.reduce((a, t) => a + doneIn(t), 0) / Math.max(1, lessonCount(ts));
+  const langs = LANGUAGES.flatMap(l => langTopics(l.id));
+  const cats = [
+    ...TOPIC_SECTIONS.map(s => ({
+      ...s,
+      list: all.filter(t => t.group === s.id),
+      go: () => nav.navigate('Topics', { group: s.id }),
+    })),
+    {
+      id: 'languages',
+      title: 'Languages',
+      icon: 'code-xml',
+      list: langs,
+      meta: `${LANGUAGES.length} languages`,
+      go: () => nav.navigate('Languages'),
+    },
+    ...LATE_SECTIONS.map(s => ({
+      ...s,
+      list: all.filter(t => t.group === s.id),
+      go: () => nav.navigate('Topics', { group: s.id }),
+    })),
+  ].filter(x => x.list.length);
+  const stars = problems.reduce((a, p) => a + p.challenges.filter(ch => challenges[`${p.id}/${ch.id}`]?.passed).length, 0);
+  const maxStars = problems.reduce((a, p) => a + p.challenges.length, 0);
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: c.canvas }} contentContainerStyle={{ paddingTop: insets.top + 8, paddingHorizontal: space.l, paddingBottom: insets.bottom + 40 }} keyboardShouldPersistTaps="handled">
+    <ScrollView
+      style={{ flex: 1, backgroundColor: c.canvas }}
+      contentContainerStyle={{
+        paddingTop: insets.top + 8,
+        paddingHorizontal: space.l,
+        paddingBottom: insets.bottom + 40,
+      }}
+      keyboardShouldPersistTaps="handled"
+    >
       <View style={styles.head}>
         <Text v="display" style={{ flex: 1, fontSize: 30 }}>
           Distributed Sims
@@ -173,51 +258,41 @@ export function HomeScreen() {
         <>
           <ContinueCard nav={nav} />
 
-          {TOPIC_SECTIONS.map(s => {
-            const list = all.filter(t => t.group === s.id);
-            if (!list.length) return null;
-            return (
-              <React.Fragment key={s.id}>
-                <Section title={s.title} count={list.length} onSeeAll={() => nav.navigate('Topics', { group: s.id })}>
-                  {list.map(t => (
-                    <TopicTile key={t.id} t={t} nav={nav} />
-                  ))}
-                </Section>
-                {s.id === 'topics' && (
-                  <Section title="Problems" count={probs.length} onSeeAll={() => nav.navigate('Problems')}>
-                    {probs.map(p => (
-                      <ProblemTile key={p.id} p={p} nav={nav} />
-                    ))}
-                  </Section>
-                )}
-              </React.Fragment>
-            );
-          })}
+          {started.length > 0 && (
+            <Section title="In progress">
+              {started.slice(0, 6).map(t => (
+                <TopicTile key={t.id} t={t} nav={nav} />
+              ))}
+            </Section>
+          )}
 
-          <Section title="Languages" count={LANGUAGES.length} onSeeAll={() => nav.navigate('Languages')}>
-            {LANGUAGES.map(l => (
-              <LanguageTile key={l.id} id={l.id} nav={nav} />
-            ))}
-          </Section>
+          <View style={{ marginTop: space.xxl }}>
+            <SectionHead title="Learn" />
+            <TileGrid>
+              {cats.map(k => (
+                <CategoryCard key={k.id} icon={k.icon} title={k.title} meta={'meta' in k ? k.meta : `${k.list.length} topics`} progress={ratio(k.list)} onPress={k.go} />
+              ))}
+            </TileGrid>
+          </View>
 
-          {LATE_SECTIONS.map(s => {
-            const list = all.filter(t => t.group === s.id);
-            if (!list.length) return null;
-            return (
-              <Section key={s.id} title={s.title} count={list.length} onSeeAll={() => nav.navigate('Topics', { group: s.id })}>
-                {list.map(t => (
-                  <TopicTile key={t.id} t={t} nav={nav} />
-                ))}
-              </Section>
-            );
-          })}
+          <View style={{ marginTop: space.xxl }}>
+            <SectionHead title="Practice" />
+            <Card onPress={() => nav.navigate('Problems')}>
+              <View style={styles.cont}>
+                <Icon name="trophy" size={22} color={c.accent} />
+                <View style={{ flex: 1, gap: 2 }}>
+                  <Text v="headline">Design problems</Text>
+                  <Text v="callout" color={c.text2}>
+                    {`${problems.length} real systems · ${stars}/${maxStars} ★`}
+                  </Text>
+                </View>
+                <Icon name="chevron-right" size={18} color={c.text3} />
+              </View>
+            </Card>
+          </View>
 
-          <Section title="My systems" count={systems.length} onSeeAll={() => nav.navigate('Mine')}>
-            {[
-              <Tile key="new" icon="plus" title="New system" meta="blank canvas" onPress={() => createSystem(nav)} />,
-              ...(systems.length ? [] : [<Tile key="tpl" icon="layout-template" title="From a template" meta={`${STARTERS.length} starters`} onPress={() => templateMenu(nav)} />]),
-              ...systems.map(it => <Tile key={it.id} icon="layers" title={it.name} thumb={graphThumb(it.doc)} meta={`${it.nodes} parts · ${ago(it.updatedAt)}`} onPress={() => nav.navigate('Editor', { doc: it.doc })} />),
-            ]}
+          <Section title="Build" count={systems.length} onSeeAll={() => nav.navigate('Mine')}>
+            {[<Tile key="new" icon="plus" title="New system" meta="blank canvas" onPress={() => createSystem(nav)} />, ...(systems.length ? [] : [<Tile key="tpl" icon="layout-template" title="From a template" meta={`${STARTERS.length} starters`} onPress={() => templateMenu(nav)} />]), ...systems.map(it => <Tile key={it.id} icon="layers" title={it.name} thumb={graphThumb(it.doc)} meta={`${it.nodes} parts · ${ago(it.updatedAt)}`} onPress={() => nav.navigate('Editor', { doc: it.doc })} />)]}
           </Section>
         </>
       )}
@@ -228,10 +303,42 @@ export function HomeScreen() {
 function SearchResults({ q, nav, onClear }: { q: string; nav: Nav; onClear: () => void }) {
   const { c } = useTheme();
   const hits = useMemo(() => {
-    const out: { key: string; icon: string; title: string; sub: string; go: () => void }[] = [];
-    for (const t of topics) for (const l of t.lessons) if (`${t.title} ${l.title}`.toLowerCase().includes(q)) out.push({ key: `l-${t.id}-${l.id}`, icon: t.icon, title: l.title, sub: `Lesson · ${t.title}`, go: () => openLesson(nav, t, l) });
-    for (const p of problems) if (`${p.title} ${p.summary}`.toLowerCase().includes(q)) out.push({ key: `p-${p.id}`, icon: p.icon, title: p.title, sub: 'Problem', go: () => nav.navigate('Problem', { problemId: p.id }) });
-    for (const g of demoGroups()) for (const d of g.demos) if (`${d.title} ${d.summary}`.toLowerCase().includes(q)) out.push({ key: `d-${d.slug}`, icon: g.icon, title: d.title, sub: `Animation · ${g.label}`, go: () => nav.navigate('AlgorithmPlayer', { slug: d.slug }) });
+    const out: {
+      key: string;
+      icon: string;
+      title: string;
+      sub: string;
+      go: () => void;
+    }[] = [];
+    for (const t of topics)
+      for (const l of t.lessons)
+        if (`${t.title} ${l.title}`.toLowerCase().includes(q))
+          out.push({
+            key: `l-${t.id}-${l.id}`,
+            icon: t.icon,
+            title: l.title,
+            sub: `Lesson · ${t.title}`,
+            go: () => openLesson(nav, t, l),
+          });
+    for (const p of problems)
+      if (`${p.title} ${p.summary}`.toLowerCase().includes(q))
+        out.push({
+          key: `p-${p.id}`,
+          icon: p.icon,
+          title: p.title,
+          sub: 'Problem',
+          go: () => nav.navigate('Problem', { problemId: p.id }),
+        });
+    for (const g of demoGroups())
+      for (const d of g.demos)
+        if (`${d.title} ${d.summary}`.toLowerCase().includes(q))
+          out.push({
+            key: `d-${d.slug}`,
+            icon: g.icon,
+            title: d.title,
+            sub: `Animation · ${g.label}`,
+            go: () => nav.navigate('AlgorithmPlayer', { slug: d.slug }),
+          });
     return out.slice(0, 40);
   }, [q, nav]);
   if (!hits.length)
@@ -244,7 +351,18 @@ function SearchResults({ q, nav, onClear }: { q: string; nav: Nav; onClear: () =
   return (
     <Card style={{ marginTop: space.l }}>
       {hits.map((h, i) => (
-        <Pressable key={h.key} onPress={h.go} style={({ pressed }) => [styles.hit, i < hits.length - 1 && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.hairlineStrong }, pressed && { opacity: 0.6 }]}>
+        <Pressable
+          key={h.key}
+          onPress={h.go}
+          style={({ pressed }) => [
+            styles.hit,
+            i < hits.length - 1 && {
+              borderBottomWidth: StyleSheet.hairlineWidth,
+              borderBottomColor: c.hairlineStrong,
+            },
+            pressed && { opacity: 0.6 },
+          ]}
+        >
           <Icon name={h.icon} size={18} color={c.text2} />
           <View style={{ flex: 1 }}>
             <Text numberOfLines={1}>{h.title}</Text>
@@ -260,8 +378,55 @@ function SearchResults({ q, nav, onClear }: { q: string; nav: Nav; onClear: () =
 }
 
 const styles = StyleSheet.create({
-  head: { flexDirection: 'row', alignItems: 'center', marginBottom: space.m, minHeight: 44 },
-  search: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth },
-  cont: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12 },
-  hit: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 11 },
+  head: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: space.m,
+    minHeight: 44,
+  },
+  search: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  cont: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },
+  hero: {
+    height: HERO_H,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    overflow: 'hidden',
+  },
+  heroBody: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 14,
+  },
+  heroBar: { marginHorizontal: 14, marginBottom: 14 },
+  play: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cat: {
+    height: 104,
+    padding: 14,
+    borderRadius: radius.card,
+    borderWidth: StyleSheet.hairlineWidth,
+    justifyContent: 'space-between',
+  },
+  catMeta: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  hit: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+  },
 });

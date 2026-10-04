@@ -27,9 +27,11 @@ export function Tile({ icon, title, meta, progress, done, thumb, onPress, onLong
     <Pressable onPress={onPress} onLongPress={onLongPress} delayLongPress={350} accessibilityRole="button" accessibilityLabel={title} style={({ pressed }) => [styles.tile, { width: w, backgroundColor: c.surface1, borderColor: c.hairline }, pressed && { opacity: 0.75, transform: [{ scale: 0.98 }] }]}>
       <View style={[styles.thumb, { borderBottomColor: c.hairline, backgroundColor: c.canvas }]}>
         {thumb?.(w, THUMB_H) ?? <Icon name={icon} size={38} color={c.text3} strokeWidth={1.4} />}
-        <View style={[styles.badge, { backgroundColor: c.surface2 }]}>
-          <Icon name={icon} size={14} color={col} />
-        </View>
+        {thumb && (
+          <View style={[styles.badge, { backgroundColor: c.surface2 }]}>
+            <Icon name={icon} size={14} color={col} />
+          </View>
+        )}
         {done && (
           <View style={[styles.done, { backgroundColor: c.surface2 }]}>
             <Icon name="circle-check" size={14} color={c.ok} />
@@ -41,7 +43,7 @@ export function Tile({ icon, title, meta, progress, done, thumb, onPress, onLong
           {title}
         </Text>
         <View style={styles.meta}>
-          {progress !== undefined && <Progress value={progress} color={done ? c.ok : c.accent} style={styles.bar} />}
+          {!!progress && <Progress value={progress} color={done ? c.ok : c.accent} style={styles.bar} />}
           {!!meta && (
             <Text v="callout" color={c.text2} style={styles.metaText} numberOfLines={1}>
               {meta}
@@ -58,27 +60,34 @@ export function TileGrid({ children }: { children: React.ReactNode }) {
   return <View style={styles.grid}>{children}</View>;
 }
 
-/** Home section: caption header with "More (count)", then one horizontally scrolling row of the first 10 tiles. */
-export function Section({ title, count, onSeeAll, children }: { title: string; count?: number; onSeeAll?: () => void; children: React.ReactNode[] }) {
+/** Home section header: bold title, optional "More (count)" link. */
+export function SectionHead({ title, count, onSeeAll }: { title: string; count?: number; onSeeAll?: () => void }) {
   const { c } = useTheme();
+  return (
+    <View style={styles.head}>
+      <Text v="title" style={styles.sectionTitle}>
+        {title}
+      </Text>
+      <View style={styles.grow} />
+      {onSeeAll && (
+        <Pressable hitSlop={10} onPress={onSeeAll} style={styles.all} accessibilityRole="button" accessibilityLabel={`See all ${title}`}>
+          <Text v="callout" color={c.accent}>
+            {count !== undefined ? `More (${count})` : 'More'}
+          </Text>
+          <Icon name="chevron-right" size={14} color={c.accent} />
+        </Pressable>
+      )}
+    </View>
+  );
+}
+
+/** Home section: header, then one horizontally scrolling row of the first 10 tiles. */
+export function Section({ title, count, onSeeAll, children }: { title: string; count?: number; onSeeAll?: () => void; children: React.ReactNode[] }) {
   const w = useTileWidth();
   const shown = children.filter(Boolean).slice(0, ROW_MAX);
   return (
     <View style={{ marginTop: space.xxl }}>
-      <View style={styles.head}>
-        <Text v="title" style={styles.sectionTitle}>
-          {title}
-        </Text>
-        <View style={styles.grow} />
-        {onSeeAll && (
-          <Pressable hitSlop={10} onPress={onSeeAll} style={styles.all} accessibilityRole="button" accessibilityLabel={`See all ${title}`}>
-            <Text v="callout" color={c.accent}>
-              {count !== undefined ? `More (${count})` : 'More'}
-            </Text>
-            <Icon name="chevron-right" size={14} color={c.accent} />
-          </Pressable>
-        )}
-      </View>
+      <SectionHead title={title} count={count} onSeeAll={onSeeAll} />
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.row} contentContainerStyle={styles.rowContent} snapToInterval={w + GAP} decelerationRate="fast">
         {shown}
       </ScrollView>
@@ -87,10 +96,38 @@ export function Section({ title, count, onSeeAll, children }: { title: string; c
 }
 
 const styles = StyleSheet.create({
-  tile: { borderRadius: radius.card, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
-  thumb: { height: THUMB_H, alignItems: 'center', justifyContent: 'center', borderBottomWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
-  badge: { position: 'absolute', left: 8, top: 8, width: 26, height: 26, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
-  done: { position: 'absolute', right: 8, top: 8, width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
+  tile: {
+    borderRadius: radius.card,
+    borderWidth: StyleSheet.hairlineWidth,
+    overflow: 'hidden',
+  },
+  thumb: {
+    height: THUMB_H,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    overflow: 'hidden',
+  },
+  badge: {
+    position: 'absolute',
+    left: 8,
+    top: 8,
+    width: 26,
+    height: 26,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  done: {
+    position: 'absolute',
+    right: 8,
+    top: 8,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   body: { padding: 12, gap: 8, height: 78, justifyContent: 'space-between' },
   title: { fontSize: 15, lineHeight: 19 },
   meta: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 16 },
