@@ -34,6 +34,8 @@ lessons:
         body: "Heterogeneous collections and plugin boundaries; otherwise prefer generics."
         check: { metric: manual }
 
+  - ref: machine-cpp/virtual
+
   - id: send-sync
     title: "Send, Sync & Arc<Mutex>"
     minutes: 4

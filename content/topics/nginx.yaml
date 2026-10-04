@@ -42,6 +42,8 @@ lessons:
         body: When the upstream answers, the worker streams it back to the client. One loop juggled all of this.
         check: { metric: availability, op: '>=', value: 99.9 }
 
+  - ref: machine-host-networking/event-loop
+
   - id: vs-apache
     title: "Why fast: nginx vs Apache prefork at 10k connections"
     minutes: 4
@@ -74,6 +76,8 @@ lessons:
       - title: Zero-copy doesn't
         body: With sendfile the worker just tells the kernel which file range to send.
         check: { metric: util, target: nginx-sf, op: '<', value: 20 }
+
+  - ref: machine-chips-buses/dma-zero-copy
 
   - id: blocking
     title: "Break it: a blocking call stalls a worker"

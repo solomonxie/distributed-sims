@@ -57,6 +57,8 @@ lessons:
         watch: Every access misses, so the same work runs ~12× slower.
         check: { metric: manual }
 
+  - ref: cpp-performance/cache-live
+
   - id: coherence
     title: Cache coherence (MESI)
     minutes: 4

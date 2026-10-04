@@ -23,6 +23,8 @@ lessons:
         input: choose
         check: { metric: manual }
 
+  - ref: cpp-performance/locality
+
   - id: vector
     title: vector in depth
     minutes: 5

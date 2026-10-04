@@ -33,6 +33,8 @@ lessons:
         action: { event: { kind: replica-lag, target: standby, params: { ms: 4000 }, durationSec: 20 } }
         check: { metric: gauge:lagMs, target: standby, op: '>=', value: 3000 }
 
+  - ref: machine-storage/fsync
+
   - id: wal-group-commit
     title: WAL fsync and group commit
     minutes: 4

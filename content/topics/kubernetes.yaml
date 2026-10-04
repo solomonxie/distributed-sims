@@ -175,6 +175,8 @@ lessons:
         body: NodePort, LoadBalancer and Ingress are layers on top of the same rules.
         check: { metric: manual }
 
+  - ref: os-containers/cgroups
+
   - id: requests-limits
     title: Requests, limits and cgroups
     minutes: 4

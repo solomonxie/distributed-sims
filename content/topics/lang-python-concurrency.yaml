@@ -60,6 +60,8 @@ lessons:
         input: blocking
         check: { metric: manual }
 
+  - ref: machine-host-networking/event-loop
+
   - id: generators
     title: "Generators & iterators"
     minutes: 4

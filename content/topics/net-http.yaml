@@ -65,24 +65,4 @@ lessons:
         body: Long-lived HTTP/2 connections need L7 (per-request) load balancing.
         check: { metric: manual }
 
-  - id: realtime
-    title: Real-time updates
-    minutes: 5
-    algo: nw-realtime
-    steps:
-      - title: Short polling
-        body: Simple, but either slow or wasteful.
-        input: polling
-        check: { metric: manual }
-      - title: Long polling
-        body: The server holds the request until there is news.
-        input: longpoll
-        check: { metric: manual }
-      - title: Server-Sent Events
-        body: One-way stream over HTTP with automatic resume.
-        input: sse
-        check: { metric: manual }
-      - title: WebSockets
-        body: Full duplex after an HTTP upgrade. Plan for reconnects and heartbeats.
-        input: websocket
-        check: { metric: manual }
+  - ref: sd-live-chat/transports

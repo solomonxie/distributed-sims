@@ -20,6 +20,8 @@ lessons:
         body: Round trips add up; batch and parallelise across regions.
         check: { metric: manual }
 
+  - ref: machine-memory/hierarchy
+
   - id: ping-mtr
     title: ping & mtr
     minutes: 4

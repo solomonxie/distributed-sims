@@ -23,6 +23,8 @@ lessons:
       - title: exit and wait
         body: The child exits, the parent gets SIGCHLD and collects the status with waitpid.
         check: { metric: manual }
+
+  - ref: machine-memory/fork-cow
   - id: zombies
     title: Zombies & orphans
     minutes: 3
@@ -59,6 +61,8 @@ lessons:
       - title: Hard caps
         body: nice only matters under contention. For a hard limit, use a cgroup with cpu.max.
         check: { metric: manual }
+
+  - ref: cpp-performance/context-switch
   - id: signals
     title: Signals
     minutes: 5

@@ -66,6 +66,8 @@ lessons:
         body: latest is a mutable pointer. Deploy by digest; keep tags for humans. One tag can cover several CPU architectures.
         check: { metric: manual }
 
+  - ref: os-containers/net-ns
+
   - id: bridge
     title: "Networking: -p 8080:80"
     minutes: 5

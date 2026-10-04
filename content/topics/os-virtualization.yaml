@@ -43,6 +43,8 @@ lessons:
         body: Binary translation (VMware) and paravirtualisation (Xen) did the same job in software before 2005.
         check: { metric: manual }
 
+  - ref: machine-paging/page-table-walk
+
   - id: memory
     title: Memory with extended page tables
     minutes: 4

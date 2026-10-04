@@ -98,15 +98,4 @@ lessons:
         watch: The NVMe rung, then the network rungs below it.
         check: { metric: manual }
 
-  - id: why-redis-fast-loop
-    title: "Bridge: why is Redis fast? (one thread)"
-    minutes: 3
-    algo: bus-event-loop
-    steps:
-      - title: One thread, 10k sockets
-        body: Redis runs one event loop. epoll hands it only the sockets that have data, in one syscall.
-        watch: Commands run back to back with zero context switches or locks.
-        check: { metric: manual }
-      - title: The catch
-        body: One slow command, such as KEYS *, blocks every client. Switch to "Thread per connection" to see the alternative's switching cost.
-        check: { metric: manual }
+  - ref: machine-host-networking/event-loop

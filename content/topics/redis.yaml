@@ -110,6 +110,8 @@ lessons:
         body: The child writes the snapshot from shared pages. Each write the parent makes to a shared page copies it first — memory grows while the snapshot runs.
         check: { metric: gauge:cowMb, target: redis, op: '>=', value: 100 }
 
+  - ref: machine-storage/fsync
+
   - id: aof
     title: "Break it: appendfsync always on a slow disk"
     minutes: 4

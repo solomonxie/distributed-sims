@@ -88,3 +88,5 @@ lessons:
       - title: Short-lived certs
         body: Meshes and SPIFFE rotate workload certificates every few hours.
         check: { metric: manual }
+
+  - ref: encryption/tls-termination
