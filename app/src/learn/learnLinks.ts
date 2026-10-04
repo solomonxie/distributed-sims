@@ -44,6 +44,9 @@ const BY_TYPE: Record<string, () => (LearnLink | undefined)[]> = {
   ],
   service: () => [lesson('net-http', 'http1', 'How a request arrives'), topic('microservices')],
   'web-client': () => [topic('net-http')],
+  'cpu-core': () => [demo('perf-switch', 'How the core switches between threads'), demo('perf-locality', 'Why access order decides the hit rate'), topic('cpp-performance')],
+  'cpu-cache': () => [demo('perf-cache', 'A miss, step by step, and how a line fills each tier'), demo('perf-sharing', 'When two cores fight over one line'), topic('cpp-performance')],
+  dram: () => [demo('bus-cycle', 'One memory read on the bus'), demo('perf-cache', 'What a trip to RAM costs'), topic('cpp-performance')],
 };
 
 export function learnLinks(type: string): LearnLink[] {

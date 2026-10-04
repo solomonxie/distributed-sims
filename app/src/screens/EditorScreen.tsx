@@ -10,7 +10,7 @@ import { catalog, topics, type ChaosDef } from '@dsims/content';
 import type { RootStackParamList } from '../navigation/types';
 import { useTheme, space, spring } from '../theme';
 import { DotCallout } from '../canvas/DotCallout';
-import { SystemCanvas, fmtMs } from '../canvas/SystemCanvas';
+import { SystemCanvas, fmtMs, setCycleUnit } from '../canvas/SystemCanvas';
 import { computeLayout, hitTest, nodeIcon } from '../canvas/layout';
 import { useProgress } from '../state/progress';
 import { useDoc, flushSave } from '../state/doc';
@@ -66,6 +66,7 @@ export function EditorScreen() {
   const past = useDoc(s => s.past.length);
   const future = useDoc(s => s.future.length);
   const run = useRun();
+  setCycleUnit(!!doc?.nodes.some(n => n.type === 'cpu-core'));
   const mode: 'build' | 'run' = run.active ? 'run' : 'build';
   const [sheet, setSheet] = useState<SheetKind>(null);
   /** sheets a detail sheet was opened from; Back restores the last one */

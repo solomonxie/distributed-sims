@@ -1,7 +1,7 @@
 # C++ section
 
 Home → Languages → C++ (topics with `group: languages`, `language: cpp`):
-ten topics, beginner → project scale.
+eleven topics, beginner → project scale.
 Goal: enough depth to run real, complex C++ codebases. Source ideas:
 `~/workspace/cpp-references` (lessons, language_features, design_patterns,
 hello_cmake, hello_webserver, c10k-challenge).
@@ -18,6 +18,7 @@ hello_cmake, hello_webserver, c10k-challenge).
 | 8 | `cpp-projects` | Large C++ projects | `projects.ts` |
 | 9 | `cpp-patterns` | Design patterns & idioms | `patterns.ts` |
 | 10 | `cpp-network` | Network servers → C10K | `network.ts` |
+| 11 | `cpp-performance` | Performance: cache tiers, layout, zero-copy | `performance.ts` |
 
 - Demo group = topic id (`machine-cpp` keeps its own); listed under
   Animations → Languages.

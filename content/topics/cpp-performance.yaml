@@ -1,0 +1,187 @@
+id: cpp-performance
+title: Performance
+group: languages
+language: cpp
+icon: gauge
+order: 11
+summary: CPU cache tiers, locality and data layout, false sharing, zero-copy I/O, avoiding copies, and measuring before tuning.
+info: Most C++ slowness is waiting for memory, not computing. A load that hits L1 costs 4 cycles; one that goes to RAM costs about 300. So speed comes from touching less memory, in the order it is laid out, without other cores or needless copies getting in the way, and from measuring to find out which of these is the actual problem.
+algos: [perf-cache, perf-switch, perf-locality, perf-sharing, perf-zerocopy, perf-copies, perf-measure]
+lessons:
+  - id: cache-tiers
+    title: CPU cache tiers
+    minutes: 5
+    algo: perf-cache
+    steps:
+      - title: Five tiers
+        body: Registers, L1, L2, L3, RAM. Each is roughly 4× to 20× bigger and slower than the one above.
+        input: ladder
+        check: { metric: manual }
+      - title: A hit
+        body: If L1 has the line, the load costs about 4 cycles and nothing else is touched.
+        input: hit
+        check: { metric: manual }
+      - title: A miss
+        body: The core stalls until RAM answers, then the whole 64 B line fills every tier on the way back.
+        input: miss
+        check: { metric: manual }
+      - title: Eviction
+        body: Caches are small. When the working set outgrows L1, loading a new line pushes out one you will need again.
+        input: evict
+        check: { metric: manual }
+
+  - id: cache-live
+    title: Watch loads travel
+    minutes: 6
+    template: lesson-cpu-cache
+    steps:
+      - title: Follow one load
+        body: Tap a moving dot. It carries one instruction, add rax, [rsi + rcx*8], asking for a[i]'s 64 B line.
+        watch: Misses go all the way to RAM and pause there; the line then climbs back through L3, L2 and L1.
+        check: { metric: manual }
+      - title: Sequential walk
+        body: Each line holds 8 elements, so 7 of every 8 loads hit L1. Tap L1 to see its hit rate.
+        watch: The L1 badge settles near 88%.
+        check: { metric: gauge:hitRatio, target: l1, op: '>=', value: 80 }
+      - title: Random access
+        body: Jump to random elements. The neighbours fetched with each line are never used.
+        action: { event: { kind: access-random, target: core }, label: Go random }
+        watch: L1 drops near 6% (64 of 1024 lines fit). L3 still holds the whole 64 KB array.
+        check: { metric: gauge:hitRatio, target: l1, op: '<=', value: 30 }
+      - title: Strided access
+        body: Back to a loop, but skip 8 elements each time. Every load lands in a new line.
+        action: { event: { kind: access-stride, target: core, params: { stride: 8 } }, label: Stride 8 }
+        watch: L1 hit rate near 0% even though the loop is perfectly regular.
+        check: { metric: manual }
+
+  - id: context-switch
+    title: Context switches
+    minutes: 6
+    algo: perf-switch
+    steps:
+      - title: Thread switch
+        body: The kernel saves one thread's registers to RAM and loads another's. Same process, so memory mappings stay.
+        input: thread
+        check: { metric: manual }
+      - title: Process switch
+        body: A new process also loads CR3 with its page table, which invalidates the TLB. Then the caches refill.
+        watch: The C segments on the time strip, the cold-cache refill, outlast the switch itself.
+        input: process
+        check: { metric: manual }
+      - title: Blocking calls
+        body: A thread that waits on I/O gives up the core. Each blocking call costs two switches.
+        input: block
+        check: { metric: manual }
+      - title: Keep switches down
+        body: Threads ≤ cores for CPU work, event loops for I/O, pin hot threads. Count them with perf stat -e context-switches.
+        check: { metric: manual }
+
+  - ref: machine-cpu/scheduling
+
+  - ref: machine-paging/page-table-walk
+
+  - id: locality
+    title: Locality & data layout
+    minutes: 6
+    algo: perf-locality
+    steps:
+      - title: Row order
+        body: Memory is laid out row by row. Walking along a row reuses each loaded line for 8 elements.
+        input: rows
+        check: { metric: manual }
+      - title: Column order
+        body: Same work, but every access lands in a different line and evicts one you still need.
+        input: cols
+        check: { metric: manual }
+      - title: Array of structs
+        body: Reading one field drags the others through the cache. Fine when you use them together.
+        input: aos
+        check: { metric: manual }
+      - title: Struct of arrays
+        body: Keep the hot field contiguous. Every fetched byte is used, and loops vectorize.
+        input: soa
+        check: { metric: manual }
+      - title: Rules of thumb
+        body: Prefer std::vector over node-based containers, iterate in memory order, and split hot from cold fields.
+        check: { metric: manual }
+
+  - ref: machine-cpp/layout
+
+  - ref: machine-asm/simd
+
+  - ref: machine-cpu/coherence
+
+  - id: false-sharing
+    title: False sharing
+    minutes: 4
+    algo: perf-sharing
+    steps:
+      - title: Same line, different variables
+        body: Cores exchange whole 64 B lines. Two counters in one line make every write invalidate the other core.
+        input: shared
+        check: { metric: manual }
+      - title: Pad to a line
+        body: alignas(64), or std::hardware_destructive_interference_size. Per-thread counters and queue heads are the usual victims.
+        input: padded
+        check: { metric: manual }
+
+  - ref: machine-memory/numa
+
+  - id: zero-copy
+    title: Zero-copy I/O
+    minutes: 6
+    algo: perf-zerocopy
+    steps:
+      - title: read + send
+        body: Four copies, two of them by the CPU, crossing user space just to land back in the kernel.
+        input: copy
+        check: { metric: manual }
+      - title: mmap
+        body: Maps the page cache into your process and saves the read copy. Page faults and SIGBUS keep it from being a free win.
+        input: mmap
+        check: { metric: manual }
+      - title: sendfile
+        body: The kernel sends file pages straight from the page cache. No CPU copies, one syscall.
+        input: sendfile
+        check: { metric: manual }
+      - title: MSG_ZEROCOPY
+        body: For data already in your buffer. Pages are pinned until a completion arrives, so use it for large sends only.
+        input: msgzc
+        check: { metric: manual }
+      - title: Related tools
+        body: splice and tee for pipes, writev to gather headers and body, io_uring for fewer syscalls.
+        check: { metric: manual }
+
+  - id: avoid-copies
+    title: Avoiding copies in your code
+    minutes: 5
+    algo: perf-copies
+    steps:
+      - title: Pass by value
+        body: Copying a std::string or vector allocates and memcpys. Cheap for small ones, costly per request at scale.
+        input: byvalue
+        check: { metric: manual }
+      - title: const& and string_view
+        body: Borrow instead. Use std::span for arrays. Never store a view longer than its owner lives.
+        input: ref
+        check: { metric: manual }
+      - title: std::move
+        body: Transfer ownership of the heap block in O(1). Also reserve() vectors and reuse buffers.
+        input: move
+        check: { metric: manual }
+
+  - id: measure
+    title: Measure first
+    minutes: 5
+    algo: perf-measure
+    steps:
+      - title: The loop
+        body: Benchmark, locate, change one thing, re-measure. Build with -O2 and debug symbols, or the numbers lie.
+        input: loop
+        check: { metric: manual }
+      - title: Read the counters
+        body: Low IPC, cache misses, branch misses and page faults each point to a different fix.
+        input: counters
+        check: { metric: manual }
+
+  - ref: cpp-projects/profiling

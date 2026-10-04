@@ -31,3 +31,4 @@ import './tech-cassandra';
 import './tech-elasticsearch';
 import './tech-dynamodb';
 export * from './registry';
+import './hardware';

@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "id": "lesson-cpu-cache",
+  "name": "Lesson: CPU cache hierarchy",
+  "description": "A core runs sum += a[i] over a 64 KB array. Every load travels to L1 and, on a miss, on down to L2, L3 and RAM; the 64 B line comes back up and each cache keeps a copy. Time is in CPU cycles. Sizes are scaled down so misses are easy to see.",
+  "nodes": [
+    { "id": "core", "type": "cpu-core", "name": "Core 0", "pos": { "x": 195, "y": 20 }, "config": { "pattern": "sequential", "workingSetKB": 64 } },
+    { "id": "l1", "type": "cpu-cache", "name": "L1", "pos": { "x": 195, "y": 130 }, "config": { "capacityLines": 64, "latencyCycles": 4 } },
+    { "id": "l2", "type": "cpu-cache", "name": "L2", "pos": { "x": 195, "y": 240 }, "config": { "capacityLines": 512, "latencyCycles": 14 } },
+    { "id": "l3", "type": "cpu-cache", "name": "L3", "pos": { "x": 195, "y": 350 }, "config": { "capacityLines": 4096, "latencyCycles": 50 } },
+    { "id": "ram", "type": "dram", "name": "RAM", "pos": { "x": 195, "y": 460 }, "config": { "latencyCycles": 300 } }
+  ],
+  "edges": [
+    { "id": "e1", "from": "core", "to": "l1", "config": { "latencyMs": 1 } },
+    { "id": "e2", "from": "l1", "to": "l2", "config": { "latencyMs": 1 } },
+    { "id": "e3", "from": "l2", "to": "l3", "config": { "latencyMs": 2 } },
+    { "id": "e4", "from": "l3", "to": "ram", "config": { "latencyMs": 4 } }
+  ],
+  "containers": [],
+  "scenario": {
+    "durationSec": 300,
+    "sources": [{ "id": "loads", "node": "core", "shape": { "kind": "constant", "rps": 50 }, "readRatio": 1 }],
+    "events": []
+  }
+}

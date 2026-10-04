@@ -114,10 +114,28 @@ function protoStory(h: JourneyHop, name: (id: string) => string): Story {
   return { phase: h.reply ? (h.ok ? 'response' : 'failed') : 'request', at: h.to, title: `${after}${label}: ${name(h.from)} → ${name(h.to)}`, body: h.async ? `${body} The user already has their answer; this happens in the background because of their request.` : body, wire: h.proto, chips: [] };
 }
 
+/** CPU/cache/RAM hops: loads carry `data.hw` (instruction, line, per-hop note); times are cycles. */
+const HW_TYPES = /^(cpu-core|cpu-cache|dram)$/;
+const hwData = (x: any) => (x?.hw ? (x as { c: string; asm: string; line: number; note: string; title?: string }) : undefined);
+const cycles = (ms: number) => `${Math.max(1, Math.round(ms)).toLocaleString()} cycles`;
+
+function hwStep(doc: SystemDoc, h: JourneyHop): { title: string; body: string; wire?: string } | undefined {
+  const name = nameIn(doc);
+  if (h.wait && HW_TYPES.test(typeOf(doc, h.to))) {
+    const ram = typeOf(doc, h.to) === 'dram';
+    return { title: `Inside ${name(h.to)}: ${cycles(h.spanMs)}`, body: ram ? 'DRAM opens the row holding the line, then streams it out. The core is stalled the whole time.' : 'Checking its tags for the line, or waiting for a line already on its way.' };
+  }
+  const d = h.reply ? hwData(h.res?.data) : hwData(h.msg?.data);
+  if (!d) return undefined;
+  return { title: d.title ?? `line ${d.line}`, body: d.note, wire: h.reply ? `64 B · line ${d.line}` : `${d.asm}` };
+}
+
 /** Short label for one step in the timeline list. */
 export function stepLabel(doc: SystemDoc, h: JourneyHop): string {
   const name = nameIn(doc);
   if (h.done) return h.ok ? 'Answer reaches the user' : 'User sees an error';
+  const hw = hwStep(doc, h);
+  if (hw) return hw.title;
   if (h.tcp) return `TCP ${h.tcp} · ${name(h.from)} → ${name(h.to)}`;
   if (h.proto) return `${h.async ? '↳ ' : ''}${protoLabel(h.proto, h.ok)} · ${name(h.from)} → ${name(h.to)}`;
   if (h.wait && h.peer) return `${name(h.to)} waits for ${name(h.peer)}`;
@@ -131,6 +149,10 @@ export function story(doc: SystemDoc, hops: JourneyHop[], i: number, snap: Snaps
   const name = nameIn(doc);
   if (h.tcp) return { phase: 'request', at: h.to, title: `TCP ${h.tcp}: ${name(h.from)} → ${name(h.to)}`, body: TCP_TEXT[h.tcp], wire: h.tcp === 'SYN' ? 'SYN seq=x' : h.tcp === 'SYN-ACK' ? 'SYN, ACK seq=y ack=x+1' : 'ACK seq=x+1 ack=y+1', chips: [] };
   if (h.proto) return protoStory(h, name);
+  const first = hwData(hops[0]?.msg?.data);
+  if (h.done && first) return { phase: 'done', at: h.from, title: `Load done: ${cycles(total ?? 0)}`, body: (total ?? 0) <= 10 ? `a[] came from L1. ${first.c}` : `The core waited ${cycles(total ?? 0)} for one value. A loop that misses like this runs mostly idle.`, wire: first.asm, chips: [] };
+  const hw = hwStep(doc, h);
+  if (hw) return { phase: h.wait ? 'waiting' : h.reply ? 'response' : 'request', at: h.wait ? h.to : h.to, title: hw.title, body: hw.body, wire: hw.wire, chips: chipsFor(snap, h.reply ? h.from : h.to) };
   if (h.done) {
     const first = hops.find(x => x.reply && x.to === h.from && !x.wait);
     const w = first ? wireFor(doc, first) : undefined;
