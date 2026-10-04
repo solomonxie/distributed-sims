@@ -32,6 +32,24 @@ const PROBLEM_CATEGORIES = ['classic', 'product', 'infra'];
 const list = (dir, ext) =>
   fs.existsSync(dir) ? fs.readdirSync(dir).filter(f => f.endsWith(ext) && !f.startsWith('.')).sort() : [];
 
+/** `- ref: <topicId>/<lessonId>` in a topic's lessons reuses that lesson (one source, many topics). */
+export function resolveLessonRefs(topics, fail) {
+  const byId = new Map(topics.map(t => [t.id, t]));
+  return topics.map(t => ({
+    ...t,
+    lessons: (t.lessons ?? []).map(l => {
+      if (!l?.ref) return l;
+      const [tid, lid] = String(l.ref).split('/');
+      const src = byId.get(tid)?.lessons?.find(x => x.id === lid && !x.ref);
+      if (!src) {
+        fail(`${t.__file}: lesson ref '${l.ref}' not found (refs can't point at refs)`);
+        return { id: lid ?? 'missing-ref', title: l.ref, steps: [{ title: 'missing', body: 'missing' }] };
+      }
+      return { ...src, sharedFrom: l.ref };
+    }),
+  }));
+}
+
 /** Parse every source file. Parse failures go to `problems` (errors, or warnings when lenient). */
 export function loadContent(root = CONTENT, { lenient = false } = {}) {
   const errors = [];
@@ -77,7 +95,7 @@ export function loadContent(root = CONTENT, { lenient = false } = {}) {
     traffic: readOpt('traffic.yaml') ?? { shapes: [], presets: [] },
     icons,
     templates,
-    topics: many('topics', 'topics'),
+    topics: resolveLessonRefs(many('topics', 'topics'), fail),
     problems: many('problems', 'problems'),
     tech: many('tech', 'tech'),
     errors,

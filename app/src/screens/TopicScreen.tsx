@@ -25,7 +25,8 @@ export function TopicScreen() {
   if (!t) return null;
   const nextIdx = t.lessons.findIndex(l => !lessons[`${t.id}/${l.id}`]);
   const heroTpl = t.lessons.map(l => (l as any).template).find((x: string | undefined) => x && templates[x]);
-  const algos = (t.algos ?? []).map(slug => algo.getDemo(slug)).filter(Boolean) as algo.Demo[];
+  const inLessons = new Set(t.lessons.map(l => (l as any).algo as string | undefined));
+  const algos = (t.algos ?? []).filter(slug => !inLessons.has(slug)).map(slug => algo.getDemo(slug)).filter(Boolean) as algo.Demo[];
   const probs = (t.problems ?? []).map(id => problems.find(p => p.id === id)).filter(Boolean);
   return (
     <Screen contentStyle={{ paddingTop: space.m }}>

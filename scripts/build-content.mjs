@@ -105,6 +105,8 @@ export interface LessonDef {
   id: string;
   title: string;
   minutes: number;
+  /** topicId/lessonId when this lesson is reused from another topic */
+  sharedFrom?: string;
   template?: string;
   algo?: string;
   steps: {
