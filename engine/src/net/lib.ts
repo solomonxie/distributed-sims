@@ -1,6 +1,6 @@
 // Network drawing helpers (packet lanes, header byte layouts, bar charts) and pure math (CIDR, RTO, cwnd).
 import type { Detail, Frame, Shape, Tone } from '../algo/frames';
-import { arrow, box, Film, line, panel, text } from '../machine/lib/draw';
+import { arrow, box, dot, Film, line, panel, text } from '../machine/lib/draw';
 import type { Row } from '../machine/lib/draw';
 
 const withDetail = (s: Shape, d?: Detail): Shape => {
@@ -90,7 +90,15 @@ export function laneFrames(l: Lanes): Frame[] {
   l.msgs.forEach((m, i) => {
     const out = base();
     for (let k = 0; k <= i; k++) out.push(...drawMsg(k, k === i));
-    f.add(m.note, out, pn(m.rows ?? l.rows));
+    if (m.from === m.to) return f.add(m.note, out, pn(m.rows ?? l.rows));
+    // the packet itself travels from sender to receiver (or to where it was lost)
+    const x1 = lx(m.from);
+    const x2 = m.lost ? (x1 + lx(m.to)) / 2 : lx(m.to);
+    const y1 = ys[i] + 4;
+    const y2 = ys[i] + Math.max(14, dy * 0.55);
+    const id = `pkt${i}`;
+    out.push(dot(id, x2, y2, m.lost || m.tone === 'fail' ? 'fail' : m.from < m.to ? 'write' : 'read', undefined, 16));
+    f.add(m.note, out, pn(m.rows ?? l.rows), { [id]: { x: x1, y: y1 } });
   });
   if (l.outro) {
     const out = base();
