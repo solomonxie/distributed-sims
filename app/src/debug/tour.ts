@@ -35,6 +35,8 @@ function steps(): Step[] {
     { name: 'player-dijkstra-step', run: () => bus.emit('player:steps', 4), settle: 1500 },
     { name: 'player-paging', run: nav => (nav.goBack(), nav.navigate('AlgorithmPlayer', { slug: 'mem-paging' })), settle: 1200 },
     { name: 'player-paging-step', run: () => bus.emit('player:steps', 3), settle: 1500 },
+    { name: 'player-epoll', run: nav => (nav.goBack(), nav.navigate('AlgorithmPlayer', { slug: 'net-epoll' })), settle: 1200 },
+    { name: 'player-epoll-step', run: () => bus.emit('player:steps', 4), settle: 1500 },
     { name: 'mine', run: nav => (nav.goBack(), nav.navigate('Mine')) },
     { name: 'settings', run: nav => nav.navigate('Settings') },
     { name: 'editor-empty', run: nav => (nav.goBack(), nav.navigate('Editor', { doc: blankDoc('Tour: blank'), readOnly: true })), settle: 1500 },
@@ -87,4 +89,14 @@ export async function runTour(nav: Nav) {
   }
   await FS.writeFile(`${TOUR_DIR}/log.txt`, log.join('\n'), 'utf8');
   useSettings.getState().set({ animSpeed: savedSpeed });
+}
+
+// Replays the tour up to `name` and stays there (simulator screenshots).
+export async function runTourTo(nav: Nav, name: string) {
+  useSettings.getState().set({ animSpeed: 1 });
+  for (const st of steps()) {
+    await st.run(nav);
+    await wait(st.settle ?? 1000);
+    if (st.name === name) return;
+  }
 }

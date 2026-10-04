@@ -31,21 +31,22 @@ export function RootNavigator() {
         headerShadowVisible: false,
         headerBackButtonDisplayMode: 'minimal',
         contentStyle: { backgroundColor: c.canvas },
+        orientation: 'portrait_up',
       }}
     >
       <Stack.Screen name="Home" component={HomeScreen} options={{ headerShown: false, title: 'Home' }} />
       <Stack.Screen name="Topics" component={TopicsScreen} options={({ route }) => ({ title: [...TOPIC_SECTIONS, ...LATE_SECTIONS].find(s => s.id === route.params.group)?.title ?? 'Topics' })} />
       <Stack.Screen name="Languages" component={LanguagesScreen} options={{ title: 'Languages' }} />
       <Stack.Screen name="Language" component={LanguageScreen} options={({ route }) => ({ title: langName(route.params.id) })} />
-      <Stack.Screen name="Problems" component={ProblemsScreen} />
+      <Stack.Screen name="Problems" component={ProblemsScreen} options={{ title: 'Distributed systems' }} />
       <Stack.Screen name="Algorithms" component={AlgorithmsScreen} options={({ route }) => ({ title: route.params?.group ? groupLabel(route.params.group) : 'Animations' })} />
       <Stack.Screen name="Mine" component={MySystemsScreen} options={{ title: 'My systems' }} />
       <Stack.Screen name="Topic" component={TopicScreen} options={({ route }) => ({ title: topics.find(t => t.id === route.params.topicId)?.title ?? 'Topic' })} />
       <Stack.Screen name="Problem" component={ProblemScreen} options={({ route }) => ({ title: problems.find(p => p.id === route.params.problemId)?.title ?? 'Problem' })} />
       <Stack.Screen name="AlgorithmPlayer" component={AlgorithmPlayerScreen} />
       <Stack.Screen name="Settings" component={SettingsScreen} />
-      <Stack.Screen name="Metrics" component={MetricsScreen} />
-      <Stack.Screen name="Editor" component={EditorScreen} options={{ headerShown: false, gestureEnabled: true, fullScreenGestureEnabled: false }} />
+      <Stack.Screen name="Metrics" component={MetricsScreen} options={{ orientation: 'default' }} />
+      <Stack.Screen name="Editor" component={EditorScreen} options={{ headerShown: false, gestureEnabled: true, fullScreenGestureEnabled: false, orientation: 'default' }} />
       <Stack.Screen name="Tour" component={TourScreen} options={{ headerShown: false }} />
     </Stack.Navigator>
   );

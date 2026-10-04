@@ -7,7 +7,7 @@ import { useSettings } from '../state/settings';
 import { useProgress } from '../state/progress';
 import { useLibrary } from '../state/library';
 
-const VERSION = '0.1.0';
+const VERSION = '1.0';
 
 export function SettingsScreen() {
   const { c } = useTheme();

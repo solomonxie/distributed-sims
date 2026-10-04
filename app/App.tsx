@@ -6,7 +6,7 @@ import { NavigationContainer, DarkTheme, DefaultTheme, type NavigationContainerR
 import { ThemeProvider, useTheme } from './src/theme';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import type { RootStackParamList } from './src/navigation/types';
-import { runTour } from './src/debug/tour';
+import { runTour, runTourTo } from './src/debug/tour';
 import { useSettings } from './src/state/settings';
 
 function Root() {
@@ -15,7 +15,9 @@ function Root() {
   useEffect(() => {
     useSettings.getState().set({ launches: useSettings.getState().launches + 1 });
     const handle = (url?: string | null) => {
-      if (url?.startsWith('dsims://tour')) setTimeout(() => nav.current && runTour(nav.current), 1500);
+      if (!url?.startsWith('dsims://tour')) return;
+      const stop = url.slice('dsims://tour/'.length);
+      setTimeout(() => nav.current && (stop ? runTourTo(nav.current, stop) : runTour(nav.current)), 1500);
     };
     Linking.getInitialURL().then(handle);
     const sub = Linking.addEventListener('url', e => handle(e.url));
