@@ -1,4 +1,5 @@
 import { allDemos, frames, getDemo } from '../src/algo';
+import { runs } from './knobs';
 import type { Shape } from '../src/algo';
 
 import { gilSchedule } from '../src/lang/python';
@@ -46,7 +47,7 @@ test('Maven nearest-wins vs Gradle highest-version', () => {
   expect(resolveHighest([{ name: 'z', version: '1.10' }, { name: 'z', version: '1.9' }]).z).toBe('1.10');
 });
 
-describe.each(cpp().flatMap((d) => d.inputs.map((i) => [`${d.slug}/${i.id}`, d.slug, i.data] as const)))('%s', (_name, slug, data) => {
+describe.each(cpp().flatMap(runs))('%s', (_name, slug, data) => {
   const fs = frames(getDemo(slug)!, data);
 
   test('≥ 3 frames, ends done', () => {

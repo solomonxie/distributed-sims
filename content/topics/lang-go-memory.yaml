@@ -16,10 +16,12 @@ lessons:
       - title: "Stays on the stack"
         body: "Values that don’t outlive their function live in the frame: free to allocate and invisible to the GC."
         input: stack
+        watch: "Switch add to return *int and s moves from the frame to the heap."
         check: { metric: manual }
       - title: "Escapes to the heap"
         body: "Returning a pointer to a local is legal; the compiler moves it to the heap. go build -gcflags=-m shows every decision."
         input: escape
+        watch: "Try return &u, return u and fmt.Println(u): two of them allocate on the heap."
         check: { metric: manual }
 
   - id: stacks
@@ -30,6 +32,7 @@ lessons:
       - title: "2 KB to start"
         body: "Each goroutine stack starts tiny and doubles by copying when a call needs more room."
         input: growth
+        watch: "Raise the recursion depth and watch the 2 KB stack double and copy."
         check: { metric: manual }
       - title: "Why pointers get fixed up"
         body: "Copying moves frames, so the runtime rewrites pointers into the stack. That is why cgo may not keep Go pointers."

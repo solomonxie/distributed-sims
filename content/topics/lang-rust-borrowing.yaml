@@ -16,6 +16,7 @@ lessons:
       - title: "&T and &mut T"
         body: "Any number of &T, or exactly one &mut T, never both at the same time."
         input: shared
+        watch: "Use a after taking &mut v and the borrow checker steps in."
         check: { metric: manual }
       - title: "Borrows end at last use"
         body: "A borrow lasts until its last use, not the end of the block, so a later &mut is fine."
@@ -28,7 +29,7 @@ lessons:
     steps:
       - title: "Reallocation"
         body: "push on a full Vec moves its buffer. A live &v[0] would dangle, so push is rejected while it’s in use."
-        watch: "The C++ version compiles and crashes."
+        watch: "Stop using first after the push and the borrow ends in time."
         input: conflict
         check: { metric: manual }
       - title: "Fixes"
@@ -43,6 +44,7 @@ lessons:
       - title: "Labels, not runtime data"
         body: "'a ties the output reference to its inputs so the compiler can check it never outlives them."
         input: lifetime
+        watch: "Move the println! inside the block and s lives long enough."
         check: { metric: manual }
       - title: "Elision"
         body: "Most functions need no annotations; the compiler infers the obvious case of one input reference."

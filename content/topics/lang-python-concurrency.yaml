@@ -70,6 +70,7 @@ lessons:
       - title: "yield pauses a frame"
         body: "A generator keeps its frame on the heap between next() calls."
         input: gen
+        watch: "Call next(g) a third time to fall off the end."
         check: { metric: manual }
       - title: "StopIteration"
         body: "Falling off the end raises StopIteration, which for loops catch."
@@ -77,4 +78,5 @@ lessons:
       - title: "Lazy pipelines"
         body: "Chained generator expressions process one item at a time in constant memory."
         input: lazy
+        watch: "Pull more items: the work grows one item at a time, memory does not."
         check: { metric: manual }

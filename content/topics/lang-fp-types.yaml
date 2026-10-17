@@ -29,6 +29,7 @@ lessons:
       - title: "Try in order"
         body: "Clauses are tried top to bottom."
         input: match
+        watch: "Feed it a Tri, a case nobody wrote a clause for."
         check: { metric: manual }
       - title: "Destructure"
         body: "A match checks the tag and binds the fields at once."

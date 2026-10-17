@@ -16,6 +16,7 @@ lessons:
       - title: "Captured environment"
         body: "The returned arrow keeps n alive after counter() returns."
         input: closure
+        watch: "Make a second counter: it gets its own n on the heap."
         check: { metric: manual }
       - title: "Private state"
         body: "Each counter() call gets its own n."
@@ -29,6 +30,7 @@ lessons:
       - title: "No loop counter"
         body: "Each step returns a new array."
         input: pipeline
+        watch: "Change the filter and watch each stage build a new array."
         check: { metric: manual }
       - title: "Fold"
         body: "reduce combines a list into one value; map and filter are special folds."

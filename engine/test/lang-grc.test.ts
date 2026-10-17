@@ -1,5 +1,6 @@
 import { allDemos, frames, getDemo } from '../src/algo';
 import type { Shape } from '../src/algo';
+import { runs } from './knobs';
 
 const GROUPS = ['lang-go', 'lang-rust', 'lang-csharp', 'lang-fp'];
 const FRAME_GROUPS = [...GROUPS, 'lang-lua'];
@@ -26,7 +27,7 @@ test('each language has demos', () => {
   for (const g of GROUPS) expect(langDemos().filter((d) => d.group === g).length).toBeGreaterThanOrEqual(5);
 });
 
-describe.each(langDemos(FRAME_GROUPS).flatMap((d) => d.inputs.map((i) => [`${d.slug}/${i.id}`, d.slug, i.data] as const)))('%s', (_name, slug, data) => {
+describe.each(langDemos(FRAME_GROUPS).flatMap(runs))('%s', (_name, slug, data) => {
   const fs = frames(getDemo(slug)!, data);
 
   test('≥ 3 frames, ends done', () => {

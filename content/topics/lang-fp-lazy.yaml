@@ -16,6 +16,7 @@ lessons:
       - title: "Suspended"
         body: "let binds names to thunks; nothing runs yet."
         input: thunks
+        watch: "Flip flag and the other thunk is the one forced."
         check: { metric: manual }
       - title: "Forced once"
         body: "A forced thunk is overwritten with its value."
@@ -29,6 +30,7 @@ lessons:
       - title: "On demand"
         body: "take 3 builds only three cells."
         input: infinite
+        watch: "Take more: one more cell is built per element, never the rest."
         check: { metric: manual }
       - title: "The rest"
         body: "The tail stays an unevaluated thunk."
@@ -42,6 +44,7 @@ lessons:
       - title: "Thunk chain"
         body: "Lazy foldl stores every pending addition."
         input: leak
+        watch: "Switch to foldl' and the thunk chain becomes one number."
         check: { metric: manual }
       - title: "Strictness"
         body: "foldl' forces the accumulator each step."

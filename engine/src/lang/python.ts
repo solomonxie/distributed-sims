@@ -5,9 +5,12 @@ import { codeMapFrames } from '../machine/lib/code';
 import type { CodeMap } from '../machine/lib/code';
 import { box, Film, line, machineDemo, panel, text } from '../machine/lib/draw';
 import type { Row } from '../machine/lib/draw';
-import { traceFrames } from '../machine/lib/trace';
+import { cap, choice, liveGroup, num, number, pick } from '../machine/lib/live';
+import type { P } from '../machine/lib/live';
+import { Mem } from '../machine/lib/mem';
 
 const G = 'lang-python';
+const liveDemo = liveGroup(G);
 const D = (title: string, text: string, code?: string): Detail => ({ title, text, code });
 
 // ---------------- CPython pipeline ----------------
@@ -166,54 +169,76 @@ const OBJ_DETAILS: Record<string, Detail> = {
   out: D('Output', 'What print wrote so far.'),
 };
 
-machineDemo({
-  slug: 'py-objects',
-  title: 'Names, objects & references',
-  group: G,
-  summary: 'Variables are references to heap objects: aliasing, copies, identity vs equality, small-int cache, mutable defaults.',
-  inputs: [
-    { id: 'alias', label: 'Aliasing', data: { k: 'alias' } },
-    { id: 'smallint', label: 'is vs ==', data: { k: 'smallint' } },
-    { id: 'default', label: 'Mutable default', data: { k: 'default' } },
-  ],
-  build({ k }: { k: string }) {
-    const base = { codeTitle: 'main.py', stackTitle: 'names', heapTitle: 'objects', panel: 'Objects', details: OBJ_DETAILS };
-    if (k === 'alias')
-      return traceFrames({
-        ...base,
-        code: ['a = [1, 2]', 'b = a', 'b.append(3)', 'print(a)', 'c = list(a)', 'c.append(4)', 'print(a, c)'],
-        steps: [
-          { line: 0, note: 'a = [1, 2] creates a list object and binds the name a to it.', vars: [['a', '0x7f10', 'write', 'l1']], heap: [['l1', 'list [1, 2]', 'read', 'refcount 1']], out: '', rows: [['objects', 1]] },
-          { line: 1, note: 'b = a copies the reference, not the list. Both names point at one object.', vars: [['a', '0x7f10', undefined, 'l1'], ['b', '0x7f10', 'write', 'l1']], heap: [['l1', 'list [1, 2]', 'read', 'refcount 2']], out: '', rows: [['objects', 1]] },
-          { line: 2, note: 'Mutating through b changes the only list there is.', vars: [['a', '0x7f10', undefined, 'l1'], ['b', '0x7f10', undefined, 'l1']], heap: [['l1', 'list [1, 2, 3]', 'write', 'refcount 2']], out: '', rows: [['objects', 1]] },
-          { line: 3, note: 'So a shows the change too. That is aliasing.', vars: [['a', '0x7f10', 'warn', 'l1'], ['b', '0x7f10', undefined, 'l1']], heap: [['l1', 'list [1, 2, 3]', 'read', 'refcount 2']], out: '[1, 2, 3]', rows: [['objects', 1]] },
-          { line: 4, note: 'list(a) builds a new list, a shallow copy with its own identity.', vars: [['a', '0x7f10', undefined, 'l1'], ['b', '0x7f10', undefined, 'l1'], ['c', '0x7f58', 'write', 'l2']], heap: [['l1', 'list [1, 2, 3]', 'read', 'refcount 2'], ['l2', 'list [1, 2, 3]', 'ok', 'refcount 1']], out: '[1, 2, 3]', rows: [['objects', 2]] },
-          { line: [5, 6], note: 'Appending to c leaves a alone.', vars: [['a', '0x7f10', undefined, 'l1'], ['b', '0x7f10', undefined, 'l1'], ['c', '0x7f58', undefined, 'l2']], heap: [['l1', 'list [1, 2, 3]', 'read', 'refcount 2'], ['l2', 'list [1, 2, 3, 4]', 'write', 'refcount 1']], out: '[1, 2, 3]\n[1, 2, 3] [1, 2, 3, 4]', rows: [['objects', 2]] },
-        ],
-      });
-    if (k === 'smallint')
-      return traceFrames({
-        ...base,
-        code: ['a = 256', 'b = 256', 'print(a is b)', 'x = 257', 'y = int("257")', 'print(x is y, x == y)'],
-        steps: [
-          { line: [0, 1], note: 'CPython pre-creates the ints -5 to 256, so both names get the same cached object.', vars: [['a', '0x9a0', 'write', 'i256'], ['b', '0x9a0', 'write', 'i256']], heap: [['i256', 'int 256', 'ok', 'cached singleton']], out: '', rows: [['int objects', 1]] },
-          { line: 2, note: 'is compares identity, and here it is one object.', vars: [['a', '0x9a0', undefined, 'i256'], ['b', '0x9a0', undefined, 'i256']], heap: [['i256', 'int 256', 'ok', 'cached singleton']], out: 'True', rows: [['a is b', 'True', 'ok']] },
-          { line: [3, 4], note: '257 is outside the cache, and int("257") builds a fresh object at run time.', vars: [['x', '0xb10', 'write', 'i257a'], ['y', '0xb38', 'write', 'i257b']], heap: [['i257a', 'int 257', 'read', 'object 1'], ['i257b', 'int 257', 'read', 'object 2']], out: 'True', rows: [['int objects', 2]] },
-          { line: 5, note: 'Equal values, different objects. Compare values with ==, and keep is for None.', vars: [['x', '0xb10', undefined, 'i257a'], ['y', '0xb38', undefined, 'i257b']], heap: [['i257a', 'int 257', 'read', 'object 1'], ['i257b', 'int 257', 'read', 'object 2']], out: 'True\nFalse True', rows: [['x is y', 'False', 'warn'], ['x == y', 'True', 'ok']] },
-        ],
-      });
-    return traceFrames({
-      ...base,
-      code: ['def add(item, bucket=[]):', '    bucket.append(item)', '    return bucket', '', 'print(add(1))', 'print(add(2))'],
-      steps: [
-        { line: 0, note: 'def runs once and creates the function, evaluating the default [] right then.', vars: [['add', 'function', 'write', 'fn']], heap: [['fn', 'function add', 'read', '__defaults__'], ['dflt', 'list []', 'read', 'one shared list']], out: '', rows: [['default lists', 1]] },
-        { line: [4, 1], note: 'add(1) omits bucket, so it gets the stored default list and appends 1.', vars: [['item', '1'], ['bucket', 'default', 'write', 'dflt']], heap: [['fn', 'function add', 'read', '__defaults__'], ['dflt', 'list [1]', 'write', 'one shared list']], out: '[1]', rows: [['calls', 1]] },
-        { line: [5, 1], note: 'add(2) gets the same list, which already holds 1.', vars: [['item', '2'], ['bucket', 'default', 'fail', 'dflt']], heap: [['fn', 'function add', 'read', '__defaults__'], ['dflt', 'list [1, 2]', 'fail', 'one shared list']], out: '[1]\n[1, 2]', rows: [['calls', 2], ['surprise', 'state leaks', 'fail']] },
-        { line: 0, note: 'Use bucket=None and create the list inside the function. Defaults are evaluated once, not per call.', vars: [['add', 'function', undefined, 'fn']], heap: [['fn', 'function add', 'ok', 'bucket=None'], ['dflt', 'None', 'ok', 'immutable default']], out: '[1]\n[1, 2]', rows: [['fix', 'None sentinel', 'ok']] },
-      ],
-    });
+function alias(p: P): Frame[] {
+  const copy = pick(p.how, ['alias', 'copy'], 'alias') === 'copy';
+  const m = new Mem({ panel: 'Objects', details: OBJ_DETAILS, out: true });
+  m.region('names', 'names').region('heap', 'objects (heap)');
+  m.v('l1', 'heap', 0, 'list', '0x7f10', '[1, 2]').v('a', 'names', 0, 'a', '', '0x7f10', { to: 'l1' });
+  m.snap('a = [1, 2] creates a list object and binds the name a to it. A name is a reference, not a box.', 'a = [1, 2]', { out: '' });
+  if (copy) {
+    m.v('l2', 'heap', 1, 'list', '0x7f80', '[1, 2]').v('c', 'names', 1, 'b', '', '0x7f80', { to: 'l2' });
+    m.snap('list(a) builds a new list with its own identity (a shallow copy) and binds b to it.', 'b = list(a)', { fly: ['l1', 'l2'], out: '', rows: [['a is b', 'False', 'ok']] });
+    m.set('l2', '[1, 2, 3]').snap('Appending through b changes only the copy.', 'b.append(3)', { finger: 'l2', hot: { l1: 'ok' }, out: '' });
+    m.snap('a is still [1, 2]. Shallow means the items are shared, though: a list inside a list would still be one object.', 'print(a, b)', { finger: 'l1', hot: { l1: 'ok' }, out: '[1, 2] [1, 2, 3]', rows: [['a', '[1, 2]', 'ok']] });
+  } else {
+    m.v('b', 'names', 1, 'b', '', '0x7f10', { to: 'l1' });
+    m.snap('b = a copies the reference, not the list. Two names, one object.', 'b = a', { fly: ['a', 'b'], out: '', rows: [['a is b', 'True', 'warn']] });
+    m.set('l1', '[1, 2, 3]').snap('Mutating through b changes the only list there is.', 'b.append(3)', { finger: 'l1', hot: { l1: 'warn' }, out: '' });
+    m.snap('So a shows the change too. That is aliasing; copy with list(a) when you need independence.', 'print(a)', { finger: 'a', hot: { l1: 'warn' }, out: '[1, 2, 3]', rows: [['surprise', 'a changed', 'warn']] });
+  }
+  return m.frames();
+}
+
+function smallint(p: P): Frame[] {
+  const n = pick(p.n, ['256', '257'], '257');
+  const cached = n === '256';
+  const m = new Mem({ panel: 'Identity', details: OBJ_DETAILS, out: true });
+  m.region('names', 'names').region('heap', 'objects (heap)');
+  const first = cached ? 'i256' : 'i257a';
+  m.v(first, 'heap', 0, 'int', cached ? '0x9a0' : '0xb10', n).v('a', 'names', 0, 'a', '', cached ? '0x9a0' : '0xb10', { to: first });
+  m.snap(cached ? 'CPython creates the ints −5 … 256 once at start-up. a is bound to the cached 256.' : '257 is outside the small-int cache, so a gets a fresh int object.', `a = ${n}`, { out: '' });
+  if (cached) m.v('b', 'names', 1, 'b', '', '0x9a0', { to: 'i256' });
+  else m.v('i257b', 'heap', 1, 'int', '0xb40', n).v('b', 'names', 1, 'b', '', '0xb40', { to: 'i257b' });
+  m.snap(cached ? 'int("256") computes 256 at run time, and CPython hands back the same cached object.' : 'int("257") computes 257 at run time and builds another, separate object.', `b = int("${n}")`, { finger: 'b', out: '', rows: [['objects', cached ? 1 : 2]] });
+  m.snap(cached ? 'a is b is True, but only because of a cache. Never rely on it.' : 'a == b compares values: True. a is b compares identity: False.', 'print(a == b, a is b)', { finger: null, hot: cached ? { i256: 'warn' } : { i257a: 'ok', i257b: 'ok' }, out: `True ${cached ? 'True' : 'False'}`, rows: [['==', 'True', 'ok'], ['is', cached ? 'True' : 'False', cached ? 'warn' : 'ok']] });
+  m.snap('Compare values with ==. Keep is for singletons like None.', 'if x is None: …', { finger: null, out: `True ${cached ? 'True' : 'False'}`, rows: [['rule', '== for values', 'ok']] });
+  return m.frames();
+}
+
+function mutableDefault(p: P): Frame[] {
+  const none = pick(p.dflt, ['list', 'none'], 'list') === 'none';
+  const m = new Mem({ panel: 'Defaults', details: OBJ_DETAILS, out: true });
+  m.region('names', 'names').region('heap', 'objects (heap)');
+  m.v('fn', 'heap', 0, 'function add', '0x500', none ? 'defaults: (None,)' : 'defaults: (↓,)');
+  if (!none) m.v('dflt', 'heap', 1, 'default list', '0x540', '[]');
+  m.snap(none ? 'def runs once and stores the default None on the function object.' : 'def runs once, and evaluates the default [] right then: one list, stored on the function.', none ? 'def add(item, bucket=None):' : 'def add(item, bucket=[]):', { out: '' });
+  let out = '';
+  for (const [k, item] of [[0, 1], [1, 2]] as const) {
+    if (none) {
+      m.v(`new${k}`, 'heap', 2 + k, 'list', `0x6${k}0`, `[${item}]`);
+      out += `[${item}]\n`;
+      m.snap(`add(${item}) gets None, so the body makes a fresh list for this call.`, `print(add(${item}))`, { finger: `new${k}`, out: out.trim(), rows: [['lists', k + 1, 'ok']] });
+    } else {
+      m.set('dflt', k ? '[1, 2]' : '[1]');
+      out += k ? '[1, 2]\n' : '[1]\n';
+      m.snap(k ? 'add(2) gets the same stored list, which still holds 1. State leaks from one call into the next.' : 'add(1) omits bucket, so it gets the stored default list and appends 1.', `print(add(${item}))`, { finger: 'dflt', hot: { dflt: k ? 'fail' : 'warn' }, out: out.trim(), rows: [['default', k ? '[1, 2]' : '[1]', k ? 'fail' : 'warn']] });
+    }
+  }
+  m.snap(none ? 'Each call got its own list. Use None as the default and create the object inside.' : 'Defaults are evaluated once, at def time. Use None and create the list inside the function.', none ? 'if bucket is None: bucket = []' : 'def add(item, bucket=None): …', { finger: null, out: out.trim(), rows: [['fix', 'bucket=None', 'ok']] });
+  return m.frames();
+}
+
+liveDemo(
+  'py-objects',
+  'Names, objects & references',
+  'Variables are references to heap objects: aliasing vs a copy, identity vs equality (try 256 and 257), and the mutable default shared by every call.',
+  {
+    alias: ['Aliasing', alias],
+    smallint: ['is vs ==', smallint],
+    default: ['Mutable default', mutableDefault],
   },
-});
+  [choice('how', 'b =', ['alias', 'copy'], 'alias', { for: ['alias'], labels: ['a', 'list(a)'] }), choice('n', 'value', ['256', '257'], '257', { for: ['smallint'] }), choice('dflt', 'default', ['list', 'none'], 'list', { for: ['default'], labels: ['bucket=[]', 'bucket=None'] })],
+);
 
 // ---------------- memory: refcount, cyclic GC, generations, pymalloc ----------------
 const GC_DETAILS: Record<string, Detail> = {
@@ -533,40 +558,66 @@ const GEN_DETAILS: Record<string, Detail> = {
   out: D('Output', 'What print wrote so far.'),
 };
 
-machineDemo({
-  slug: 'py-generator',
-  title: 'Generators & lazy pipelines',
-  group: G,
-  summary: 'yield suspends a frame on the heap; next() resumes it; chained generator expressions process a billion items in constant memory.',
-  inputs: [
-    { id: 'gen', label: 'yield', data: { k: 'gen' } },
-    { id: 'lazy', label: 'Lazy pipeline', data: { k: 'lazy' } },
-  ],
-  build({ k }: { k: string }) {
-    const base = { codeTitle: 'main.py', stackTitle: 'names', heapTitle: 'objects', panel: 'Generators', details: GEN_DETAILS };
-    if (k === 'gen')
-      return traceFrames({
-        ...base,
-        code: ['def count(n):', '    i = 0', '    while i < n:', '        yield i', '        i += 1', '', 'g = count(2)', 'print(next(g))', 'print(next(g))'],
-        steps: [
-          { line: 6, note: 'Calling count(2) runs none of the body. It returns a generator object holding a fresh frame.', vars: [['g', 'generator', 'write', 'gen']], heap: [['gen', 'count frame', 'read', 'not started']], out: '', rows: [['state', 'GEN_CREATED']] },
-          { line: [7, 3], note: 'next(g) runs the body until yield i, then pauses with the frame kept alive on the heap.', vars: [['g', 'generator', undefined, 'gen']], heap: [['gen', 'count frame', 'write', 'i = 0 · at yield']], out: '0', rows: [['state', 'GEN_SUSPENDED']] },
-          { line: [8, 4, 3], note: 'The next call resumes right after the yield, with i still in the frame.', vars: [['g', 'generator', undefined, 'gen']], heap: [['gen', 'count frame', 'write', 'i = 1 · at yield']], out: '0\n1', rows: [['state', 'GEN_SUSPENDED']] },
-          { line: 2, note: 'A third next(g) falls off the end and raises StopIteration, which is how a for loop knows to stop.', vars: [['g', 'generator', undefined, 'gen']], heap: [['gen', 'count frame', 'visited', 'finished']], out: '0\n1', rows: [['state', 'GEN_CLOSED']] },
-        ],
-      });
-    return traceFrames({
-      ...base,
-      code: ['nums = range(10**9)', 'sq = (x * x for x in nums)', 'evens = (y for y in sq if y % 2 == 0)', 'print(next(evens))'],
-      steps: [
-        { line: 0, note: 'range(10**9) stores three numbers, not a billion ints.', vars: [['nums', 'range', 'write', 'rng']], heap: [['rng', 'range(0, 10**9)', 'read', '48 bytes']], out: '', rows: [['memory', '48 B']] },
-        { line: [1, 2], note: 'Each generator expression is a paused frame that will pull from the one before it.', vars: [['nums', 'range', undefined, 'rng'], ['sq', 'genexpr', 'write', 'gsq'], ['evens', 'genexpr', 'write', 'gev']], heap: [['rng', 'range(0, 10**9)', 'read', '48 bytes'], ['gsq', 'sq frame', 'read', 'not started'], ['gev', 'evens frame', 'read', 'not started']], out: '', rows: [['items computed', 0]] },
-        { line: 3, note: 'next(evens) pulls from sq, which pulls 0 from nums, and 0 passes the filter.', vars: [['nums', 'range', undefined, 'rng'], ['sq', 'genexpr', undefined, 'gsq'], ['evens', 'genexpr', 'ok', 'gev']], heap: [['rng', 'range(0, 10**9)', 'read', '48 bytes'], ['gsq', 'sq frame', 'write', 'x = 0'], ['gev', 'evens frame', 'write', 'y = 0']], out: '0', rows: [['items computed', 1, 'ok']] },
-        { line: 3, note: 'Only one item was ever computed. Memory stays constant however long the pipeline runs.', vars: [['nums', 'range', undefined, 'rng'], ['sq', 'genexpr', undefined, 'gsq'], ['evens', 'genexpr', undefined, 'gev']], heap: [['rng', 'range(0, 10**9)', 'ok', '48 bytes'], ['gsq', 'sq frame', 'ok', 'paused'], ['gev', 'evens frame', 'ok', 'paused']], out: '0', rows: [['memory', 'O(1)', 'ok']] },
-      ],
-    });
+function genScene(p: P): Frame[] {
+  const calls = num(p.calls, 2, 1, 3);
+  const m = new Mem({ panel: 'Generators', details: GEN_DETAILS, out: true });
+  m.region('names', 'names').region('heap', 'objects (heap)');
+  m.v('gen', 'heap', 0, 'count frame', '0x700', 'not started').v('g', 'names', 0, 'g', '', '0x700', { to: 'gen' });
+  m.snap('Calling count(2) runs none of the body. It returns a generator object holding a fresh, unstarted frame.', 'g = count(2)', { out: '' });
+  let out = '';
+  for (let k = 0; k < calls; k++) {
+    if (k < 2) {
+      out += `${k}\n`;
+      m.set('gen', `i = ${k} · at yield`);
+      m.snap(k ? 'next(g) resumes right after the yield, with i still in the frame, runs i += 1 and yields 1.' : 'next(g) runs the body up to yield i, then pauses. The frame stays alive on the heap.', 'print(next(g))', { finger: 'gen', hot: { gen: 'write' }, out: out.trim(), rows: [['state', 'suspended'], ['i', k]] });
+    } else {
+      m.free('gen');
+      m.snap('A third next(g) runs off the end of the loop and raises StopIteration: that is how a for loop knows to stop.', 'next(g)   # StopIteration', { finger: 'gen', hot: { gen: 'fail' }, out: `${out.trim()}\nStopIteration`, rows: [['state', 'closed', 'muted']] });
+    }
+  }
+  m.snap('A generator is a function whose frame outlives each call: local state kept between values, with no class needed.', 'for x in count(2): …', { finger: null, out: out.trim(), rows: [['memory', 'one frame', 'ok']] });
+  return m.frames();
+}
+
+function lazyScene(p: P): Frame[] {
+  const pulls = num(p.pulls, 1, 1, 3);
+  const f = new Film();
+  const evens = [0, 4, 16];
+  let computed = 0;
+  const outs: number[] = [];
+  const scene = (stmt: string, hot?: number): Shape[] => {
+    const s: Shape[] = [...cap(stmt)];
+    const stage = (id: string, y: number, label: string, sub: string, tone: Tone) => s.push(box(id, 60, y, 560, 110, label, { sub, mono: true, tone }));
+    stage('rng', 140, 'nums = range(10**9)', '48 bytes, not a billion ints', 'muted');
+    stage('gsq', 300, 'sq = (x * x for x in nums)', hot !== undefined ? `x = ${hot}` : 'paused', hot !== undefined ? 'current' : 'muted');
+    stage('gev', 460, 'evens = (y for y in sq if …)', hot !== undefined ? 'pulling' : 'paused', hot !== undefined ? 'current' : 'muted');
+    s.push(line('l1', 340, 252, 340, 298, 'muted', { width: 3 }), line('l2', 340, 412, 340, 458, 'muted', { width: 3 }));
+    s.push(text('ot', 680, 150, 'printed', { align: 'left', size: 24, bold: true, tone: 'muted' }));
+    outs.forEach((v, i) => s.push(box(`o${i}`, 680, 170 + i * 100, 280, 80, String(v), { mono: true, tone: 'ok' })));
+    s.push(box('cnt', 60, 640, 900, 90, `items computed so far: ${computed}  ·  memory: constant`, { mono: true, tone: 'ok' }));
+    return s;
+  };
+  f.add('Each generator expression is a paused frame that will pull from the one before it. Nothing has been computed yet.', scene('nums → sq → evens'), panel('Pipeline', [['computed', 0, 'ok']]));
+  for (let k = 0; k < pulls; k++) {
+    const x = [0, 2, 4][k];
+    computed += k ? 2 : 1;
+    outs.push(evens[k]);
+    f.add(k ? `next(evens) resumes: sq yields ${x - 1}² = ${(x - 1) ** 2}, odd, so evens pulls again and gets ${x}² = ${x * x}.` : 'next(evens) pulls from sq, which pulls 0 from nums. 0² = 0 passes the filter.', scene('print(next(evens))', x), panel('Pipeline', [['computed', computed], ['printed', outs.length]]));
+  }
+  f.add(`Only ${computed} item${computed > 1 ? 's were' : ' was'} ever computed out of a billion. Memory stays constant however long the pipeline runs.`, scene('# a billion items, one at a time'), panel('Pipeline', [['computed', computed, 'ok'], ['list version', '~8 GB', 'fail']]));
+  return f.frames;
+}
+
+liveDemo(
+  'py-generator',
+  'Generators & lazy pipelines',
+  'yield suspends a frame on the heap and next() resumes it (call it once too often), and chained generator expressions pulling one item at a time from a billion.',
+  {
+    gen: ['yield', genScene],
+    lazy: ['Lazy pipeline', lazyScene],
   },
-});
+  [number('calls', 'next(g) calls', 1, 3, 2, { for: ['gen'] }), number('pulls', 'next(evens) calls', 1, 3, 1, { for: ['lazy'] })],
+);
 
 // ---------------- imports ----------------
 const IMPORT_DETAILS: Record<string, Detail> = {

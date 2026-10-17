@@ -1,25 +1,12 @@
-// C# / .NET (group lang-csharp): CLR & IL, tiered JIT & AOT, GC generations, value vs reference & boxing, async, LINQ, assemblies & NuGet.
+// C# / .NET (group lang-csharp): CLR & IL, tiered JIT & AOT, GC generations, async, LINQ, assemblies & NuGet.
+// Value vs reference types and boxing live in csharp-memory.ts.
 import type { Detail } from '../algo/frames';
 import { boardDemo, N } from '../machine/lib/board';
 import type { Board } from '../machine/lib/board';
-import { machineDemo } from '../machine/lib/draw';
-import { traceFrames } from '../machine/lib/trace';
-import type { Trace } from '../machine/lib/trace';
 
 const G = 'lang-csharp';
 const D = (title: string, text: string, code?: string): Detail => ({ title, text, code });
 const demo = (slug: string, title: string, summary: string, boards: Record<string, [string, Board]>) => boardDemo(G, slug, title, summary, boards);
-
-function traceDemo(slug: string, title: string, summary: string, traces: Record<string, [string, Trace]>) {
-  machineDemo({
-    slug,
-    title,
-    group: G,
-    summary,
-    inputs: Object.entries(traces).map(([id, [label]]) => ({ id, label, data: { k: id } })),
-    build: ({ k }: { k: string }) => traceFrames(traces[k][1]),
-  });
-}
 
 // ---------------- CLR, JIT, AOT ----------------
 const CLR_NODES = [
@@ -112,52 +99,6 @@ demo('cs-gc', '.NET garbage collector', 'Generational GC: gen 0/1/2 promotion, t
       { note: 'Background GC marks gen 2 concurrently while gen 0 and gen 1 collections keep running, so pauses stay short.', hot: { bg: 'ok', g2: 'current' }, sub: { mode: 'server: heap per core' }, rows: [['gen 2 pause', 'short', 'ok']] },
       { note: 'Measure before tuning: dotnet-counters shows GC counts, heap sizes and time in GC.', hot: { bg: 'current' }, sub: { bg: 'dotnet-counters monitor -p <pid>' }, rows: [['tool', 'dotnet-counters']] },
     ]),
-  ],
-});
-
-// ---------------- value vs reference, boxing ----------------
-traceDemo('cs-types', 'Value types, reference types & boxing', 'struct copies vs class references, and how boxing allocates when a value type becomes object.', {
-  value: [
-    'struct (value)',
-    {
-      codeTitle: 'Program.cs',
-      code: ['struct Point { public int X, Y; }', 'var a = new Point { X = 1, Y = 2 };', 'var b = a;          // copies both fields', 'b.X = 9;', 'Console.WriteLine(a.X);   // 1'],
-      details: { a: D('Value type', 'A struct is stored inline: on the stack, or inside the object or array holding it. Assignment copies the fields.', 'readonly record struct Point(int X, int Y);\n// keep structs small and immutable') },
-      steps: [
-        { note: 'a is a struct, stored inline in the stack frame.', line: 1, vars: [['a', '{X=1, Y=2}', 'write']], out: '' },
-        { note: 'b = a copies the whole value: two independent Points.', line: 2, vars: [['a', '{X=1, Y=2}'], ['b', '{X=1, Y=2}', 'write']], out: '' },
-        { note: 'Changing b leaves a untouched.', line: 3, vars: [['a', '{X=1, Y=2}'], ['b', '{X=9, Y=2}', 'write']], out: '' },
-        { note: 'No heap allocation and no GC work, the reason small structs are fast.', line: 4, vars: [['a', '{X=1, Y=2}'], ['b', '{X=9, Y=2}']], out: '1' },
-      ],
-    },
-  ],
-  reference: [
-    'class (reference)',
-    {
-      codeTitle: 'Program.cs',
-      code: ['class Point { public int X, Y; }', 'var a = new Point { X = 1, Y = 2 };', 'var b = a;          // copies the reference', 'b.X = 9;', 'Console.WriteLine(a.X);   // 9'],
-      details: { p: D('Reference type', 'A class instance lives on the managed heap with a header and a method-table pointer. Variables hold references to it.') },
-      steps: [
-        { note: 'new allocates the object on the heap, and a holds a reference to it.', line: 1, vars: [['a', 'ref', 'accent', 'p']], heap: [['p', 'Point {X=1, Y=2}', 'write', 'header + method table + fields']], out: '' },
-        { note: 'b = a copies the reference, not the object.', line: 2, vars: [['a', 'ref', 'accent', 'p'], ['b', 'ref', 'accent', 'p']], heap: [['p', 'Point {X=1, Y=2}', 'read']], out: '' },
-        { note: 'Writing through b changes the one shared object.', line: 3, vars: [['a', 'ref', 'accent', 'p'], ['b', 'ref', 'accent', 'p']], heap: [['p', 'Point {X=9, Y=2}', 'write']], out: '' },
-        { note: 'So a.X prints 9. When no reference remains, the GC reclaims it.', line: 4, vars: [['a', 'ref', 'accent', 'p'], ['b', 'ref', 'accent', 'p']], heap: [['p', 'Point {X=9, Y=2}', 'read']], out: '9' },
-      ],
-    },
-  ],
-  boxing: [
-    'Boxing',
-    {
-      codeTitle: 'Program.cs',
-      code: ['int n = 42;', 'object o = n;        // box: heap copy', 'n = 7;', 'Console.WriteLine(o); // 42', 'var list = new ArrayList { 1, 2 }; // boxes each', 'var ok = new List<int> { 1, 2 };   // no boxing'],
-      details: { box: D('Boxing', 'Converting a value type to object or an interface allocates a heap copy. Unboxing copies it back out.', 'object o = 42;      // box\nint n = (int)o;     // unbox\nIComparable c = 5;  // box too') },
-      steps: [
-        { note: 'n is a plain int on the stack.', line: 0, vars: [['n', '42', 'write']], out: '' },
-        { note: 'Assigning it to object boxes it: a new heap object holding a copy of 42.', line: 1, vars: [['n', '42'], ['o', 'ref', 'accent', 'box']], heap: [['box', 'boxed int 42', 'write', '24 B on x64']], out: '' },
-        { note: 'The box is a copy, so changing n doesn’t affect it.', line: [2, 3], vars: [['n', '7', 'write'], ['o', 'ref', 'accent', 'box']], heap: [['box', 'boxed int 42', 'read']], out: '42' },
-        { note: 'Non-generic collections box every element, while List<int> stores ints inline. Boxing in hot loops shows up as GC pressure.', line: [4, 5], vars: [['n', '7'], ['o', 'ref', 'accent', 'box']], heap: [['box', 'boxed int 42', 'read'], ['b1', 'boxed 1', 'warn'], ['b2', 'boxed 2', 'warn']], out: '42' },
-      ],
-    },
   ],
 });
 

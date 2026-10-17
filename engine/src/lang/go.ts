@@ -1,25 +1,11 @@
-// Go (group lang-go): scheduler, channels, GC, escape analysis & stacks, interfaces, packages, modules.
+// Go (group lang-go): scheduler, channels, GC, interfaces, packages, modules. Escape analysis & stacks live in go-memory.ts.
 import type { Detail, Tone } from '../algo/frames';
 import { boardDemo, N } from '../machine/lib/board';
 import type { Board } from '../machine/lib/board';
-import { machineDemo } from '../machine/lib/draw';
-import { traceFrames } from '../machine/lib/trace';
-import type { Trace } from '../machine/lib/trace';
 
 const G = 'lang-go';
 const D = (title: string, text: string, code?: string): Detail => ({ title, text, code });
 const demo = (slug: string, title: string, summary: string, boards: Record<string, [string, Board]>) => boardDemo(G, slug, title, summary, boards);
-
-function traceDemo(slug: string, title: string, summary: string, traces: Record<string, [string, Trace]>) {
-  machineDemo({
-    slug,
-    title,
-    group: G,
-    summary,
-    inputs: Object.entries(traces).map(([id, [label]]) => ({ id, label, data: { k: id } })),
-    build: ({ k }: { k: string }) => traceFrames(traces[k][1]),
-  });
-}
 
 // ---------------- scheduler ----------------
 const SCHED_NODES = [
@@ -197,56 +183,6 @@ demo('go-gc', 'Garbage collector', 'Concurrent tri-colour mark & sweep, the writ
         { note: 'The pacer starts marking early so the cycle finishes before the heap overshoots.', hot: { goal: 'warn', cpu: 'current' }, sub: { alloc: '45 MB', cpu: '~25% while marking' }, rows: [['heap', '95 MB', 'warn']] },
         { note: 'GOGC=200 means fewer cycles and more memory. GOGC=50 means the opposite.', hot: { goal: 'current' }, sub: { goal: '150 MB (GOGC=200)' }, rows: [['trade-off', 'CPU vs RAM']] },
         { note: 'In a container, set GOMEMLIMIT a bit below the limit so GC works harder instead of the process being OOM-killed.', hot: { lim: 'ok' }, sub: { lim: '400 MiB soft cap' }, rows: [['container limit', '512 MiB']] },
-      ],
-    },
-  ],
-});
-
-// ---------------- escape analysis & stacks ----------------
-traceDemo('go-escape', 'Escape analysis & growable stacks', 'Values stay on the goroutine stack unless they escape; stacks start at 2 KB and grow by copying.', {
-  stack: [
-    'Stays on the stack',
-    {
-      codeTitle: 'main.go',
-      code: ['func add(a, b int) int {', '  s := a + b   // stays on the stack', '  return s', '}', 'func main() {', '  x := add(2, 3)', '  fmt.Println(x)', '}'],
-      details: { s: D('Local on the stack', 'The compiler proved s doesn’t outlive add, so it lives in the frame and costs the GC nothing.', '$ go build -gcflags=-m\n./main.go:2: s does not escape') },
-      steps: [
-        { note: 'main calls add. x will live in main’s stack frame.', line: 5, vars: [['x', '?']], out: '' },
-        { note: 'add gets its own frame holding a, b and s. No heap allocation at all.', line: 1, vars: [['x', '?'], ['a', '2'], ['b', '3'], ['s', '5', 'write']], out: '' },
-        { note: 'add returns; its frame is simply popped.', line: 2, vars: [['x', '5', 'write']], out: '' },
-        { note: 'Stack values are free to allocate and free to discard. Nothing for the GC to track.', line: 6, vars: [['x', '5']], out: '5' },
-      ],
-    },
-  ],
-  escape: [
-    'Escapes to the heap',
-    {
-      codeTitle: 'main.go',
-      code: ['type User struct{ Name string }', 'func newUser(n string) *User {', '  u := User{Name: n}', '  return &u     // u escapes', '}', 'func main() {', '  p := newUser("ana")', '  fmt.Println(p.Name)', '}'],
-      details: {
-        u: D('Escaped value', 'Returning &u means u must outlive newUser, so the compiler allocates it on the heap. Legal in Go, unlike C.', '$ go build -gcflags=-m\n./main.go:3: moved to heap: u'),
-        p: D('Pointer', 'p holds the heap address. When no pointer reaches the object any more, the GC frees it.'),
-      },
-      steps: [
-        { note: 'In C, returning the address of a local is a bug. The Go compiler instead checks whether u outlives newUser.', line: [2, 3], vars: [['n', '"ana"']], out: '' },
-        { note: 'It does, so escape analysis puts u on the heap.', line: 2, vars: [['n', '"ana"']], heap: [['u', 'User{Name: "ana"}', 'write', 'moved to heap']], out: '' },
-        { note: 'main’s p points to the heap object after newUser’s frame is gone.', line: 6, vars: [['p', '0xc000010250', 'accent', 'u']], heap: [['u', 'User{Name: "ana"}', 'read']], out: '' },
-        { note: 'Fewer escapes mean less GC work. Check with go build -gcflags=-m.', line: 7, vars: [['p', '0xc000010250', 'accent', 'u']], heap: [['u', 'User{Name: "ana"}', 'read']], out: 'ana' },
-      ],
-    },
-  ],
-  growth: [
-    'Stack growth',
-    {
-      codeTitle: 'main.go',
-      heapTitle: 'goroutine stack',
-      code: ['func depth(n int) int {', '  var buf [512]byte // ~560 B per frame', '  if n == 0 { return 0 }', '  return 1 + depth(n-1)', '}', 'go depth(10)  // starts with a 2 KB stack'],
-      details: { s1: D('Goroutine stack', 'Starts at 2 KB and lives on the heap. Grows by doubling and copying; can shrink during GC.'), s2: D('Grown stack', 'The runtime allocated twice the space, copied every frame, and fixed up pointers into the stack.') },
-      steps: [
-        { note: 'A new goroutine gets a 2 KB stack, not the 1 MB or more an OS thread reserves.', line: 5, vars: [['n', '10']], heap: [['s1', 'stack 2 KB', 'ok', '0 / 2048 B used']] },
-        { note: 'Each call needs about 560 bytes, so the fourth frame won’t fit.', line: 3, vars: [['n', '7']], heap: [['s1', 'stack 2 KB', 'warn', '1680 / 2048 B used']] },
-        { note: 'The function prologue sees the limit, and the runtime allocates a 4 KB stack and copies all frames over.', line: 0, vars: [['n', '7']], heap: [['s1', 'old 2 KB', 'visited', 'freed'], ['s2', 'stack 4 KB', 'write', '2240 / 4096 B used']] },
-        { note: 'Pointers into the stack are fixed up during the copy, which is why Go never lets C keep one. Deep recursion just keeps doubling.', line: 3, vars: [['n', '3']], heap: [['s2', 'stack 8 KB', 'write', '4480 / 8192 B used']] },
       ],
     },
   ],

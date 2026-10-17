@@ -16,6 +16,7 @@ lessons:
       - title: "Pending work"
         body: "Each frame waits to add its x after the inner call returns."
         input: stack
+        watch: "Lengthen the list: one more frame per element."
         check: { metric: manual }
       - title: "Stack depth"
         body: "Depth equals list length, so huge inputs overflow."
@@ -29,6 +30,7 @@ lessons:
       - title: "Accumulator"
         body: "The running total travels as an argument."
         input: tail
+        watch: "Lengthen the list: still one frame."
         check: { metric: manual }
       - title: "Constant stack"
         body: "A tail call reuses the frame, like a jump."
@@ -42,6 +44,7 @@ lessons:
       - title: "Right vs left"
         body: "foldr nests to the right, foldl to the left."
         input: folds
+        watch: "Switch − to + and foldl and foldr agree."
         check: { metric: manual }
       - title: "Associativity"
         body: "Only associative operations give the same answer both ways."

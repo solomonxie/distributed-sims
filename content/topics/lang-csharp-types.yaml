@@ -16,6 +16,7 @@ lessons:
       - title: "Value semantics"
         body: "b = a copies every field; changing b leaves a alone."
         input: value
+        watch: "Flip Point to a class and the same code starts sharing one object."
         check: { metric: manual }
 
   - id: classes
@@ -26,6 +27,7 @@ lessons:
       - title: "Reference semantics"
         body: "b = a copies the reference, so both names reach one heap object."
         input: reference
+        watch: "Flip Point to a struct and b.X = 9 no longer touches a."
         check: { metric: manual }
 
   - id: boxing
@@ -35,7 +37,7 @@ lessons:
     steps:
       - title: "Hidden allocations"
         body: "object o = 42 allocates a box on the heap. Non-generic collections box every element."
-        watch: "The box holds a copy, so later changes to n don’t show."
+        watch: "Switch ArrayList to List<int> and the per-item boxes disappear."
         input: boxing
         check: { metric: manual }
       - title: "Avoid in hot paths"
