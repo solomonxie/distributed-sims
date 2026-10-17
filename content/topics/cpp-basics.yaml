@@ -5,7 +5,7 @@ language: cpp
 icon: braces
 order: 1
 summary: The language from zero. Types, variables, control flow, functions, arrays, strings, pointers, headers, I/O, exceptions and time.
-info: Simple lessons step through a small program and show the variables, heap blocks and output. The hard ones (pointers above all) draw memory itself instead. Every variable is a box with an address, pointers are arrows, and each * is a hop you can watch. Tap any box marked i for a plain explanation and a short code sample.
+info: Lessons draw what the program does rather than list it. Knobs under the picture change the numbers or the way an argument is passed, and the picture is rebuilt on the spot. The hard ones (pointers above all) draw memory itself. Every variable is a box with an address, pointers are arrows, and each * is a hop you can watch. Tap any box marked i for a plain explanation and a short code sample.
 algos: [basics-types, basics-vars, basics-control, basics-functions, basics-arrays, basics-pointers, basics-structs, basics-headers, basics-preprocessor, basics-io, basics-exceptions, basics-chrono]
 lessons:
   - id: types
@@ -20,11 +20,12 @@ lessons:
         check: { metric: manual }
       - title: Overflow
         body: Unsigned math wraps around; signed overflow is undefined behaviour. Widen before you compute.
-        watch: n − 1 with n = 0 is the classic loop bug.
+        watch: "Set x and the step with the knobs: the needle crosses the red seam whenever the result doesn't fit in 8 bits."
         input: overflow
         check: { metric: manual }
       - title: Conversions
         body: 7 / 2 is 3. Convert an operand first, prefer {} to catch narrowing, and use static_cast when you mean it.
+        watch: Change a and b. Full rows are what int division keeps, the dashed row is what it throws away.
         input: conversion
         check: { metric: manual }
 
@@ -44,6 +45,7 @@ lessons:
       - title: Scope
         body: A variable lives until the closing brace of its block. Inner names can shadow outer ones.
         input: scope
+        watch: "Switch between int x = 10 and x = 10 inside the block: one makes a second box, the other changes the first."
         check: { metric: manual }
 
   - id: control
@@ -53,14 +55,17 @@ lessons:
     steps:
       - title: Loops
         body: for (init; cond; step), while, do-while. continue skips to the next iteration, break leaves the loop.
+        watch: Change n, what continue skips and where break hits, then step through the track.
         input: loop
         check: { metric: manual }
       - title: switch
         body: Jumps to a case label and falls through unless you break. Use enum class and let the compiler flag missing cases.
+        watch: Pick op and what case Sub does. With a = -a, watch execution fall through into case Mul.
         input: switch
         check: { metric: manual }
       - title: range-for
         body: "for (auto& x : v) edits elements, for (const auto& x : v) reads them without copying."
+        watch: Switch x between int x, int& x and const auto& and watch which box changes.
         input: rangefor
         check: { metric: manual }
 
@@ -71,10 +76,12 @@ lessons:
     steps:
       - title: By value
         body: The parameter is a copy. Changes inside don't reach the caller.
+        watch: Flip the argument to vector<int> to see what a by-value copy really costs.
         input: value
         check: { metric: manual }
       - title: By reference
         body: T& aliases the caller's object. const T& passes big objects without copying.
+        watch: "Flip the argument to vector<int>: the arrow is the same, the copy is gone."
         input: reference
         check: { metric: manual }
       - title: By pointer
@@ -94,6 +101,7 @@ lessons:
       - title: C arrays
         body: Fixed size, no bounds checks, and they decay to a pointer that forgets the length.
         input: carray
+        watch: "Push the index past 3 and watch the write land in n, then in the return address."
         check: { metric: manual }
       - title: std::array and std::vector
         body: std::array for fixed sizes, std::vector for everything else. at() checks bounds.
@@ -102,6 +110,7 @@ lessons:
       - title: Strings
         body: C strings are char arrays ending in \0 and overflow easily. Use std::string; pass .c_str() to C APIs.
         input: strings
+        watch: "Size small with the knob. Below 6 bytes, strcpy keeps writing into the next variable."
         check: { metric: manual }
 
   - id: pointers
@@ -202,6 +211,7 @@ lessons:
       - title: stringstream
         body: Parse or build strings with the same stream operators.
         input: sstream
+        watch: "Pick a line with a space in the path or letters in the code and watch the stream get stuck."
         check: { metric: manual }
       - title: Files
         body: ofstream and ifstream close themselves. Binary mode writes raw bytes, tied to layout and byte order.
@@ -216,10 +226,12 @@ lessons:
       - title: throw and catch
         body: throw abandons the function; the nearest matching catch handles it. Catch by const reference.
         input: throw
+        watch: 'Try parse("42"), parse("") and parse("abc"): one returns, two unwind to the catch.'
         check: { metric: manual }
       - title: Unwinding
         body: Destructors of local objects run as the stack unwinds. Raw new/delete leaks, RAII types don't.
         input: unwind
+        watch: "Flip raw to vector<int> and the leaked block is freed during unwinding too."
         check: { metric: manual }
 
   - id: chrono

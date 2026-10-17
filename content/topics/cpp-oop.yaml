@@ -5,7 +5,7 @@ language: cpp
 icon: boxes
 order: 3
 summary: Classes that keep their invariants. Constructors, lifetime order, copy and move, inheritance, virtual dispatch, interfaces and operators.
-info: A C++ class is data plus the rules for changing it, and its constructors and destructor decide exactly when resources are acquired and released. These lessons trace object lifetimes step by step and draw object layouts, so inheritance, slicing, virtual calls and the rule of 0/3/5 become things you can see rather than rules to memorise.
+info: A C++ class is data plus the rules for changing it, and its constructors and destructor decide exactly when resources are acquired and released. These lessons draw objects in memory, with knobs under the picture that flip the one detail that makes or breaks them (a virtual keyword, a copy constructor, a declaration order), so inheritance, slicing, virtual calls and the rule of 0/3/5 become things you can see rather than rules to memorise.
 algos: [oop-class, oop-ctors, oop-lifetime, oop-copy, oop-inherit, oop-virtual, oop-multiple, oop-rtti, oop-operators]
 lessons:
   - id: classes
@@ -16,14 +16,17 @@ lessons:
       - title: Encapsulation
         body: Private data, public functions that enforce the invariant. const member functions promise not to modify.
         input: encaps
+        watch: "Try deposit(500), deposit(-9) and a direct write to cents_: only one path changes the balance."
         check: { metric: manual }
       - title: this
         body: Every member function gets a hidden pointer to its object. Returning *this enables chaining.
         input: this
+        watch: "Switch add to return Counter instead of Counter& and watch the second add land on a throwaway copy."
         check: { metric: manual }
       - title: static members
         body: One variable for the whole class, and functions called without an object.
         input: static
+        watch: "Change how many objects you create: they all bump the one shared counter."
         check: { metric: manual }
 
   - id: constructors
@@ -34,6 +37,7 @@ lessons:
       - title: Initialiser lists
         body: Members are built in declaration order, whatever order you list them. -Wreorder catches mismatches.
         input: initlist
+        watch: "Flip which member is declared first. The init list order never matters, the declaration order does."
         check: { metric: manual }
       - title: Delegating constructors
         body: One constructor forwards to another so setup lives in one place.
@@ -52,6 +56,7 @@ lessons:
       - title: Base, members, body
         body: Construction goes base → members → body; destruction is the exact reverse.
         input: order
+        watch: "Add members with the knob: they are built top to bottom and destroyed bottom to top."
         check: { metric: manual }
       - title: Scopes
         body: Stack objects die at the end of their block, last constructed first destroyed.
@@ -60,6 +65,7 @@ lessons:
       - title: Temporaries
         body: A temporary dies at the semicolon. Pointers or views into it dangle.
         input: temps
+        watch: "Keep the result as c_str(), const& or a value: only one of them dangles."
         check: { metric: manual }
 
   - id: copy-control
@@ -70,10 +76,12 @@ lessons:
       - title: The shallow-copy bug
         body: A class owning a raw pointer gets a copy that shares it, and both destructors free it.
         input: shallow
+        watch: "Switch the copy constructor to deep copy and the double free disappears."
         check: { metric: manual }
       - title: Rule of three/five
         body: Write the destructor, copy and move operations together. Copy-and-swap makes assignment safe.
         input: deep
+        watch: "Compare Buf c = a with std::move(a): one allocates and copies 1 MB, the other passes a pointer."
         check: { metric: manual }
       - title: Rule of zero
         body: Store resources in vector, string or unique_ptr and write none of the five.
@@ -105,7 +113,7 @@ lessons:
     steps:
       - title: Dynamic dispatch
         body: A virtual call through a base pointer runs the derived version, chosen at run time.
-        watch: See C++ under the hood → Virtual dispatch for the vtable.
+        watch: "Turn virtual off and both shapes run Shape::area: the static type wins."
         input: dispatch
         check: { metric: manual }
       - title: override and final
@@ -115,6 +123,7 @@ lessons:
       - title: Virtual destructors
         body: Deleting through a base pointer needs a virtual destructor, or the derived part leaks.
         input: vdtor
+        watch: "Make ~Base() virtual and ~File runs, closing the file and freeing the path."
         check: { metric: manual }
 
   - ref: machine-cpp/virtual
@@ -158,6 +167,7 @@ lessons:
       - title: Checked downcasts
         body: dynamic_cast returns nullptr (pointers) or throws (references) when the type doesn't match.
         input: cast
+        watch: "Point s at a Square and try each cast: nullptr, bad_cast, or a silent wrong answer."
         check: { metric: manual }
       - title: Prefer virtual functions
         body: Many dynamic_casts usually mean behaviour that belongs in a virtual method.

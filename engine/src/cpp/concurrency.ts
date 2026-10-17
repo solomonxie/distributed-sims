@@ -1,10 +1,10 @@
 // Concurrency (group cpp-concurrency): threads, races & mutexes, deadlock, condition variables, futures, pools, atomics, shared_mutex, design.
-import type { Detail, Frame, Tone } from '../algo/frames';
-import { machineDemo } from '../machine/lib/draw';
+import type { Detail, Frame, Shape, Tone } from '../algo/frames';
+import { box, Film, machineDemo, panel, text } from '../machine/lib/draw';
+import { cap, choice, liveDemo, pick } from '../machine/lib/live';
+import type { P } from '../machine/lib/live';
 import { boardFrames, N } from '../machine/lib/board';
 import type { Board } from '../machine/lib/board';
-import { traceFrames } from '../machine/lib/trace';
-import type { Trace } from '../machine/lib/trace';
 import { Mem } from '../machine/lib/mem';
 
 const G = 'cpp-concurrency';
@@ -59,60 +59,114 @@ function demo(slug: string, title: string, summary: string, inputs: Record<strin
   });
 }
 const B = (b: Board) => () => boardFrames(b);
-const T = (t: Trace) => () => traceFrames(t);
 
 // ---------------- threads ----------------
-demo('conc-threads', 'Threads & lifetime', 'std::thread start and join, detach and dangling references, std::jthread with stop_token.', {
-  join: [
-    'join',
-    T({
-      code: ['void hello(int id) {', '  std::cout << "hi from " << id << "\\n";', '}', 'int main() {', '  std::thread t1(hello, 1);', '  std::thread t2(hello, 2);', '  t1.join();', '  t2.join();', '}'],
-      stackTitle: 'threads',
-      details: {
-        t1: { title: 'std::thread t1', text: 'Constructing the thread starts it immediately, running hello(1) on its own stack.', code: 'std::thread t1(hello, 1);  // args are copied\nt1.join();' },
-        t2: D['thread B'],
-        out: { title: 'Interleaved output', text: 'Both threads write to std::cout. Each << is thread-safe, but lines from different threads can interleave.', code: 'std::osyncstream(std::cout) << "hi\\n";  // C++20: whole line' },
-      },
-      steps: [
-        { note: 'main starts two threads. Each one begins running as soon as it is constructed.', line: [4, 5], vars: [['t1', 'running'], ['t2', 'running']], out: '', rows: [['threads', 3]] },
-        { note: 'The OS decides who runs first, so output order changes from run to run.', line: 1, vars: [['t1', 'running', 'current'], ['t2', 'running', 'current']], out: 'hi from 2\nhi from 1', rows: [['order', 'unpredictable', 'warn']] },
-        { note: 'join() waits for the thread to finish and releases its resources.', line: [6, 7], vars: [['t1', 'joined', 'ok'], ['t2', 'joined', 'ok']], out: 'hi from 2\nhi from 1', rows: [['joined', 2, 'ok']] },
-        { note: 'Destroying a thread that is still joinable calls std::terminate. Every std::thread must be joined or detached.', vars: [['t1', 'joined', 'ok'], ['t2', 'joined', 'ok']], out: 'hi from 2\nhi from 1', rows: [['rule', 'join or detach']] },
-      ],
-    }),
+type Lane = { id: string; label: string; segs: [from: number, to: number, label: string, tone: Tone][] };
+
+/** threads as horizontal lanes over time (0 … 100) */
+function lanes(stmt: string, ls: Lane[], out: string, extra: Shape[] = []): Shape[] {
+  const X0 = 190;
+  const tx = (t: number) => X0 + (t * (980 - X0)) / 100;
+  const s: Shape[] = [...cap(stmt)];
+  ls.forEach((l, k) => {
+    const y = 140 + k * 130;
+    s.push(text(`ln${l.id}`, 30, y + 48, l.label, { align: 'left', size: 24, mono: true, bold: true, tone: 'muted' }));
+    l.segs.forEach(([a, b, label, tone], i) => s.push(box(`${l.id}${i}`, tx(a), y, Math.max(10, tx(b) - tx(a) - 4), 80, b - a >= 14 ? label : undefined, { mono: true, tone })));
+  });
+  s.push(box('out', 30, 560, 940, 150, undefined, { tone: 'muted', filled: false }), text('outh', 50, 590, 'output', { align: 'left', size: 22, bold: true, tone: 'muted' }));
+  out.split('\n').filter(Boolean).slice(-3).forEach((o, i) => s.push(text(`o${i}`, 50, 630 + i * 34, o, { align: 'left', size: 26, mono: true, tone: o.startsWith('terminate') ? 'fail' : undefined })));
+  return [...s, ...extra];
+}
+
+function joinScene(p: P): Frame[] {
+  const first = pick(p.first, ['t1', 't2'], 't2');
+  const join = pick(p.end, ['join', 'forget'], 'join') === 'join';
+  const f = new Film();
+  const [a, b] = first === 't1' ? ['1', '2'] : ['2', '1'];
+  const start: Lane[] = [
+    { id: 'm', label: 'main', segs: [[0, 10, 'spawn', 'accent']] },
+    { id: 't1', label: 't1', segs: [[8, 14, '', 'muted']] },
+    { id: 't2', label: 't2', segs: [[10, 16, '', 'muted']] },
+  ];
+  f.add('main constructs t1 and t2. Each thread starts running the moment it is constructed.', lanes('std::thread t1(hello, 1); std::thread t2(hello, 2);', start, ''), panel('Threads', [['threads', 3]]));
+  const run = (t: string, a0: number): [number, number, string, Tone] => [a0, a0 + 24, `hi from ${t}`, 'ok'];
+  const L2: Lane[] = [
+    { id: 'm', label: 'main', segs: [[0, 10, 'spawn', 'accent'], [10, 60, join ? 'join() waits' : 'returns…', join ? 'muted' : 'warn']] },
+    { id: 't1', label: 't1', segs: [run('1', first === 't1' ? 18 : 44)] },
+    { id: 't2', label: 't2', segs: [run('2', first === 't2' ? 18 : 44)] },
+  ];
+  f.add(`The OS scheduler decides who runs first. This time it is t${a}, so "hi from ${a}" prints first; next run may differ.`, lanes('// scheduling is not under your control', [L2[0], ...L2.slice(1).map((l) => ({ ...l, segs: l.id === `t${a}` ? l.segs : [] }))], `hi from ${a}`), panel('Threads', [['order', `t${a} first`, 'warn']]));
+  f.add(`Then t${b}. Each << on std::cout is thread-safe, but lines from different threads can interleave.`, lanes('std::cout << "hi from " << id;', L2, `hi from ${a}\nhi from ${b}`), panel('Threads', [['runs', 'nondeterministic', 'warn']]));
+  if (join) {
+    const L3: Lane[] = [{ ...L2[0], segs: [[0, 10, 'spawn', 'accent'], [10, 70, 'join() waits', 'muted'], [70, 100, 'exit', 'ok']] }, L2[1], L2[2]];
+    f.add('join() blocks main until each thread has finished, then releases it. Only then does main return.', lanes('t1.join(); t2.join();', L3, `hi from ${a}\nhi from ${b}`), panel('Threads', [['joined', 2, 'ok']]));
+    f.add('Every std::thread must be joined or detached before it is destroyed. std::jthread joins for you.', lanes('}', L3, `hi from ${a}\nhi from ${b}`), panel('Threads', [['terminate', 'avoided', 'ok']]));
+  } else {
+    const L3: Lane[] = [{ ...L2[0], segs: [[0, 10, 'spawn', 'accent'], [10, 30, 'returns', 'warn'], [30, 36, '~thread', 'fail']] }, { ...L2[1], segs: first === 't1' ? [[18, 30, 'hi…', 'ok']] : [] }, { ...L2[2], segs: first === 't2' ? [[18, 30, 'hi…', 'ok']] : [] }];
+    f.add('main reaches its closing brace without joining. ~thread runs on a thread that is still joinable…', lanes('}   // no join', L3, `hi from ${a}`), panel('Threads', [['joinable', 'yes', 'fail']]));
+    f.add('…and calls std::terminate: the program aborts, possibly mid-output. Join, detach, or use std::jthread.', lanes('// std::terminate()', L3, `hi from ${a}\nterminate called without an active exception`), panel('Threads', [['result', 'abort', 'fail']]));
+  }
+  return f.frames;
+}
+
+function detachScene(p: P): Frame[] {
+  const byVal = pick(p.cap, ['ref', 'value'], 'ref') === 'value';
+  const m = new Mem({ panel: 'detach', details: D });
+  m.region('fr', 'start() · stack frame').region('th', 'detached thread · lambda object');
+  m.v('name', 'fr', 0, 'name', '0x7c0', '"job"');
+  m.snap('start() has a local std::string name.', 'std::string name = "job";');
+  if (byVal) m.v('cap', 'th', 0, 'captured name', '0x900', '"job"');
+  else m.v('cap', 'th', 0, 'captured &name', '0x900', '0x7c0', { to: 'name' });
+  m.snap(byVal ? 'The lambda copies name into itself: the thread owns its own string.' : 'The lambda captures name by reference: the thread holds name’s address.', byVal ? 'std::thread t([name] { log(name); });' : 'std::thread t([&] { log(name); });', { finger: 'cap', fly: byVal ? ['name', 'cap'] : ['name.addr', 'cap'] });
+  m.snap('detach() lets the thread run on with no handle. Nothing will wait for it.', 't.detach();', { finger: 'cap', hot: { cap: 'warn' } });
+  m.kill('fr', 'start() returned · name destroyed');
+  m.snap(byVal ? 'start() returns and its name dies, but the thread has its own copy.' : 'start() returns and name is destroyed while the thread may still be reading it.', '}', { finger: 'cap', hot: { cap: byVal ? 'ok' : 'fail' }, rows: [['thread reads', byVal ? 'its copy' : 'dead stack slot', byVal ? 'ok' : 'fail']] });
+  m.snap(byVal ? 'Safe. Capture by value (or join before the data dies) whenever a thread can outlive the scope.' : 'Use-after-scope: garbage, a crash, or silent corruption (TSan and ASan both report it). Capture by value, or join first.', 'log(name);   // on the detached thread', { finger: byVal ? 'cap' : 'name', hot: { cap: byVal ? 'ok' : 'fail' }, rows: [['bug', byVal ? 'none' : 'dangling reference', byVal ? 'ok' : 'fail']] });
+  return m.frames();
+}
+
+function jthreadScene(p: P): Frame[] {
+  const j = pick(p.kind, ['jthread', 'thread'], 'jthread') === 'jthread';
+  const f = new Film();
+  const poll: [number, number, string, Tone][] = [[5, 20, 'poll()', 'accent'], [22, 37, 'poll()', 'accent'], [39, 54, 'poll()', 'accent']];
+  const L1: Lane[] = [{ id: 'm', label: 'main', segs: [[0, 55, 'other work', 'default']] }, { id: 'w', label: 'worker', segs: poll }];
+  f.add(j ? 'jthread passes a stop_token into the function, which checks it every round of its polling loop.' : 'A plain std::thread runs a polling loop with no way to be told to stop.', lanes(j ? 'std::jthread t([](std::stop_token st) { while (!st.stop_requested()) poll(); });' : 'std::thread t([] { for (;;) poll(); });', L1, ''), panel('Lifetime', [['type', j ? 'std::jthread' : 'std::thread']]));
+  if (j) {
+    const L2: Lane[] = [{ id: 'm', label: 'main', segs: [[0, 55, 'other work', 'default'], [55, 62, 'request_stop', 'warn'], [62, 80, 'join()', 'muted']] }, { id: 'w', label: 'worker', segs: [...poll, [56, 72, 'sees stop', 'ok']] }];
+    f.add('When t goes out of scope, ~jthread calls request_stop(). The token flips to stopped.', lanes('}   // ~jthread: request_stop()', L2, ''), panel('Lifetime', [['stop requested', 'yes', 'ok']]));
+    f.add('The loop sees it at its next check and returns; the destructor then joins. No terminate, no leak.', lanes('}   // ~jthread: join()', L2, 'worker stopped cleanly'), panel('Lifetime', [['manual join', 'none', 'ok']]));
+  } else {
+    const L2: Lane[] = [{ id: 'm', label: 'main', segs: [[0, 55, 'other work', 'default'], [55, 62, '~thread', 'fail']] }, { id: 'w', label: 'worker', segs: [...poll, [56, 70, 'poll()', 'accent']] }];
+    f.add('At the closing brace ~thread finds the thread still joinable, and the loop has no reason to end.', lanes('}   // ~thread', L2, ''), panel('Lifetime', [['joinable', 'yes', 'fail']]));
+    f.add('std::terminate, and adding a join() would hang forever instead: plain threads need a hand-made stop flag. std::jthread builds both in.', lanes('// std::terminate()', L2, 'terminate called without an active exception'), panel('Lifetime', [['result', 'abort', 'fail']]));
+  }
+  return f.frames;
+}
+
+liveDemo(
+  G,
+  'conc-threads',
+  'Threads & lifetime',
+  'Two threads printing in whatever order the scheduler picks, the terminate you get for forgetting join, a detached thread reading a dead local (or its own copy), and jthread stopping and joining itself.',
+  {
+    join: ['join', joinScene],
+    detach: ['detach: dangling', detachScene],
+    jthread: ['jthread + stop_token', jthreadScene],
+  },
+  [
+    choice('first', 'scheduled first', ['t1', 't2'], 't2', { for: ['join'] }),
+    choice('end', 'main ends with', ['join', 'forget'], 'join', { for: ['join'], labels: ['join()', 'no join'] }),
+    choice('cap', 'lambda captures', ['ref', 'value'], 'ref', { for: ['detach'], labels: ['[&]', '[name]'] }),
+    choice('kind', 'thread type', ['jthread', 'thread'], 'jthread', { for: ['jthread'], labels: ['std::jthread', 'std::thread'] }),
   ],
-  detach: [
-    'detach: dangling',
-    T({
-      code: ['void start() {', '  std::string name = "job";', '  std::thread t([&] { log(name); });', '  t.detach();', '}   // name destroyed here', '// thread still running...'],
-      details: {
-        name: { title: 'Local captured by reference', text: 'The lambda holds a reference to a local. Once start() returns, the reference dangles.', code: '// fix: capture by value\nstd::thread t([name] { log(name); });' },
-        t: { title: 'Detached thread', text: 'detach() lets the thread run on with no handle. Nothing waits for it, not even program exit.', code: 't.detach();  // fire and forget: rarely right' },
-      },
-      steps: [
-        { note: 'The lambda captures name by reference.', line: [1, 2], vars: [['name', '"job"'], ['t', 'running']], rows: [['captures', '&name', 'warn']] },
-        { note: 'detach() lets the thread outlive the function.', line: 3, vars: [['name', '"job"'], ['t', 'detached', 'warn']] },
-        { note: 'start() returns and name is destroyed while the thread may still read it.', line: 4, vars: [['name', 'destroyed', 'fail'], ['t', 'reads &name', 'fail']], rows: [['bug', 'use-after-scope', 'fail']] },
-        { note: 'Capture by value, or join before the data dies. TSan and ASan both report this one.', line: 2, vars: [['name', '"job" (copy)', 'ok'], ['t', 'running', 'ok']], rows: [['fix', 'capture by value', 'ok']] },
-      ],
-    }),
-  ],
-  jthread: [
-    'jthread + stop_token',
-    T({
-      code: ['std::jthread t([](std::stop_token st) {', '  while (!st.stop_requested()) poll();', '});', '// ...', '}  // ~jthread: request_stop(), then join()'],
-      details: {
-        t: { title: 'std::jthread (C++20)', text: 'Joins automatically in its destructor and carries a stop_source, so cancellation is cooperative and built in.', code: 'std::jthread t(worker);\nt.request_stop();  // optional, dtor does it too' },
-        st: { title: 'std::stop_token', text: 'The thread checks it in its loop. You can also register a std::stop_callback to wake a blocked wait.', code: 'std::condition_variable_any cv;\ncv.wait(lk, st, [&] { return ready; });' },
-      },
-      steps: [
-        { note: 'jthread passes a stop_token to the function, which polls it.', line: [0, 1], vars: [['t', 'running'], ['st', 'not requested']], rows: [['C++', '20']] },
-        { note: 'When t goes out of scope, its destructor requests stop.', line: 4, vars: [['t', 'stopping', 'warn'], ['st', 'requested', 'current']] },
-        { note: 'The loop sees it and returns, and the destructor joins. No terminate, no leak.', line: 1, vars: [['t', 'joined', 'ok'], ['st', 'requested']], rows: [['manual join', 'none', 'ok']] },
-      ],
-    }),
-  ],
-});
+  {
+    ...D,
+    name: { title: 'Local captured by reference', text: 'The lambda holds a reference to a local. Once start() returns, the reference dangles.', code: '// fix: capture by value\nstd::thread t([name] { log(name); });' },
+    cap: { title: 'Lambda capture', text: 'What the thread’s function object holds: a copy of the data, or a reference back into the creating frame.' },
+    m0: { title: 'main thread', text: 'Constructing a std::thread starts it at once. join() waits for it; destroying a joinable thread calls std::terminate.', code: 'std::thread t1(hello, 1);  // args are copied\nt1.join();' },
+    w0: { title: 'std::jthread (C++20)', text: 'Joins automatically in its destructor and carries a stop_source, so cancellation is cooperative and built in.', code: 'std::jthread t(worker);\nt.request_stop();' },
+  },
+);
 
 // ---------------- races & mutexes ----------------
 

@@ -228,10 +228,12 @@ lessons:
       - title: Values
         body: Copying a vector copies its elements. No aliasing, easy to reason about, and copies cost O(n).
         input: value
+        watch: "Flip a to a shared_ptr and the same lines start aliasing."
         check: { metric: manual }
       - title: References
         body: Copying a shared_ptr aliases one object. Changes through any name are visible through all.
         input: reference
+        watch: "Flip a to a std::vector and b becomes an independent copy."
         check: { metric: manual }
       - title: Rule of thumb
         body: Default to values for data, and use pointers for things with identity like connections and windows.

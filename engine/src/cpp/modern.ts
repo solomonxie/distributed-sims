@@ -64,50 +64,6 @@ traceDemo('mod-auto', 'auto & type deduction', 'What auto deduces, why it drops 
   ],
 });
 
-// ---------------- lambdas ----------------
-const CLOSURE = D('Closure object', 'A lambda is an unnamed struct with operator(). Each captured variable becomes a member: copies for [=], references for [&].', '// [n](int x) { return x + n; } is roughly:\nstruct __lambda {\n  int n;\n  int operator()(int x) const { return x + n; }\n};');
-traceDemo('mod-lambda', 'Lambdas & captures', 'Lambdas as closure objects: capture by value vs by reference, mutable, and captures that dangle.', {
-  capture: [
-    'By value vs by reference',
-    {
-      code: ['int n = 1;', 'auto byVal = [n](int x) { return x + n; };', 'auto byRef = [&n](int x) { return x + n; };', 'n = 10;', 'std::cout << byVal(1) << " " << byRef(1);'],
-      details: { byVal: CLOSURE, byRef: D('Capture by reference', 'The closure stores a reference (in practice a pointer) to n. It sees later changes, and dangles if n dies first.', 'int total = 0;\nstd::for_each(b, e, [&](int x) { total += x; });') },
-      steps: [
-        { line: 0, note: 'A local int.', vars: [['n', '1', 'current']], out: '' },
-        { line: 1, note: 'byVal is a closure object holding its own copy of n, taken now.', vars: [['n', '1'], ['byVal', '{ n: 1 }', 'write']], out: '', rows: [['sizeof(byVal)', '4 B']] },
-        { line: 2, note: 'byRef holds a reference to n itself.', vars: [['n', '1'], ['byVal', '{ n: 1 }'], ['byRef', '{ &n }', 'write']], out: '', rows: [['sizeof(byRef)', '8 B']] },
-        { line: 3, note: 'Changing n affects only the reference capture.', vars: [['n', '10', 'write'], ['byVal', '{ n: 1 }'], ['byRef', '{ &n } sees 10', 'current']], out: '' },
-        { line: 4, note: 'The copy still has 1, the reference sees 10.', vars: [['n', '10'], ['byVal', '{ n: 1 }', 'ok'], ['byRef', '{ &n }', 'ok']], out: '2 11' },
-      ],
-    },
-  ],
-  dangling: [
-    'Dangling capture',
-    {
-      code: ['std::function<int()> make() {', '  int count = 5;', '  return [&count] { return count; };  // bug', '}', 'auto f = make();', 'std::cout << f();   // UB'],
-      details: { f: D('Escaping lambda', 'A lambda that outlives the scope it came from must capture by value (or move in what it needs).', 'return [count] { return count; };\nreturn [p = std::move(ptr)] { use(*p); };'), count: D('Local variable', 'Lives in make()’s stack frame and dies when make returns.') },
-      steps: [
-        { line: 1, note: 'count lives in make()’s stack frame.', vars: [['count', '5', 'current']], out: '' },
-        { line: 2, note: 'The returned lambda captures a reference to count.', vars: [['count', '5'], ['lambda', '{ &count }', 'warn']], out: '' },
-        { line: 4, note: 'make returns and its frame is popped. f still holds the address of the dead count.', vars: [['f', '{ &count } dangling', 'fail']], out: '', rows: [['bug', 'dangling reference', 'fail']] },
-        { line: 5, note: 'Calling f reads a dead stack slot. Capture by value when the lambda escapes: [count] or [=].', vars: [['f', '{ &count } dangling', 'fail']], out: '32767 (garbage)', rows: [['fix', '[count]', 'ok']] },
-      ],
-    },
-  ],
-  mutable: [
-    'mutable & init-capture',
-    {
-      code: ['auto counter = [i = 0]() mutable { return ++i; };', 'counter(); counter();', 'std::cout << counter();', 'auto up = std::make_unique<int>(7);', 'auto g = [p = std::move(up)] { return *p; };'],
-      details: { counter: D('mutable', 'operator() is const by default, so by-value captures are read-only. mutable lets the closure change its own copies.', 'auto next = [n = 0]() mutable { return n++; };'), g: D('Init-capture', '[name = expr] creates a new member initialised by any expression, including moves of move-only types.', 'auto task = [buf = std::move(buffer)]() {\n  send(buf);\n};') },
-      steps: [
-        { line: 0, note: 'Init-capture [i = 0] creates a member i. mutable lets the call modify it.', vars: [['counter', '{ i: 0 }', 'current']], out: '' },
-        { line: [1, 2], note: 'Each call increments the closure’s own i, so the lambda keeps state between calls.', vars: [['counter', '{ i: 3 }', 'write']], out: '3' },
-        { line: [3, 4], note: 'Move-only things like unique_ptr can be moved into a closure with init-capture.', vars: [['counter', '{ i: 3 }'], ['up', 'nullptr', 'visited'], ['g', '{ p: unique_ptr → 7 }', 'ok']], out: '3', rows: [['ownership', 'moved into g', 'ok']] },
-      ],
-    },
-  ],
-});
-
 // ---------------- std::function vs templates ----------------
 boardDemo('mod-function', 'std::function vs templates', 'Type erasure: std::function stores any callable behind one type at the cost of an indirect call and maybe a heap allocation; templates inline.', {
   compare: [
@@ -467,24 +423,6 @@ boardDemo('mod-sumtypes', 'optional, variant & expected', 'Vocabulary types: a v
   ],
 });
 
-// ---------------- ranges ----------------
-traceDemo('mod-ranges', 'Ranges & views', 'C++20 ranges: algorithms on whole containers, and lazy view pipelines that compute elements on demand.', {
-  lazy: [
-    'Lazy pipeline',
-    {
-      code: ['std::vector<int> v{1, 2, 3, 4, 5, 6};', 'auto evens_sq = v | std::views::filter(is_even)', '                  | std::views::transform(square);', 'for (int x : evens_sq | std::views::take(2))', '  std::cout << x << " ";'],
-      details: { v: D('Source range', 'The vector owns the data; views only look at it.'), evens_sq: D('View pipeline', 'A small object describing the steps. Building it does no work and allocates nothing.', 'auto r = v | std::views::filter(p)\n          | std::views::transform(f);\n// nothing computed yet'), x: D('Pull-based', 'Each ++ on the view pulls one element through filter, then transform. take(2) stops after two.') },
-      steps: [
-        { line: 0, note: 'Six ints.', vars: [['v', '1 2 3 4 5 6']], out: '', rows: [['work done', 0]] },
-        { line: [1, 2], note: 'The pipeline is only a description. Nothing is filtered or squared yet.', vars: [['v', '1 2 3 4 5 6'], ['evens_sq', 'filter → transform', 'current']], out: '', rows: [['work done', 0, 'ok'], ['allocations', 0, 'ok']] },
-        { line: [3, 4], note: 'The loop pulls: 1 is skipped, 2 passes and becomes 4.', vars: [['v', '1 [2] 3 4 5 6'], ['evens_sq', 'filter → transform'], ['x', '4', 'write']], out: '4 ', rows: [['elements examined', 2]] },
-        { line: [3, 4], note: '3 is skipped, 4 becomes 16, and take(2) ends the loop. 5 and 6 are never touched.', vars: [['v', '1 2 3 [4] 5 6'], ['x', '16', 'write']], out: '4 16 ', rows: [['elements examined', 4, 'ok']] },
-        { note: 'Views compose like shell pipes. Also std::ranges::sort(v) and friends take whole containers.', vars: [['v', '1 2 3 4 5 6']], out: '4 16 ', rows: [['dangling risk', 'views of temporaries', 'warn']] },
-      ],
-    },
-  ],
-});
-
 // ---------------- coroutines ----------------
 boardDemo('mod-coroutines', 'Coroutines', 'C++20 coroutines: a function that suspends, with its state kept in a heap frame; generators and async I/O built on co_yield / co_await.', {
   generator: [
@@ -506,36 +444,6 @@ boardDemo('mod-coroutines', 'Coroutines', 'C++20 coroutines: a function that sus
         { note: 'Each resume continues exactly where it stopped, with i intact in the frame.', hl: [1], hot: { frame: 'current', prom: 'write' }, sub: { frame: 'i = 3 · at co_yield', out: '123' }, hide: ['aw'], rows: [['resumes', 3]] },
         { note: 'Past the last yield the coroutine finishes, the loop ends and the frame is destroyed.', hot: { frame: 'visited', caller: 'ok' }, sub: { frame: 'done · freed', out: '123' }, hide: ['aw'], rows: [['state', 'done', 'ok']] },
         { note: 'co_await uses the same machinery to suspend on I/O, letting async servers read like straight-line code.', hot: { aw: 'current' }, sub: { out: '123' }, rows: [['used by', 'asio, generators, tasks']] },
-      ],
-    },
-  ],
-});
-
-// ---------------- exception safety ----------------
-traceDemo('mod-exceptions', 'Exceptions & exception safety', 'Stack unwinding, the basic/strong/nothrow guarantees, copy-and-swap, and noexcept.', {
-  unwind: [
-    'Unwinding',
-    {
-      code: ['void save(const Doc& d) {', '  std::ofstream f("out.txt");       // RAII', '  auto buf = std::make_unique<char[]>(4096);', '  write(f, d);                       // throws', '}', 'try { save(doc); } catch (const std::exception& e) { … }'],
-      details: { f: D('RAII file', 'Its destructor closes the file even when an exception passes through.'), buf: D('RAII buffer', 'unique_ptr frees it during unwinding.'), ex: D('Exception object', 'Thrown objects are copied to special storage and caught by reference. Catch by const& to avoid slicing.', 'try { … }\ncatch (const std::runtime_error& e) {\n  log(e.what());\n}') },
-      steps: [
-        { line: [1, 2], note: 'save acquires a file and a buffer, each owned by an RAII object.', vars: [['f', 'ofstream (open)', 'current'], ['buf', 'unique_ptr', 'current', 'b']], heap: [['b', '4096 bytes']] },
-        { line: 3, note: 'write throws. The rest of save is skipped.', vars: [['f', 'ofstream (open)'], ['buf', 'unique_ptr', 'default', 'b'], ['ex', 'std::runtime_error', 'fail']], heap: [['b', '4096 bytes']], rows: [['state', 'unwinding', 'warn']] },
-        { line: 4, note: 'Unwinding runs destructors in reverse: buf frees the memory, then f closes the file.', vars: [['f', 'closed', 'ok'], ['buf', 'freed', 'ok'], ['ex', 'std::runtime_error', 'fail']], heap: [['b', '(freed)', 'ok']], rows: [['leaks', 0, 'ok']] },
-        { line: 5, note: 'The handler catches by const reference. Only throw for failures the caller can’t handle locally.', vars: [['ex', 'caught', 'ok']], rows: [['cost when not thrown', '~0']] },
-      ],
-    },
-  ],
-  strong: [
-    'Strong guarantee',
-    {
-      code: ['Table& operator=(const Table& o) {', '  Table tmp(o);        // may throw: *this untouched', '  swap(*this, tmp);    // noexcept', '  return *this;', '}                      // tmp frees old data'],
-      details: { self: D('*this', 'The object being assigned to. With copy-and-swap it is either fully updated or unchanged.'), tmp: D('Copy first', 'All the work that can fail happens on a temporary, so a throw leaves *this as it was.'), g: D('The guarantees', 'Basic: no leaks, object still valid. Strong: commit or roll back. Nothrow: never fails (destructors, swaps, moves).', 'void swap(Table& a, Table& b) noexcept;\nTable(Table&&) noexcept;') },
-      steps: [
-        { line: 0, note: 'Assigning a big table. If copying throws halfway, what state is *this in?', vars: [['self', 'old rows', 'current'], ['g', 'strong wanted']] },
-        { line: 1, note: 'Copy into a temporary first. If this throws, *this was never touched.', vars: [['self', 'old rows'], ['tmp', 'copy of o', 'write'], ['g', 'strong wanted']] },
-        { line: 2, note: 'swap can’t throw; it just exchanges pointers. Now *this has the new rows.', vars: [['self', 'new rows', 'ok'], ['tmp', 'old rows', 'visited'], ['g', 'commit']], rows: [['guarantee', 'strong', 'ok']] },
-        { line: 4, note: 'tmp’s destructor frees the old data. Destructors, swaps and moves should be noexcept.', vars: [['self', 'new rows', 'ok'], ['g', 'nothrow parts: swap, dtor']], rows: [['basic', 'no leaks, valid'], ['strong', 'all or nothing'], ['nothrow', 'never fails']] },
       ],
     },
   ],

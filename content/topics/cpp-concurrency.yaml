@@ -16,18 +16,20 @@ lessons:
       - title: Start and join
         body: A std::thread starts running when constructed. join() waits for it; output order is up to the scheduler.
         input: join
+        watch: "Change who the scheduler runs first, then drop the join."
         check: { metric: manual }
       - title: Every thread must be joined or detached
         body: A joinable std::thread destroyed without join calls std::terminate.
         check: { metric: manual }
       - title: Detach and dangling references
         body: A detached thread that captured locals by reference reads freed memory once the function returns.
-        watch: name dies at the closing brace while the thread still uses it.
+        watch: "Capture [name] instead of [&] and the thread keeps a copy."
         input: detach
         check: { metric: manual }
       - title: std::jthread
         body: C++20. Joins in its destructor and passes a stop_token for cooperative cancellation. Prefer it.
         input: jthread
+        watch: "Swap jthread for a plain std::thread and the scope exit aborts."
         check: { metric: manual }
 
   - id: races

@@ -1,10 +1,9 @@
 // Design patterns & C++ idioms (group cpp-patterns): creational, structural, behavioural, and idioms real codebases use.
-import type { Detail } from '../algo/frames';
-import { machineDemo } from '../machine/lib/draw';
+import type { Detail, Frame } from '../algo/frames';
 import { boardDemo as demo, N } from '../machine/lib/board';
 import type { Board } from '../machine/lib/board';
-import { traceFrames } from '../machine/lib/trace';
-import type { Trace } from '../machine/lib/trace';
+import { choice, liveDemo, pick } from '../machine/lib/live';
+import { Mem } from '../machine/lib/mem';
 
 const G = 'cpp-patterns';
 const boardDemo = (slug: string, title: string, summary: string, boards: Record<string, [string, Board]>) => demo(G, slug, title, summary, boards);
@@ -707,48 +706,39 @@ boardDemo('pat-idioms', 'C++ idioms', 'RAII guards, CRTP, policy-based design, t
 });
 
 // ---------------- value vs reference semantics ----------------
-const VALUES: Record<string, Trace> = {
-  value: {
-    code: ['std::vector<int> a = {1, 2, 3};', 'std::vector<int> b = a;      // copy', 'b.push_back(4);', 'print(a); print(b);'],
-    panel: 'Semantics',
-    details: {
-      a: { title: 'a (value)', text: 'A vector object on the stack: pointer, size and capacity. It owns its heap buffer.', code: 'sizeof(std::vector<int>) == 24  // 3 pointers' },
-      b: { title: 'b (a copy)', text: 'Copying a vector copies its elements into a new buffer. b and a are independent.', code: 'std::vector<int> b = a;  // deep copy, O(n)' },
-      ha: { title: 'a’s buffer', text: 'Freed when a goes out of scope.', code: '// a.data() points here' },
-      hb: { title: 'b’s buffer', text: 'A separate allocation. Changing it can’t affect a.', code: 'assert(a.data() != b.data());' },
-    },
-    steps: [
-      { line: 0, note: 'a owns its elements in a heap buffer.', vars: [['a', 'size 3', 'current', 'ha']], heap: [['ha', '[1, 2, 3]', 'write']], out: '', rows: [['buffers', 1]] },
-      { line: 1, note: 'Copying a value type copies the elements too, so b owns a separate buffer.', vars: [['a', 'size 3', 'default', 'ha'], ['b', 'size 3', 'current', 'hb']], heap: [['ha', '[1, 2, 3]'], ['hb', '[1, 2, 3]', 'write']], out: '', rows: [['buffers', 2]] },
-      { line: 2, note: 'Changing b can’t affect a.', vars: [['a', 'size 3', 'default', 'ha'], ['b', 'size 4', 'current', 'hb']], heap: [['ha', '[1, 2, 3]'], ['hb', '[1, 2, 3, 4]', 'write']], out: '', rows: [['aliasing', 'none', 'ok']] },
-      { line: 3, note: 'Values are easy to reason about, with no aliasing and no shared lifetime.', vars: [['a', 'size 3', 'ok', 'ha'], ['b', 'size 4', 'ok', 'hb']], heap: [['ha', '[1, 2, 3]', 'ok'], ['hb', '[1, 2, 3, 4]', 'ok']], out: '1 2 3\n1 2 3 4', rows: [['cost', 'copy is O(n)', 'warn']] },
-    ],
-  },
-  reference: {
-    code: ['auto a = std::make_shared<std::vector<int>>(', '    std::vector<int>{1, 2, 3});', 'auto b = a;                  // shares', 'b->push_back(4);', 'print(*a);'],
-    panel: 'Semantics',
-    details: {
-      a: { title: 'a (shared_ptr)', text: 'A pointer plus a pointer to a control block holding the reference count.', code: 'sizeof(std::shared_ptr<T>) == 16' },
-      b: { title: 'b (same object)', text: 'Copying a shared_ptr bumps the count atomically and aliases the same vector.', code: 'assert(a.get() == b.get());\nassert(a.use_count() == 2);' },
-      hv: { title: 'The shared vector', text: 'Lives until the last shared_ptr to it is gone. Any holder can change it.', code: '// make_shared: one allocation for\n// control block + vector' },
-    },
-    steps: [
-      { line: [0, 1], note: 'a is a pointer to a shared vector.', vars: [['a', 'shared_ptr', 'current', 'hv']], heap: [['hv', '[1, 2, 3]', 'write', 'use_count 1']], out: '', rows: [['objects', 1]] },
-      { line: 2, note: 'Copying the pointer shares the object, so both names alias it.', vars: [['a', 'shared_ptr', 'default', 'hv'], ['b', 'shared_ptr', 'current', 'hv']], heap: [['hv', '[1, 2, 3]', 'write', 'use_count 2']], out: '', rows: [['objects', 1], ['names', 2, 'warn']] },
-      { line: 3, note: 'Changing it through b changes what a sees.', vars: [['a', 'shared_ptr', 'warn', 'hv'], ['b', 'shared_ptr', 'current', 'hv']], heap: [['hv', '[1, 2, 3, 4]', 'warn', 'use_count 2']], out: '', rows: [['aliasing', 'yes', 'warn']] },
-      { line: 4, note: 'Reference semantics suit things with identity, like a connection, and values suit data.', vars: [['a', 'shared_ptr', 'default', 'hv'], ['b', 'shared_ptr', 'default', 'hv']], heap: [['hv', '[1, 2, 3, 4]', 'default', 'use_count 2']], out: '1 2 3 4', rows: [['rule', 'values by default']] },
-    ],
-  },
+const VD: Record<string, Detail> = {
+  a: { title: 'a', text: 'A vector is three pointers on the stack owning a heap buffer; a shared_ptr is a pointer plus a pointer to a control block with the reference count.', code: 'sizeof(std::vector<int>) == 24\nsizeof(std::shared_ptr<T>) == 16' },
+  ha: { title: 'Heap object', text: 'With values each name owns its own buffer; with shared_ptr one object lives until the last owner is gone.', code: '// make_shared: one allocation for\n// control block + object' },
 };
 
-machineDemo({
-  slug: 'pat-values',
-  title: 'Value vs reference semantics',
-  group: G,
-  summary: 'Copying a vector copies its elements; copying a shared_ptr aliases one object. When to use which.',
-  inputs: [
-    { id: 'value', label: 'Value (vector)', data: { k: 'value' } },
-    { id: 'reference', label: 'Reference (shared_ptr)', data: { k: 'reference' } },
-  ],
-  build: ({ k }: { k: string }) => traceFrames(VALUES[k]),
-});
+function semantics(kind: 'value' | 'reference'): Frame[] {
+  const ref = kind === 'reference';
+  const m = new Mem({ panel: 'Semantics', details: VD, out: true });
+  m.region('stk', 'main() · stack').region('heap', 'heap');
+  m.v('ha', 'heap', 0, ref ? 'vector (use_count 1)' : 'a’s buffer', '0x900', '1 2 3').v('a', 'stk', 0, ref ? 'a (shared_ptr)' : 'a (vector)', '0x10', '0x900', { to: 'ha' });
+  m.snap(ref ? 'a is a shared_ptr to a vector on the heap. The control block counts owners: 1.' : 'a is a vector: a small handle on the stack owning its elements in a heap buffer.', ref ? 'auto a = std::make_shared<std::vector<int>>(std::vector{1, 2, 3});' : 'std::vector<int> a = {1, 2, 3};', { out: '', rows: [['heap objects', 1]] });
+  if (ref) {
+    m.v('b', 'stk', 1, 'b (shared_ptr)', '0x20', '0x900', { to: 'ha' }).rename('ha', 'vector (use_count 2)');
+    m.snap('Copying a shared_ptr copies the pointer and bumps the count. Both names alias one vector.', 'auto b = a;', { fly: ['a', 'b'], out: '', rows: [['heap objects', 1], ['use_count', 2]] });
+    m.set('ha', '1 2 3 4').snap('Changing it through b changes what a sees.', 'b->push_back(4);', { finger: 'ha', hot: { ha: 'warn' }, out: '' });
+    m.snap('a prints 1 2 3 4. Reference semantics suit things with identity (a connection, a cache); values suit data.', 'print(*a);', { finger: 'a', hot: { ha: 'warn' }, out: '1 2 3 4', rows: [['a changed', 'yes', 'warn']] });
+  } else {
+    m.v('hb', 'heap', 1, 'b’s buffer', '0x980', '1 2 3').v('b', 'stk', 1, 'b (vector)', '0x28', '0x980', { to: 'hb' });
+    m.snap('Copying a vector copies its elements into a new buffer. b is fully independent of a.', 'std::vector<int> b = a;', { fly: ['ha', 'hb'], out: '', rows: [['heap objects', 2]] });
+    m.set('hb', '1 2 3 4').snap('Changing b cannot affect a.', 'b.push_back(4);', { finger: 'hb', hot: { ha: 'ok' }, out: '' });
+    m.snap('a prints 1 2 3. Values are easy to reason about: no aliasing and no shared lifetime, at the cost of a copy.', 'print(a);', { finger: 'a', hot: { ha: 'ok' }, out: '1 2 3', rows: [['a changed', 'no', 'ok']] });
+  }
+  return m.frames();
+}
+
+liveDemo(
+  G,
+  'pat-values',
+  'Value vs reference semantics',
+  'The same three lines with a vector and with a shared_ptr: copying elements into a second buffer, or a second arrow to one object that both names can change.',
+  {
+    value: ['Value (vector)', (p) => semantics(pick(p.kv, ['value', 'reference'], 'value'))],
+    reference: ['Reference (shared_ptr)', (p) => semantics(pick(p.kr, ['reference', 'value'], 'reference'))],
+  },
+  [choice('kv', 'a is a', ['value', 'reference'], 'value', { for: ['value'], labels: ['std::vector', 'shared_ptr'] }), choice('kr', 'a is a', ['reference', 'value'], 'reference', { for: ['reference'], labels: ['shared_ptr', 'std::vector'] })],
+);

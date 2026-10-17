@@ -30,10 +30,11 @@ lessons:
       - title: Closure objects
         body: A lambda is a struct whose members are its captures. [=] copies at creation, [&] refers to the originals.
         input: capture
+        watch: "Switch between [n] and [&n]: the copy stays 1, the reference sees 10."
         check: { metric: manual }
       - title: Dangling captures
         body: A lambda that escapes its scope must not capture locals by reference.
-        watch: The frame is gone but the closure still points into it.
+        watch: "Capture by value instead and the lambda carries its own count out of make()."
         input: dangling
         check: { metric: manual }
       - title: mutable & init-capture
@@ -166,7 +167,7 @@ lessons:
     steps:
       - title: Lazy pipelines
         body: Views describe steps; elements are computed only as the loop pulls them.
-        watch: take(2) stops the pipeline early.
+        watch: "Change the filter and take(n): elements after the last one taken are never examined."
         input: lazy
         check: { metric: manual }
       - title: Watch lifetimes
@@ -198,6 +199,7 @@ lessons:
       - title: The guarantees
         body: Basic (valid, no leaks), strong (all or nothing), nothrow. Copy-and-swap gives strong assignment.
         input: strong
+        watch: "Make row 2 throw, then compare in place with copy-and-swap: half-updated vs untouched."
         check: { metric: manual }
       - title: noexcept
         body: Mark moves, swaps and destructors noexcept; vector only uses moves it knows can't throw.

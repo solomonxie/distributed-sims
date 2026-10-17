@@ -33,10 +33,12 @@ lessons:
       - title: size vs capacity
         body: capacity is the room in the heap block; size is how much is used. reserve when you know the count.
         input: capacity
+        watch: "Set reserve and the number of push_backs: every doubling moves the elements and leaves p pointing at freed memory."
         check: { metric: manual }
       - title: Where the cost is
         body: push_back and pop_back are cheap. insert and erase anywhere else shift every later element.
         input: insert
+        watch: "Insert at the front, middle or back and count the elements that have to shift."
         check: { metric: manual }
       - title: emplace_back
         body: Constructs the element in place from constructor arguments, skipping the temporary.
@@ -51,14 +53,17 @@ lessons:
       - title: Small string optimisation
         body: Up to 15 chars live inside the 32-byte object. Longer strings allocate.
         input: sso
+        watch: "Drag the length past 15 and the characters move out of the object onto the heap."
         check: { metric: manual }
       - title: Copy vs move
         body: Copies allocate and copy every char. Moves hand over the buffer pointer.
         input: copy
+        watch: "Switch between t = s and t = std::move(s): one allocates a second buffer, the other takes the pointer."
         check: { metric: manual }
       - title: Building strings
         body: Appending in a loop regrows the buffer. reserve once when you can estimate the size.
         input: append
+        watch: "Turn reserve on and the chain of regrown buffers collapses to one allocation."
         check: { metric: manual }
 
   - id: sequence
@@ -154,10 +159,12 @@ lessons:
       - title: Binary search
         body: lower_bound on a sorted range finds a position in O(log n), present or not.
         input: search
+        watch: "Pick any value, present or not: lower_bound halves the range until it closes on one index."
         check: { metric: manual }
       - title: erase-remove
         body: remove only compacts; erase shrinks. C++20 std::erase does both.
         input: eraseRemove
+        watch: "Pick the value to remove and watch remove leave the size unchanged until erase cuts the tail."
         check: { metric: manual }
       - title: transform & accumulate
         body: Name the loop's intent. Many algorithms also take a parallel execution policy.
@@ -203,6 +210,7 @@ lessons:
       - title: Dangling views
         body: A view must not outlive its owner. Never return a view of a local or of a temporary string.
         input: dangling
+        watch: "Return std::string instead of string_view and the buffer survives the call."
         check: { metric: manual }
       - title: std::span
         body: The same idea for contiguous arrays of any type. Replaces pointer-plus-length parameters.
