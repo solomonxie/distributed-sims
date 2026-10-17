@@ -2,7 +2,7 @@
 
 -include Local.mk
 DEVICE ?= $(error set DEVICE=<udid> or put it in Local.mk)
-APP = app/ios/build/Build/Products/Release-iphoneos/DistributedSims.app
+APP = /tmp/dsims-build/Build/Products/Release-iphoneos/DistributedSims.app
 BUNDLE_ID := $(or $(shell sed -n "s/^PRODUCT_BUNDLE_IDENTIFIER *= *//p" app/ios/Local.xcconfig 2>/dev/null),dev.distributedsims.app)
 
 install:
@@ -19,7 +19,7 @@ test: check-expo content
 
 ios-build: content
 	cd app/ios && xcodebuild -workspace DistributedSims.xcworkspace -scheme DistributedSims \
-	  -configuration Release -destination 'generic/platform=iOS' -derivedDataPath build \
+	  -configuration Release -destination 'generic/platform=iOS' -derivedDataPath /tmp/dsims-build \
 	  -allowProvisioningUpdates DSIMS_TOUR=YES \
 	  DEPLOYMENT_POSTPROCESSING=YES STRIP_INSTALLED_PRODUCT=YES STRIP_STYLE=all build | tail -30
 	$(MAKE) ios-strip
