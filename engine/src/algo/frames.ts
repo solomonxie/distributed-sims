@@ -54,6 +54,12 @@ export interface DemoInput {
   data: unknown;
 }
 
+/** A knob under the stage; its value is merged into the input data (`{ ...input.data, [id]: value }`) and the frames rebuilt. */
+export type Control = { id: string; label: string; /** input ids it applies to (all when omitted) */ for?: string[] } & (
+  | { kind: 'choice'; options: { id: string; label: string }[]; value: string }
+  | { kind: 'number'; min: number; max: number; step?: number; value: number }
+);
+
 export interface Demo {
   slug: string;
   title: string;
@@ -62,6 +68,7 @@ export interface Demo {
   /** e.g. ['Google Maps', 'Network'] */
   linkedFrom?: string[];
   inputs: DemoInput[];
+  controls?: Control[];
   /** graph demos accept user-edited graphs */
   editable?: 'graph' | 'none';
   run(input: unknown): Generator<Frame>;
