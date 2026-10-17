@@ -35,7 +35,7 @@ No capabilities needed (no iCloud, push, or App Groups).
 
 ## 5. Run on the iPhone
 
-- [ ] `make ios-build ios-run` → Release build on the paired iPhone. Smoke-test: Home scrolls, open a System design topic → a lesson runs, a Problem → a challenge, an animation steps, New system → add components, wire, Run, Break it… → a fault, Metrics, Settings → Export, My systems → import a `.json`. Only the editor and Metrics rotate to landscape.
+- [ ] `make ios-build ios-run` → Release build on the paired iPhone. Smoke-test: Home search finds a lesson, Learn → Concepts → a topic → a lesson runs, Practice → Design problems → a challenge, Learn → Algorithms → an animation steps, Build → New system → add components, wire, Run, Break it… → a fault, Metrics, Settings → Export, Build → See all → + → Import from Files… → a `.json`. Only the editor and Metrics rotate to landscape.
 
 ## 6. Create the app in App Store Connect
 
@@ -98,11 +98,11 @@ Recording (the build Apple reviews, on the iPhone, current iOS):
 2. Swipe the app away so it cold-starts.
 3. Start recording, then launch the app from the Home Screen.
 4. ~2 minutes:
-   1. Home: scroll the sections (System design, Problems, Languages, Algorithms, My systems).
-   2. System design → Consensus → first lesson: the guide plays, requests flow, a node is killed, a new leader is elected.
-   3. Back → Problems → TinyURL: the brief, a reference design, one challenge run to pass/fail.
-   4. Algorithms → Dijkstra: step forward a few times.
-   5. Home → New system → From a template (API behind a load balancer) → Run → Traffic → a burst → long-press a node → Break it… → Kill → watch errors → Heal → Metrics.
+   1. Home: the search bar, the Learn category cards, Practice, Build.
+   2. Learn → Concepts → Consensus → first lesson: the guide plays, requests flow, a node is killed, a new leader is elected.
+   3. Home → Practice → Design problems → TinyURL: the brief, a reference design, one challenge run to pass/fail.
+   4. Home → Learn → Algorithms → Dijkstra: step forward a few times.
+   5. Home → Build → From a template → API behind a load balancer → Run → Traffic → a burst → long-press a node → Break it… → Kill → watch errors → Heal → Metrics.
    6. Settings: options, Export all systems (share sheet shown, cancelled), Reset progress shown but cancelled.
 5. Stop. Photos → trim → share the video.
 
@@ -135,7 +135,7 @@ Upload in filename order; App Store Connect scales the 6.9" set for smaller phon
    - `make tour` (needs the `make ios-build` install; App Store/TestFlight builds ignore `dsims://tour`) → full-window PNGs of the screens below in `/tmp/dsims-tour/<time>/` (no system status bar — accepted), or
    - side button + Volume Up per shot; status bar: full battery, Wi-Fi, no notifications.
 3. Portrait only. Shots, in upload order (rename `01-…png` … to set the order):
-   1. **Home** — sections with thumbnails (tour `home`)
+   1. **Home** — Learn category cards, Practice, Build (tour `home`)
    2. **Run** — a template running, particles flowing between nodes (tour `editor-run-b`/`-c`)
    3. **Chaos** — a fault fired, red nodes, errors climbing (tour `editor-chaos-fired`)
    4. **Lesson** — Consensus guide over a live Raft cluster (tour `lesson`)
@@ -237,11 +237,11 @@ PURPOSE AND AUDIENCE
 Distributed is an educational simulator for software engineers, computer science students and people preparing for system design interviews. It teaches how distributed systems (load balancers, caches, databases, queues, consensus) behave under load and under failure, which is hard to learn from text alone and expensive to try on real cloud infrastructure. Users build a system on a canvas, run simulated traffic through it, inject faults, and see the effect immediately.
 
 HOW TO USE THE MAIN FEATURES (no setup needed)
-- Home: sections for System design, Network, Machine level, Tech stack, Problems, Languages, Machine learning & LLMs, Algorithms, My systems. Tap any tile.
-- Lessons (e.g. System design → Consensus → a lesson): a guide narrates while the simulation runs; tap Next to advance.
-- Problems (e.g. TinyURL): read the brief, open a reference design, run a challenge for a pass/fail result.
-- Algorithms (e.g. Dijkstra): step forward/back through the animation.
-- My systems → New system or From a template: add components from the palette, connect them, tap Run. Use Traffic for load shapes, long-press a component → Break it… to inject a fault, then Heal. Metrics shows charts.
+- Home: a search bar, Continue learning (topics already started), Learn (category cards: Concepts, Network, Machine level, Tech stack, Languages, ML & LLMs, Algorithms), Practice (Design problems) and Build (new system, templates, saved systems).
+- Lessons (e.g. Learn → Concepts → Consensus → a lesson): a guide narrates while the simulation runs; tap Next to advance.
+- Problems (Practice → Design problems, e.g. TinyURL): read the brief, open a reference design, run a challenge for a pass/fail result.
+- Algorithms (Learn → Algorithms, e.g. Dijkstra): step forward/back through the animation.
+- Build → New system or From a template: add components from the palette, connect them, tap Run. Use Traffic for load shapes, long-press a component → Break it… to inject a fault, then Heal. Metrics shows charts.
 - Settings (gear icon on Home): simulation options, haptics, export all systems, reset progress.
 
 EXTERNAL SERVICES
