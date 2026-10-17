@@ -237,6 +237,7 @@ lessons:
       - title: A directory of segments
         body: Each partition is a folder of .log files named after their first offset. Only the newest, active segment takes appends.
         input: segments
+        watch: "Fetch an offset in the old segment, the active one, or the log end."
         check: { metric: manual }
       - title: Sparse index
         body: The .index holds one entry per ~4 KiB of log, so it stays small enough to mmap. A lookup is a binary search plus a short scan.
@@ -254,6 +255,7 @@ lessons:
       - title: Write to RAM, not disk
         body: Brokers write into the OS page cache and leave flushing to the kernel. Replication, not fsync, makes a record durable.
         input: zerocopy
+        watch: "Switch to read + write, then put the consumer 3 days behind."
         check: { metric: manual }
       - title: sendfile
         body: Fetches call transferTo, so the kernel sends cached pages straight to the socket. Bytes never enter the JVM heap.
@@ -272,6 +274,7 @@ lessons:
       - title: Latest value per key
         body: cleanup.policy=compact keeps at least the last record for every key. New writes collect in a dirty section.
         input: compaction
+        watch: "Give u2 a value instead of null and the key survives compaction."
         check: { metric: manual }
       - title: The cleaner
         body: When dirty bytes pass min.cleanable.dirty.ratio, the cleaner maps keys to their latest offset and recopies segments without the older records.
@@ -288,6 +291,7 @@ lessons:
       - title: Log end offsets
         body: Every replica has a log end offset (LEO). Followers report theirs in each Fetch request.
         input: hw
+        watch: "Make f2 stuck: the HW waits for it until it is dropped from the ISR."
         check: { metric: manual }
       - title: Minimum across the ISR
         body: The high watermark is the smallest LEO in the ISR. Only records below it are committed and readable.
@@ -304,6 +308,7 @@ lessons:
       - title: An uncommitted tail
         body: The old leader wrote a record no follower copied. After failover the new leader writes a different record at the same offset.
         input: epoch
+        watch: "Let A keep its log instead of asking the epoch end: the replicas diverge."
         check: { metric: manual }
       - title: Ask where the epoch ended
         body: The returning replica sends OffsetsForLeaderEpoch and truncates exactly where its history diverged.
@@ -334,6 +339,7 @@ lessons:
       - title: PID and sequence numbers
         body: Each batch carries a producer ID and a per-partition sequence number.
         input: idempotent
+        watch: "Turn idempotence off and the retried batch lands twice."
         check: { metric: manual }
       - title: Retries are deduplicated
         body: A retried batch the leader already has is acknowledged without a second append.
@@ -360,6 +366,7 @@ lessons:
       - title: Last stable offset
         body: read_committed consumers stop at the first offset of the oldest open transaction and drop aborted records.
         input: lso
+        watch: "Open, commit or abort T2, and switch to read_uncommitted."
         check: { metric: manual }
       - title: Hung transactions
         body: An open transaction pins the LSO until it commits or transaction.timeout.ms aborts it.
@@ -380,10 +387,12 @@ lessons:
       - title: Eager vs cooperative
         body: Eager rebalances revoke everything first. Cooperative-sticky moves only the partitions that change owner.
         input: cooperative
+        watch: "Switch to eager and count how many partitions stop."
         check: { metric: manual }
       - title: Static membership
         body: With group.instance.id a restart within session.timeout.ms gets its old partitions back without a rebalance.
         input: static
+        watch: "Go dynamic, or keep c2 down past the session timeout."
         check: { metric: manual }
 
   - id: ops-bootstrap

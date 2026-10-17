@@ -160,6 +160,7 @@ lessons:
       - title: One command
         body: EVAL runs the whole script on the single thread, so nothing interleaves between GET and DEL.
         input: atomic
+        watch: "Release with GET then DEL and B’s lock gets deleted in the gap."
         check: { metric: manual }
       - title: KEYS and ARGV
         body: Keys go in KEYS, values in ARGV. Scripts should be deterministic and touch only declared keys.
@@ -173,6 +174,7 @@ lessons:
       - title: Send the hash
         body: SCRIPT LOAD once, then EVALSHA with 40 bytes instead of the script body.
         input: evalsha
+        watch: "Restart the server: the cache empties and EVALSHA hits NOSCRIPT."
         check: { metric: manual }
       - title: Cache is volatile
         body: After a restart EVALSHA returns NOSCRIPT. Redis 7 FUNCTION LOAD persists and replicates scripts.
@@ -186,6 +188,7 @@ lessons:
       - title: Same slot
         body: A script runs on one node, so all its keys must share a hash tag like {user:7}.
         input: cluster
+        watch: "Drop the {hash tag} and the two keys land in different slots."
         check: { metric: manual }
       - title: CROSSSLOT
         body: Keys in different slots are rejected before the script runs.

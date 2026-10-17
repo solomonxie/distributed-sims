@@ -136,6 +136,7 @@ lessons:
       - title: Transformations are a plan
         body: filter, map and reduceByKey return new RDDs that only record a function and a parent.
         input: lineage
+        watch: "Lose an executor and only the missing partition is rebuilt from lineage."
         check: { metric: manual }
       - title: Actions run jobs
         body: count, take and save submit a job that walks the lineage back to the source.
@@ -152,6 +153,7 @@ lessons:
       - title: Narrow dependencies pipeline
         body: map and filter read one parent partition each, so one task chains them with no data movement.
         input: deps
+        watch: "Swap reduceByKey for mapValues and the stage boundary disappears."
         check: { metric: manual }
       - title: Wide dependencies shuffle
         body: reduceByKey, groupBy and join need rows from every parent partition.
@@ -168,6 +170,7 @@ lessons:
       - title: Map side
         body: Records are bucketed by reduce partition, sorted in memory, and spilled to disk when the buffer fills.
         input: shuffle
+        watch: "Change the number of reducers: every map task writes a segment for each."
         check: { metric: manual }
       - title: Data + index
         body: Each map task writes one data file and an index of byte offsets, then reports a MapStatus to the driver.
@@ -201,6 +204,7 @@ lessons:
       - title: Broadcast hash join
         body: A side under autoBroadcastJoinThreshold (10 MB) is copied to every executor; the big side never shuffles.
         input: joins
+        watch: "Grow the users table past 10 MB and the broadcast becomes a two-sided shuffle."
         check: { metric: manual }
       - title: Sort-merge vs shuffle hash
         body: Large joins shuffle both sides; sort-merge sorts and can spill, shuffle hash builds an in-memory table per partition.
@@ -227,6 +231,7 @@ lessons:
       - title: Unified memory
         body: Execution and storage share 60% of the heap after 300 MB reserved; execution can evict cache down to a protected floor.
         input: memory
+        watch: "Grow the join: it fits, then evicts cache to the floor, then spills."
         check: { metric: manual }
       - title: Spill and overhead
         body: Execution that cannot grow spills to disk; off-heap use beyond memoryOverhead gets the container killed.
@@ -234,6 +239,7 @@ lessons:
       - title: persist is lazy
         body: The first action stores partitions as blocks; MEMORY_AND_DISK sends overflow to disk instead of recomputing.
         input: cache
+        watch: "Try MEMORY_ONLY and no persist: watch which partitions are recomputed."
         check: { metric: manual }
 
   - id: deep-partitioning
@@ -244,6 +250,7 @@ lessons:
       - title: repartition shuffles
         body: repartition(n) moves every row to get even partitions; by column it co-locates keys but can skew.
         input: partition
+        watch: "Compare repartition, coalesce and partitioning by a skewed key."
         check: { metric: manual }
       - title: coalesce merges
         body: coalesce(n) only reduces the count, with no shuffle, but it also shrinks the upstream stage’s parallelism.

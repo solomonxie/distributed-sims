@@ -1,5 +1,6 @@
 import { allDemos, frames, getDemo } from '../src/algo';
 import type { Shape } from '../src/algo';
+import { runs } from './knobs';
 
 const demos = () => allDemos().filter((d) => d.group === 'tdd');
 
@@ -24,7 +25,7 @@ test('tdd demos registered', () => {
   expect(demos().map((d) => d.slug).sort()).toEqual(['tdd-cycle', 'tdd-dist', 'tdd-limiter']);
 });
 
-describe.each(demos().flatMap((d) => d.inputs.map((i) => [`${d.slug}/${i.id}`, d.slug, i.data] as const)))('%s', (_name, slug, data) => {
+describe.each(demos().flatMap(runs))('%s', (_name, slug, data) => {
   const fs = frames(getDemo(slug)!, data);
 
   test('≥ 3 frames, ends done', () => {

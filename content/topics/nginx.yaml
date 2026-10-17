@@ -168,6 +168,7 @@ lessons:
       - title: Hooks
         body: OpenResty embeds LuaJIT in each worker. rewrite, access, content and log blocks run Lua at each phase.
         input: phases
+        watch: "Drop the Authorization header: access ends the request and content never runs."
         check: { metric: manual }
       - title: Edge logic
         body: Auth, routing and small APIs run in nginx itself, with no extra hop.
@@ -181,6 +182,7 @@ lessons:
       - title: Yield on I/O
         body: ngx.socket calls park the request’s coroutine and let the worker serve others.
         input: cosocket
+        watch: "Switch to a blocking socket library and the worker stops serving anyone."
         check: { metric: manual }
       - title: Pooling
         body: setkeepalive returns connections to a per-worker pool.
@@ -194,6 +196,7 @@ lessons:
       - title: One counter for all workers
         body: lua_shared_dict lives in shared memory, so every worker sees the same counts.
         input: shdict
+        watch: "Count in a per-worker table instead and the limit stops working."
         check: { metric: manual }
       - title: Not a Lua table
         body: Each worker has its own Lua VM; plain tables only count one worker’s traffic.

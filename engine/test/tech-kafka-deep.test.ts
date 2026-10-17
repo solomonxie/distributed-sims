@@ -1,5 +1,6 @@
 import { allDemos, frames, getDemo } from '../src/algo';
 import type { Shape } from '../src/algo';
+import { runs } from './knobs';
 
 const demos = () => allDemos().filter((d) => d.group === 'tech-kafka');
 
@@ -24,7 +25,7 @@ test('kafka internals demos are registered', () => {
   expect(demos().map((d) => d.slug)).toEqual(['kafka-storage', 'kafka-replication', 'kafka-eos', 'kafka-groups']);
 });
 
-describe.each(demos().flatMap((d) => d.inputs.map((i) => [`${d.slug}/${i.id}`, d.slug, i.data] as const)))('%s', (_name, slug, data) => {
+describe.each(demos().flatMap(runs))('%s', (_name, slug, data) => {
   const fs = frames(getDemo(slug)!, data);
 
   test('≥ 3 frames, ends done', () => {
@@ -60,6 +61,6 @@ describe.each(demos().flatMap((d) => d.inputs.map((i) => [`${d.slug}/${i.id}`, d
 
 test('leader epoch truncation leaves both replicas with y at offset 4', () => {
   const fs = frames(getDemo('kafka-replication')!, { k: 'epoch' });
-  const labels = fs[4].shapes.flatMap((s) => (s.t === 'rect' && s.id.startsWith('h-') ? [s.label] : []));
-  expect(labels).toEqual(['A: 4 = y (e1)', 'B: 4 = y (e1)']);
+  const label = (id: string) => fs[fs.length - 1].shapes.flatMap((s) => (s.t === 'rect' && s.id === id ? [s.label] : []))[0];
+  expect([label('a4'), label('b4')]).toEqual(['y', 'y']);
 });
