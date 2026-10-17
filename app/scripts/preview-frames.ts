@@ -1,5 +1,5 @@
 // Headless preview (CanvasKit, no simulator): render algorithm/machine frames to PNGs for visual review.
-// usage: npx tsx scripts/preview-frames.ts <outDir> [slug[:frameIdx] | slug@input ...]  (slug@input renders every frame)
+// usage: npx tsx scripts/preview-frames.ts <outDir> [slug[:frameIdx] | slug@input[?knob=value,…] ...]  (slug@input renders every frame)
 import { readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { LoadSkiaWeb } from '@shopify/react-native-skia/lib/commonjs/web/LoadSkiaWeb';
 import { algo } from '../../engine/src';
@@ -28,10 +28,13 @@ async function main() {
   const want = process.argv.slice(3);
   const slugOf = (w: string) => w.split(/[:@]/)[0];
   const demos = algo.allDemos().filter(d => !want.length || want.some(w => slugOf(w) === d.slug));
-  for (const d of demos) {
-    const spec = want.find(w => slugOf(w) === d.slug);
-    const input = spec?.includes('@') ? d.inputs.find(x => x.id === spec.split('@')[1]) : undefined;
-    const fr = algo.frames(d, input?.data);
+  const jobs = demos.flatMap(d => (want.filter(w => slugOf(w) === d.slug) as (string | undefined)[]).concat(want.length ? [] : [undefined]).map(spec => ({ d, spec })));
+  for (const { d, spec } of jobs) {
+    const [inputId, query] = (spec?.split('@')[1] ?? '').split('?');
+    const input = spec?.includes('@') ? d.inputs.find(x => x.id === inputId) : undefined;
+    const knobs = Object.fromEntries((query ?? '').split(',').filter(Boolean).map(kv => kv.split('=')).map(([k, v]) => [k, Number.isFinite(Number(v)) ? Number(v) : v]));
+    const tag = query ? '~' + query.replace(/[^a-z0-9]+/gi, '_') : '';
+    const fr = algo.frames(d, input ? { ...(input.data as object), ...knobs } : undefined);
     const idxs = input ? fr.map((_, i) => i) : spec?.includes(':') ? [Number(spec.split(':')[1])] : [0, Math.floor(fr.length / 2), fr.length - 1];
     for (const i of idxs) {
       const f = fr[Math.min(i, fr.length - 1)];
@@ -45,7 +48,7 @@ async function main() {
       canvas.restore();
       surface.flush();
       const png = surface.makeImageSnapshot().encodeToBytes();
-      writeFileSync(`${out}/${d.slug}${input ? '@' + input.id : ''}-${String(i).padStart(2, '0')}.png`, png);
+      writeFileSync(`${out}/${d.slug}${input ? '@' + input.id + tag : ''}-${String(i).padStart(2, '0')}.png`, png);
     }
   }
   console.log(`rendered ${demos.length} demos → ${out}`);

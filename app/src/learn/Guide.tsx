@@ -14,6 +14,7 @@ import { useProgress } from '../state/progress';
 import { checkPasses, liveMetric, scoreRun, type Check, type Score } from '../lib/checks';
 import { haptic } from '../lib/haptics';
 import { Sheet } from '../sheets/Sheet';
+import { DoneToggle } from './Chapters';
 import { fmtMs } from '../canvas/SystemCanvas';
 
 export function GuideLayer({ guide, top }: { guide: GuideSpec; top: number }) {
@@ -64,7 +65,6 @@ function LessonLayer({ guide, top }: { guide: GuideSpec; top: number }) {
       setHidden(true);
       haptic('light');
     } else {
-      useProgress.getState().completeLesson(`${topic.id}/${lesson.id}`);
       setDone(true);
       haptic('success');
     }
@@ -109,13 +109,14 @@ function LessonLayer({ guide, top }: { guide: GuideSpec; top: number }) {
     return (
       <Animated.View entering={ZoomIn.springify()} style={[styles.card, { top, backgroundColor: c.surface2, borderColor: c.ok }]}>
         <View style={styles.row}>
-          <Icon name="circle-check" size={22} color={c.ok} />
+          <Icon name="flag" size={22} color={c.ok} />
           <Text v="headline" style={{ flex: 1 }}>
-            {lesson.title} — done
+            {lesson.title} — end
           </Text>
         </View>
         <View style={[styles.row, { marginTop: space.m, justifyContent: 'flex-end' }]}>
           <Button small kind="text" title="Stay here" onPress={() => setHidden(true)} />
+          <DoneToggle lessonKey={`${topic.id}/${lesson.id}`} />
           {nextLesson ? (
             <Button
               small

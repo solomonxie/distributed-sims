@@ -9,7 +9,7 @@ import { templates } from '@dsims/content';
 import type { RootStackParamList } from '../navigation/types';
 import { useTheme, space, toneColor } from '../theme';
 import { FrameCanvas } from '../canvas/FrameCanvas';
-import { Button, IconButton, Mono, Text, Card } from '../ui/primitives';
+import { Button, IconButton, Mono, Text, Card, Segmented, Stepper } from '../ui/primitives';
 import { Icon } from '../ui/Icon';
 import { InfoButton } from '../ui/Info';
 import { haptic } from '../lib/haptics';
@@ -31,10 +31,13 @@ export function AlgorithmPlayerScreen() {
   const [i, setI] = useState(0);
   const [finished, setFinished] = useState(false);
   const [detail, setDetail] = useState<algo.Detail | undefined>(undefined);
+  const [params, setParams] = useState<Record<string, string | number>>({});
   const lesson = route.params.lesson;
   const ls = useMemo(() => (lesson ? lessonOf(lesson.topicId, lesson.lessonId) : undefined), [lesson]);
-  const { frames, chapters } = useMemo(() => (demo ? planChapters(demo, ls?.lesson.steps, custom) : { frames: [], chapters: [] }), [demo, ls, custom]);
+  const { frames, chapters } = useMemo(() => (demo ? planChapters(demo, ls?.lesson.steps, custom, params) : { frames: [], chapters: [] }), [demo, ls, custom, params]);
   const prevRef = useRef<algo.Frame | undefined>(undefined);
+  /** where to land after a knob rebuilds the frames: same chapter, same offset */
+  const keepRef = useRef<{ ck: number; off: number } | null>(null);
 
   const slug = route.params.slug;
   useEffect(() => {
@@ -54,9 +57,16 @@ export function AlgorithmPlayerScreen() {
   }, [nav, demo, editing, c.accent]);
 
   useEffect(() => {
+    const keep = keepRef.current;
+    keepRef.current = null;
+    if (keep) {
+      const ch = chapters[keep.ck];
+      setI(ch ? ch.start + Math.min(keep.off, ch.len - 1) : 0);
+      return;
+    }
     setI(0);
     prevRef.current = undefined;
-  }, [frames]);
+  }, [frames, chapters]);
 
   useEffect(() => {
     const off = bus.on('player:steps', n => setI(Math.min(frames.length - 1, n)));
@@ -82,7 +92,6 @@ export function AlgorithmPlayerScreen() {
     useProgress.getState().played(ls ? { kind: 'lesson', topic: ls.topic.id, lesson: ls.lesson.id } : { kind: 'demo', slug });
     if (last) {
       if (!ls) return;
-      useProgress.getState().completeLesson(`${ls.topic.id}/${ls.lesson.id}`);
       setFinished(true);
       haptic('success');
       return;
@@ -105,12 +114,18 @@ export function AlgorithmPlayerScreen() {
     setDetail(d);
   };
   const stageTap = Gesture.Tap().onEnd(e => runOnJS(tapStage)(e.x, e.y));
+  const knobs = (demo.controls ?? []).filter(k => !k.for || (chapter?.input !== undefined && k.for.includes(chapter.input)));
+  const setKnob = (id: string, v: string | number) => {
+    keepRef.current = { ck, off: i - (chapter?.start ?? 0) };
+    prevRef.current = frames[i];
+    setParams(p => ({ ...p, [id]: v }));
+  };
   const editGraph = editing && demo.editable === 'graph' ? (custom ?? (demo.inputs.find(x => x.id === chapter?.input)?.data as algo.GraphInput)) : null;
 
   return (
     <View style={{ flex: 1, backgroundColor: c.canvas }}>
       <ScrollView contentContainerStyle={{ padding: space.l, paddingBottom: 140 }}>
-        {!editing && (finished && ls ? <LessonDone title={ls.lesson.title} hasNext={!!ls.next} onReview={() => setFinished(false)} onNext={openNextLesson} /> : <ChapterHeader chapters={chapters} i={i} onJump={go} />)}
+        {!editing && (finished && ls ? <LessonDone title={ls.lesson.title} lessonKey={`${ls.topic.id}/${ls.lesson.id}`} hasNext={!!ls.next} onReview={() => setFinished(false)} onNext={openNextLesson} /> : <ChapterHeader chapters={chapters} i={i} onJump={go} />)}
         <View style={[styles.stage, { backgroundColor: c.surface1, borderColor: c.hairline }]}>
           {editGraph ? <GraphEditor size={size} graph={editGraph} onChange={g => setCustom(g)} /> : frame ? (
             <GestureDetector gesture={stageTap}>
@@ -120,6 +135,22 @@ export function AlgorithmPlayerScreen() {
             </GestureDetector>
           ) : null}
         </View>
+        {!editing && knobs.length > 0 && (
+          <View style={[styles.knobs, { backgroundColor: c.surface1, borderColor: c.hairline }]}>
+            {knobs.map(k => (
+              <View key={k.id} style={styles.knobRow}>
+                <Mono color={c.text2} style={{ fontSize: 13, minWidth: 88 }}>
+                  {k.label}
+                </Mono>
+                {k.kind === 'number' ? (
+                  <Stepper value={Number(params[k.id] ?? k.value)} min={k.min} max={k.max} step={k.step ?? 1} onChange={v => setKnob(k.id, v)} />
+                ) : (
+                  <Segmented options={k.options.map(o => o.id)} labels={Object.fromEntries(k.options.map(o => [o.id, o.label]))} value={String(params[k.id] ?? k.value)} onChange={v => setKnob(k.id, v)} style={{ flex: 1 }} />
+                )}
+              </View>
+            ))}
+          </View>
+        )}
         {editing ? (
           <Text v="callout" color={c.text2} style={{ marginTop: space.m }}>
             Tap empty space to add a node · tap two nodes to link or unlink · tap a weight to change it · long-press a node for source, target or delete.
@@ -262,6 +293,8 @@ function GraphEditor({ size, graph, onChange }: { size: number; graph: algo.Grap
 }
 
 const styles = StyleSheet.create({
+  knobs: { marginTop: space.s, borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: 12, paddingVertical: 4 },
+  knobRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6 },
   stage: { borderRadius: 18, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
   stepRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: space.l },
   panelRows: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },

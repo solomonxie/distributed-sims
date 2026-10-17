@@ -6,6 +6,7 @@ import { useTheme, space } from '../theme';
 import { Icon } from '../ui/Icon';
 import { Button, Card, Mono, Text } from '../ui/primitives';
 import { haptic } from '../lib/haptics';
+import { useProgress } from '../state/progress';
 
 export interface Chapter {
   title: string;
@@ -26,10 +27,13 @@ export function lessonOf(topicId: string, lessonId: string) {
 type Step = { title: string; body?: string; watch?: string; input?: string };
 
 /** One timeline for the whole demo: each preset (or lesson step) is a chapter; a text-only lesson step holds the last frame. */
-export function planChapters(demo: algo.Demo, steps: Step[] | undefined, custom: unknown) {
+export function planChapters(demo: algo.Demo, steps: Step[] | undefined, custom: unknown, params: Record<string, unknown> = {}) {
   const cache = new Map<string, algo.Frame[]>();
   const run = (id: string) => {
-    if (!cache.has(id)) cache.set(id, algo.frames(demo, demo.inputs.find(x => x.id === id)?.data));
+    if (!cache.has(id)) {
+      const data = demo.inputs.find(x => x.id === id)?.data;
+      cache.set(id, algo.frames(demo, data && typeof data === 'object' && Object.keys(params).length ? { ...data, ...params } : data));
+    }
     return cache.get(id)!;
   };
   const frames: algo.Frame[] = [];
@@ -113,18 +117,35 @@ export function ChapterHeader({ chapters, i, onJump }: { chapters: Chapter[]; i:
   );
 }
 
-export function LessonDone({ title, hasNext, onReview, onNext }: { title: string; hasNext: boolean; onReview: () => void; onNext: () => void }) {
+export function DoneToggle({ lessonKey }: { lessonKey: string }) {
+  const done = useProgress(s => !!s.lessons[lessonKey]);
+  return (
+    <Button
+      small
+      kind={done ? 'secondary' : 'text'}
+      title={done ? 'Done' : 'Mark done'}
+      icon={done ? 'circle-check' : 'circle'}
+      onPress={() => {
+        useProgress.getState().setLessonDone(lessonKey, !done);
+        haptic(done ? 'light' : 'success');
+      }}
+    />
+  );
+}
+
+export function LessonDone({ title, lessonKey, hasNext, onReview, onNext }: { title: string; lessonKey: string; hasNext: boolean; onReview: () => void; onNext: () => void }) {
   const { c } = useTheme();
   return (
     <Card padded style={{ marginBottom: space.m, borderColor: c.ok }}>
       <View style={styles.row}>
-        <Icon name="circle-check" size={20} color={c.ok} />
+        <Icon name="flag" size={20} color={c.ok} />
         <Text v="headline" style={{ flex: 1 }}>
-          {title} — done
+          {title} — end
         </Text>
       </View>
       <View style={[styles.row, { justifyContent: 'flex-end', marginTop: space.m }]}>
         <Button small kind="text" title="Review" onPress={onReview} />
+        <DoneToggle lessonKey={lessonKey} />
         <Button small kind="primary" title={hasNext ? 'Next lesson' : 'Back to topic'} icon={hasNext ? 'arrow-right' : undefined} onPress={onNext} />
       </View>
     </Card>

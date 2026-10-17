@@ -27,7 +27,7 @@ interface Progress {
   designsOpened: Record<string, boolean>;
   recent: Visit[];
   visit: (v: Visit) => void;
-  completeLesson: (id: string) => void;
+  setLessonDone: (id: string, done: boolean) => void;
   played: (v: Visit) => void;
   recordChallenge: (id: string, passed: boolean, value?: number) => void;
   openedDesign: (problemId: string) => void;
@@ -45,7 +45,12 @@ export const useProgress = create<Progress>()(
         const k = visitKey(v);
         set({ recent: [v, ...(get().recent ?? []).filter(x => visitKey(x) !== k)].slice(0, MAX_RECENT) });
       },
-      completeLesson: id => set({ lessons: { ...get().lessons, [id]: true } }),
+      setLessonDone: (id, done) => {
+        const lessons = { ...get().lessons };
+        if (done) lessons[id] = true;
+        else delete lessons[id];
+        set({ lessons });
+      },
       played: v => {
         if (!get().lastPlayed || visitKey(get().lastPlayed!) !== visitKey(v)) set({ lastPlayed: v });
       },

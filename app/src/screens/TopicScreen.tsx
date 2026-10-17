@@ -49,7 +49,9 @@ export function TopicScreen() {
           const isAlgo = !!(l as any).algo;
           return (
             <Pressable key={l.id} onPress={() => openLesson(nav, t, l)} style={({ pressed }) => [styles.lesson, i < t.lessons.length - 1 && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.hairlineStrong }, pressed && { backgroundColor: c.hairline }]}>
-              <View style={[styles.dot, { borderColor: done ? c.ok : next ? c.accent : c.text3, backgroundColor: done ? c.ok : 'transparent' }]}>{done && <Icon name="check" size={12} color={c.canvas} strokeWidth={3} />}</View>
+              <Pressable hitSlop={12} accessibilityRole="checkbox" accessibilityState={{ checked: done }} accessibilityLabel={`Mark ${l.title} done`} onPress={() => useProgress.getState().setLessonDone(`${t.id}/${l.id}`, !done)} style={[styles.dot, { borderColor: done ? c.ok : next ? c.accent : c.text3, backgroundColor: done ? c.ok : 'transparent' }]}>
+                {done && <Icon name="check" size={12} color={c.canvas} strokeWidth={3} />}
+              </Pressable>
               <View style={{ flex: 1 }}>
                 <Text style={{ fontWeight: next ? '700' : '400' }} numberOfLines={2}>
                   {l.title}

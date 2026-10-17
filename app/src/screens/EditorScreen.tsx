@@ -238,10 +238,8 @@ export function EditorScreen() {
     if (!doc.scenario?.sources.length && doc.nodes.some(n => isClient(n.type))) toast({ text: 'Added 100 rps from every client', tone: 'info', icon: 'activity' });
     const g = route.params.guide;
     if (g?.kind === 'lesson' && g.topicId && g.lessonId) {
-      const key = `${g.topicId}/${g.lessonId}`;
       useProgress.getState().visit({ kind: 'lesson', topic: g.topicId, lesson: g.lessonId });
       useProgress.getState().played({ kind: 'lesson', topic: g.topicId, lesson: g.lessonId });
-      useProgress.getState().completeLesson(key);
     }
     const lessonSpeed = g?.kind === 'lesson' ? ((topics.find(t => t.id === g.topicId)?.lessons.find(l => l.id === g.lessonId) as any)?.speed ?? 1) : g ? 1 : undefined;
     controller.start(doc, layout, { autoplay: true, owner: myDocId, speed: lessonSpeed, pace: g?.kind === 'challenge' ? CHALLENGE_PACE : undefined, auto: false });
