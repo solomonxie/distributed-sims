@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { problems, templates, type ProblemDef } from '@dsims/content';
 import type { RootStackParamList } from '../navigation/types';
@@ -14,7 +14,8 @@ import { useProgress } from '../state/progress';
 export function ProblemsScreen() {
   const { c } = useTheme();
   const nav = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const [f, setF] = useState<'all' | 'classic' | 'product' | 'infra'>('all');
+  const route = useRoute<RouteProp<RootStackParamList, 'Problems'>>();
+  const [f, setF] = useState<'all' | 'classic' | 'product' | 'infra'>(route.params?.category ?? 'all');
   const challenges = useProgress(s => s.challenges);
   const list = [...problems].sort((a, b) => a.order - b.order).filter(p => f === 'all' || p.category === f);
   const stars = (p: ProblemDef) => p.challenges.filter(ch => challenges[`${p.id}/${ch.id}`]?.passed).length;

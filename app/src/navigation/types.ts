@@ -13,7 +13,7 @@ export type RootStackParamList = {
   Topics: { group: 'topics' | 'under-the-hood' | 'network' | 'machine' | 'ai' | 'patterns' };
   Languages: undefined;
   Language: { id: 'cpp' | 'go' | 'python' | 'java' | 'rust' | 'csharp' | 'fp' };
-  Problems: undefined;
+  Problems: { category?: 'classic' | 'product' | 'infra' } | undefined;
   Algorithms: { group?: string };
   Mine: undefined;
   Topic: { topicId: string };

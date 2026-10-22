@@ -126,6 +126,31 @@ function CategoryCard({ icon, title, meta, progress, onPress }: { icon: string; 
   );
 }
 
+const PROBLEM_CATS = [
+  { id: 'classic', title: 'Classic', icon: 'landmark' },
+  { id: 'product', title: 'Product', icon: 'smartphone' },
+  { id: 'infra', title: 'Infra', icon: 'server' },
+  { id: 'all', title: 'All', icon: 'trophy' },
+] as const;
+
+/** One line: the lesson to pick up next and its topic. */
+function ContinueRow({ t, l, nav }: { t: TopicDef; l: TopicDef['lessons'][number]; nav: Nav }) {
+  const { c } = useTheme();
+  const done = useTopicDone()(t);
+  return (
+    <Pressable onPress={() => openLesson(nav, t, l)} accessibilityRole="button" accessibilityLabel={`Continue ${l.title}`} style={({ pressed }) => [styles.resume, { backgroundColor: c.surface1, borderColor: c.hairline }, pressed && { opacity: 0.6 }]}>
+      <Icon name="circle-play" size={18} color={c.accent} />
+      <Text numberOfLines={1} style={{ flex: 1 }}>
+        {l.title}
+      </Text>
+      <Text v="callout" color={c.text3} numberOfLines={1} style={{ maxWidth: '45%' }}>
+        {`${t.title} · ${done}/${t.lessons.length}`}
+      </Text>
+      <Icon name="chevron-right" size={16} color={c.text3} />
+    </Pressable>
+  );
+}
+
 const lessonCount = (ts: TopicDef[]) => ts.reduce((a, t) => a + t.lessons.length, 0);
 
 export function HomeScreen() {
@@ -134,6 +159,8 @@ export function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { items: systems, refresh } = useLibrary();
   const challenges = useProgress(s => s.challenges);
+  const lessonsDone = useProgress(s => s.lessons);
+  const lastPlayed = useProgress(s => s.lastPlayed);
   const doneIn = useTopicDone();
   const [q, setQ] = useState('');
   useEffect(() => {
@@ -145,6 +172,18 @@ export function HomeScreen() {
     const d = doneIn(t);
     return d > 0 && d < t.lessons.length;
   });
+  const firstUndone = (t: TopicDef, from = 0) => t.lessons.slice(from).find(l => !lessonsDone[`${t.id}/${l.id}`]) ?? t.lessons.find(l => !lessonsDone[`${t.id}/${l.id}`]);
+  const resume = (() => {
+    const t = lastPlayed?.kind === 'lesson' ? all.find(x => x.id === lastPlayed.topic) : undefined;
+    if (t && lastPlayed?.kind === 'lesson') {
+      const i = t.lessons.findIndex(l => l.id === lastPlayed.lesson);
+      const l = i >= 0 && !lessonsDone[`${t.id}/${t.lessons[i].id}`] ? t.lessons[i] : firstUndone(t, i + 1);
+      if (l) return { t, l };
+    }
+    const s = started[0];
+    const l = s && firstUndone(s);
+    return l ? { t: s, l } : undefined;
+  })();
   const ratio = (ts: TopicDef[]) => ts.reduce((a, t) => a + doneIn(t), 0) / Math.max(1, lessonCount(ts));
   const langs = LANGUAGES.flatMap(l => langTopics(l.id));
   const cats = [
@@ -167,8 +206,8 @@ export function HomeScreen() {
       go: () => nav.navigate('Topics', { group: s.id }),
     })),
   ].filter(x => x.list.length);
-  const stars = problems.reduce((a, p) => a + p.challenges.filter(ch => challenges[`${p.id}/${ch.id}`]?.passed).length, 0);
-  const maxStars = problems.reduce((a, p) => a + p.challenges.length, 0);
+  const stars = (ps: typeof problems) => ps.reduce((a, p) => a + p.challenges.filter(ch => challenges[`${p.id}/${ch.id}`]?.passed).length, 0) / Math.max(1, ps.reduce((a, p) => a + p.challenges.length, 0));
+  const probCats = PROBLEM_CATS.map(k => ({ ...k, list: k.id === 'all' ? problems : problems.filter(p => p.category === k.id) })).filter(k => k.list.length);
 
   return (
     <ScrollView
@@ -195,13 +234,7 @@ export function HomeScreen() {
         <SearchResults q={q.trim().toLowerCase()} nav={nav} onClear={() => setQ('')} />
       ) : (
         <>
-          {started.length > 0 && (
-            <Section title="Continue learning">
-              {started.slice(0, 6).map(t => (
-                <TopicTile key={t.id} t={t} nav={nav} />
-              ))}
-            </Section>
-          )}
+          {resume && <ContinueRow t={resume.t} l={resume.l} nav={nav} />}
 
           <View style={{ marginTop: space.xxl }}>
             <SectionHead title="Learn" />
@@ -213,22 +246,15 @@ export function HomeScreen() {
           </View>
 
           <View style={{ marginTop: space.xxl }}>
-            <SectionHead title="Practice" />
-            <Card onPress={() => nav.navigate('Problems')}>
-              <View style={styles.cont}>
-                <Icon name="trophy" size={22} color={c.accent} />
-                <View style={{ flex: 1, gap: 2 }}>
-                  <Text v="headline">Design problems</Text>
-                  <Text v="callout" color={c.text2}>
-                    {`${problems.length} real systems · ${stars}/${maxStars} ★`}
-                  </Text>
-                </View>
-                <Icon name="chevron-right" size={18} color={c.text3} />
-              </View>
-            </Card>
+            <SectionHead title="Real world problems" />
+            <TileGrid>
+              {probCats.map(k => (
+                <CategoryCard key={k.id} icon={k.icon} title={k.title} meta={`${k.list.length} problems`} progress={stars(k.list)} onPress={() => nav.navigate('Problems', k.id === 'all' ? undefined : { category: k.id })} />
+              ))}
+            </TileGrid>
           </View>
 
-          <Section title="Build" count={systems.length} onSeeAll={() => nav.navigate('Mine')}>
+          <Section title="Build my own" count={systems.length} onSeeAll={() => nav.navigate('Mine')}>
             {[<Tile key="new" icon="plus" title="New system" meta="blank canvas" onPress={() => createSystem(nav)} />, ...(systems.length ? [] : [<Tile key="tpl" icon="layout-template" title="From a template" meta={`${STARTERS.length} starters`} onPress={() => templateMenu(nav)} />]), ...systems.map(it => <Tile key={it.id} icon="layers" title={it.name} thumb={graphThumb(it.doc)} meta={`${it.nodes} parts · ${ago(it.updatedAt)}`} onPress={() => nav.navigate('Editor', { doc: it.doc })} />)]}
           </Section>
         </>
@@ -329,7 +355,16 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: StyleSheet.hairlineWidth,
   },
-  cont: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },
+  resume: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: space.m,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
   cat: {
     height: 104,
     padding: 14,
